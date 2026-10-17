@@ -18,7 +18,7 @@ Complete examples:
 | Setting | Default | Meaning |
 |---------|---------|---------|
 | `listen` | `127.0.0.1:8080` | Socket address of the REST API. |
-| `data_dir` | `saci-data` | Directory for the SQLite database and run data. Relative paths are resolved from the backend's working directory. |
+| `data_dir` | `saci-data` | Directory for the SQLite database and run data. Relative paths are resolved from the backend's working directory. See [operations](operations.md). |
 | `worker_url` | none | Backend base URL as reachable from workers. Required to launch workers. |
 | `auth.token_env` | none | Environment variable holding the bearer token clients must send. Required when `listen` is not a loopback address. |
 
