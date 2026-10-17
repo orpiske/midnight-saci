@@ -105,8 +105,28 @@ jobs:
           SACI_KUBERNETES_NAMESPACE: saci-test
           SACI_WORKER_IMAGE: localhost/saci-worker:ci
         run: cargo test --locked --package saci-backend --test kubernetes_launcher a_real_cluster
+      - name: Check the Helm chart
+        run: |
+          helm lint deploy/helm/saci
+          cargo test --locked --package saci-backend --test helm_chart
+      - name: Install the chart and upgrade it
+        run: |
+          helm install saci deploy/helm/saci --namespace saci-test --wait --timeout 3m \
+            --set image.repository=localhost/saci-worker --set image.tag=ci --set image.pullPolicy=Never \
+            --set llm.baseUrl=http://$SACI_HOST_ADDRESS:11435/v1 --set llm.model=scripted
+          token=$(kubectl -n saci-test get secret saci-auth -o jsonpath='{.data.token}' | base64 -d)
+          kubectl -n saci-test port-forward svc/saci 18080:8080 &
+          sleep 3
+          curl -fsS http://127.0.0.1:18080/api/v1/health
+          curl -fsS -H "Authorization: Bearer $token" http://127.0.0.1:18080/api/v1/runs
+          helm upgrade saci deploy/helm/saci --namespace saci-test --reuse-values --wait --timeout 3m \
+            --set config.limits.run_timeout_secs=1200
+          kubectl -n saci-test rollout status deployment/saci
+          test "$(kubectl -n saci-test get pods -l app.kubernetes.io/component=backend -o name | wc -l)" = 1
+          test "$(kubectl -n saci-test get secret saci-auth -o jsonpath='{.data.token}' | base64 -d)" = "$token"
       - name: Show the namespace on failure
         if: failure()
         run: |
-          kubectl -n saci-test get jobs,pods,secrets -o wide
+          kubectl -n saci-test get all,jobs,secrets,pvc -o wide
           kubectl -n saci-test describe pods
+          kubectl -n saci-test logs deployment/saci --tail=100 || true

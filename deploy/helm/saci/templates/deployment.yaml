@@ -1,0 +1,105 @@
+{{- $openshift := .Capabilities.APIVersions.Has "security.openshift.io/v1" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "saci.fullname" . }}
+  labels:
+    {{- include "saci.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  # SQLite has one writer: never more than one backend, and the old pod
+  # stops before the new one starts.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "saci.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "saci.labels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+      annotations:
+        checksum/config: {{ include "saci.config" . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "saci.backendServiceAccount" . }}
+      enableServiceLinks: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.backend.podSecurityContext }}
+      securityContext:
+        {{- toYaml .Values.backend.podSecurityContext | nindent 8 }}
+      {{- else if not $openshift }}
+      securityContext:
+        fsGroup: 10001
+      {{- end }}
+      containers:
+        - name: backend
+          image: {{ include "saci.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/saci-backend", "--config", "/etc/saci/saci.yaml"]
+          env:
+            - name: SACI_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "saci.authSecret" . }}
+                  key: {{ .Values.auth.secretKey }}
+            {{- with .Values.backend.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 20
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/saci
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/saci
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "saci.fullname" . }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "saci.claim" . }}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.backend.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

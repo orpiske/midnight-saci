@@ -20,6 +20,7 @@ AI Test Engineer
 - [Launching workers with Podman or Docker: runtime, arguments and networking](docs/launchers.md)
 - [Supervising runs: cancellation, deadlines, lost workers, cleanup and restart recovery](docs/supervision.md)
 - [Running workers as Kubernetes Jobs: API access, permissions, identities and lifecycle](docs/kubernetes.md)
+- [Installing in a Kubernetes or OpenShift namespace with Helm](docs/helm.md)
 - [Walkthrough: from installation to a report with a real worker container](docs/walkthrough.md)
 - [Command line: backend start, run submission, following, reports, cancellation and exit codes](docs/cli.md)
 - [REST API and worker reporting protocol](docs/api.md) ([OpenAPI](docs/openapi.yaml))

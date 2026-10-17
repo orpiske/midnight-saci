@@ -1,0 +1,10 @@
+apiVersion: v2
+name: saci
+description: Saci, the AI test engineer, in one Kubernetes or OpenShift namespace
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/orpiske/midnight-saci
+sources:
+  - https://github.com/orpiske/midnight-saci
+keywords: [testing, ai, agents]

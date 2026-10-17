@@ -67,7 +67,10 @@ before the worker exits.
 [`Containerfile`](../Containerfile) builds `saci-worker` in a Rust stage and
 copies it into `debian:trixie-slim` with the utilities test plans commonly
 use: `bash`, `curl`, `jq`, `git`, `ssh`, `ps`, `ip`, `dig` and `nc`, plus the
-CA certificates the HTTP tool and the model connection need.
+CA certificates the HTTP tool and the model connection need. The image
+also contains `saci-backend` and `saci`, so the Helm chart runs the backend
+from the same image with `saci-backend --config ...` ([Helm](helm.md)).
+The entry point stays `saci-worker`.
 
 ```sh
 make image                               # podman, or docker if podman is missing
