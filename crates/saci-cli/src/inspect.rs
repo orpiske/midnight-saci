@@ -151,7 +151,10 @@ pub async fn follow(
                     print_event(event, output)?;
                 }
                 after = page.next_after;
-                if page.finished {
+                // A finished run's events can span several pages; the last
+                // one ends with `run_finished`.
+                let drained = page.items.last().is_none_or(|e| e.kind.is_terminal());
+                if page.finished && drained {
                     return client.get(&format!("/runs/{run}")).await;
                 }
             }
