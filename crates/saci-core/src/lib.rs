@@ -4,5 +4,14 @@
 //! This crate holds the data types and pure logic that every process agrees
 //! on. It performs no network or container work.
 
+pub mod assessment;
+pub mod event;
+pub mod evidence;
+pub mod ids;
+pub mod plan;
+pub mod run;
+pub mod spec;
+pub mod status;
+
 /// Version of the Saci contracts implemented by this build.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

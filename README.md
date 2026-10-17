@@ -7,5 +7,6 @@ AI Test Engineer
 - [Test plan starter template](docs/templates/test-plan.md)
 - [Worker execution and LLM configuration](docs/execution.md)
 - [Development: build, layout and quality gates](docs/development.md)
+- [Run contracts: identities, statuses, events and reports](docs/contracts.md)
 - [Implementation ticket drafts](docs/plans/implementation-tickets.md)
 - [Created issues and task breakdown](docs/plans/issue-index.md)
