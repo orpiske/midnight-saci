@@ -83,6 +83,12 @@ on a real installation has confirmed them yet:
 - **Workers under an arbitrary UID.** The image's `/workspace` is writable
   by group 0, so any UID in group 0 should work. Only UID 10001 has run as
   a worker.
+- **Changing the UID of an existing install.** The database file belongs
+  to the UID that created it. On storage that ignores `fsGroup`, such as
+  kind's local-path, a backend restarted under another UID cannot write
+  it: CI saw `attempt to write a readonly database` when the same claim
+  was reused under a new UID. OpenShift keeps a namespace's UID stable,
+  so this matters only when the UID is changed by hand.
 - **Storage other than local-path.** Block-backed `ReadWriteOnce` volumes
   are expected to work. Network file systems are not supported
   ([requirements](helm.md#requirements)).
