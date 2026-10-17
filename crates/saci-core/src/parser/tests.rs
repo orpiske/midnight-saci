@@ -80,3 +80,22 @@ fn split_labeled_requires_id_colon_and_title() {
     assert_eq!(split_labeled("Test : Health", "Test"), None);
     assert_eq!(split_labeled("Testing: x", "Test"), None);
 }
+
+#[test]
+fn verification_text_on_the_marker_line_is_kept() {
+    let verification = |marker: &str| {
+        let source = PLAN.replace("**Verification:**\n\nRecord the status.", marker);
+        let plan = parse(&source);
+        plan.units().next().unwrap().verification.clone()
+    };
+    let same_line = verification("**Verification:** Record the status.");
+    assert_eq!(same_line.as_deref(), Some("Record the status."));
+    let outside = verification("**Verification**: Record the status.\n\nThen compare.");
+    assert_eq!(
+        outside.as_deref(),
+        Some("Record the status.\n\nThen compare.")
+    );
+    let separate = verification("**Verification:**\n\nRecord the status.");
+    assert_eq!(separate.as_deref(), Some("Record the status."));
+    assert_eq!(verification("**Verification:**"), None);
+}
