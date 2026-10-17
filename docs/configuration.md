@@ -19,7 +19,7 @@ Complete examples:
 |---------|---------|---------|
 | `listen` | `127.0.0.1:8080` | Socket address of the REST API. |
 | `data_dir` | `saci-data` | Directory for the SQLite database and run data. Relative paths are resolved from the backend's working directory. See [operations](operations.md). |
-| `worker_url` | none | Backend base URL as reachable from workers. Required to launch workers. |
+| `worker_url` | none | Backend base URL as reachable from workers. Required to launch workers; see [networking](launchers.md#networking). |
 | `auth.token_env` | none | Environment variable holding the bearer token clients must send. Required when `listen` is not a loopback address. |
 
 ## `worker`
@@ -28,7 +28,7 @@ Complete examples:
 |---------|---------|---------|
 | `runtime` | `auto` | `podman`, `docker`, `kubernetes`, or `auto` (`podman` if it is in the backend's `PATH`, otherwise `docker`). |
 | `image` | `localhost/saci-worker:latest` | Worker image reference; see [the worker image](worker.md#the-image). |
-| `network` | none | Local runtimes: container network passed as `--network`. |
+| `network` | none | Local runtimes: container network passed as `--network`; see [networking](launchers.md#networking). |
 | `add_hosts` | `[]` | Local runtimes: `name:address` entries passed as `--add-host`. |
 | `kubernetes.namespace` | backend namespace | Namespace for worker Jobs. |
 | `kubernetes.service_account` | namespace default | Service account of worker Jobs (separate from the backend's). |

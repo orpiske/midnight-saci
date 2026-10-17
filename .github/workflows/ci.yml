@@ -57,3 +57,16 @@ jobs:
         env:
           SACI_WORKER_IMAGE: localhost/saci-worker:ci
         run: cargo test --locked --package saci-worker --test worker_bootstrap
+      - name: Launch the image from the backend with Docker
+        env:
+          SACI_WORKER_IMAGE: localhost/saci-worker:ci
+          SACI_CONTAINER_RUNTIME: docker
+        run: cargo test --locked --package saci-backend --test container_launcher
+      - name: Launch the image from the backend with Podman
+        env:
+          SACI_WORKER_IMAGE: localhost/saci-worker:ci
+          SACI_CONTAINER_RUNTIME: podman
+        run: |
+          podman --version
+          docker save localhost/saci-worker:ci | podman load
+          cargo test --locked --package saci-backend --test container_launcher the_backend_launches_the_real_image

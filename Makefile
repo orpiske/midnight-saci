@@ -22,6 +22,7 @@ IMAGE ?= localhost/saci-worker:latest
 image:
 	$(RUNTIME) build -f Containerfile -t $(IMAGE) .
 
-## Run a fixture-backed plan inside the worker image.
+## Run a fixture-backed plan inside the worker image, directly and launched by the backend.
 image-check: image
 	SACI_WORKER_IMAGE=$(IMAGE) SACI_CONTAINER_RUNTIME=$(RUNTIME) cargo test --locked --package saci-worker --test worker_bootstrap
+	SACI_WORKER_IMAGE=$(IMAGE) SACI_CONTAINER_RUNTIME=$(RUNTIME) cargo test --locked --package saci-backend --test container_launcher
