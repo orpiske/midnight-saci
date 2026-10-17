@@ -11,8 +11,14 @@ fn criteria(count: usize) -> Vec<Criterion> {
         .collect()
 }
 
-fn recorded() -> BTreeSet<EvidenceId> {
-    (1..=3).map(EvidenceId::from_index).collect()
+/// `ev-1` to `ev-3` answered; `ev-4` got no response.
+fn recorded() -> Recorded {
+    let mut recorded: Recorded = (1..=3).map(|i| (EvidenceId::from_index(i), None)).collect();
+    recorded.insert(
+        EvidenceId::from_index(4),
+        Some("the request got no response (connection refused)".into()),
+    );
+    recorded
 }
 
 fn result(criterion: usize, status: CriterionStatus, evidence: &[u64]) -> CriterionResult {
@@ -173,4 +179,23 @@ fn errors_win_over_assessments() {
     assert_eq!(attempt_outcome(Some(&pass), false), Outcome::Passed);
     assert_eq!(attempt_outcome(Some(&pass), true), Outcome::Error);
     assert_eq!(attempt_outcome(None, false), Outcome::Error);
+}
+
+#[test]
+fn unanswered_evidence_does_not_mechanically_satisfy_a_criterion() {
+    let refused = assessment(Outcome::Passed, vec![result(0, Satisfied, &[4])]);
+    let found = problems(&refused, 1);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(
+        found[0].starts_with("criterion 0: the cited evidence holds no answer from the target (`ev-4`: the request got no response (connection refused))"),
+        "{found:?}"
+    );
+    let answered = assessment(Outcome::Passed, vec![result(0, Satisfied, &[4, 1])]);
+    assert!(problems(&answered, 1).is_empty());
+    let mut judged = result(0, Satisfied, &[4]);
+    judged.basis = Basis::ModelJudgment;
+    let expected_failure = assessment(Outcome::Passed, vec![judged]);
+    assert!(problems(&expected_failure, 1).is_empty());
+    let contradicted = assessment(Outcome::Failed, vec![result(0, Contradicted, &[4])]);
+    assert!(problems(&contradicted, 1).is_empty());
 }

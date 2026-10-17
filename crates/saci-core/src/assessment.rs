@@ -1,6 +1,6 @@
 //! The structured verdict the agent submits for one attempt.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -69,18 +69,25 @@ pub const ASSESSABLE: [Outcome; 4] = [
     Outcome::Inconclusive,
 ];
 
+/// The evidence recorded in a run: each ID, with why it holds no answer
+/// from the target when it holds none ([`EvidenceRecord::unanswered`]).
+///
+/// [`EvidenceRecord::unanswered`]: crate::evidence::EvidenceRecord::unanswered
+pub type Recorded = BTreeMap<EvidenceId, Option<String>>;
+
 /// Checks a submitted assessment against the unit's criteria and the
 /// evidence recorded in the run. Returns every problem, phrased so the model
 /// can correct its submission.
 ///
 /// # Errors
 ///
-/// Returns the problems when the assessment is incomplete, inconsistent, or
-/// cites evidence that does not exist.
+/// Returns the problems when the assessment is incomplete, inconsistent,
+/// cites evidence that does not exist, or mechanically satisfies a
+/// criterion with evidence that holds no answer from the target.
 pub fn validate(
     assessment: &Assessment,
     criteria: &[Criterion],
-    recorded: &BTreeSet<EvidenceId>,
+    recorded: &Recorded,
 ) -> Result<(), Vec<String>> {
     let mut problems = Vec::new();
     if !ASSESSABLE.contains(&assessment.outcome) {
@@ -127,12 +134,12 @@ fn check_coverage(assessment: &Assessment, criteria: &[Criterion], problems: &mu
     }
 }
 
-fn check_result(
-    result: &CriterionResult,
-    recorded: &BTreeSet<EvidenceId>,
-    problems: &mut Vec<String>,
-) {
-    for id in result.evidence.iter().filter(|id| !recorded.contains(id)) {
+fn check_result(result: &CriterionResult, recorded: &Recorded, problems: &mut Vec<String>) {
+    for id in result
+        .evidence
+        .iter()
+        .filter(|id| !recorded.contains_key(id))
+    {
         problems.push(format!(
             "criterion {}: evidence `{id}` was not recorded in this run",
             result.criterion
@@ -148,10 +155,39 @@ fn check_result(
             result.criterion
         ));
     }
+    check_answered(result, recorded, problems);
     if result.explanation.trim().is_empty() {
         problems.push(format!(
             "criterion {}: explain the result",
             result.criterion
+        ));
+    }
+}
+
+/// A criterion is not mechanically satisfied by observations in which the
+/// target never answered: a refused connection does not show a service is
+/// healthy. An expected failure (a port that must be closed) is a model
+/// judgment, and says so in the report.
+fn check_answered(result: &CriterionResult, recorded: &Recorded, problems: &mut Vec<String>) {
+    if result.status != CriterionStatus::Satisfied || result.basis != Basis::Mechanical {
+        return;
+    }
+    let mut reasons = Vec::new();
+    for id in &result.evidence {
+        match recorded.get(id) {
+            Some(Some(reason)) => reasons.push(format!("`{id}`: {reason}")),
+            Some(None) => return,
+            None => {}
+        }
+    }
+    if !reasons.is_empty() {
+        problems.push(format!(
+            "criterion {}: the cited evidence holds no answer from the target ({}), so it cannot \
+             mechanically show the criterion is satisfied; assess it from an observation that \
+             answered, mark it undetermined, or, when the expected result is that the call fails, \
+             use basis model_judgment and say why",
+            result.criterion,
+            reasons.join("; ")
         ));
     }
 }

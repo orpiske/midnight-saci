@@ -407,3 +407,28 @@ async fn shell_state_carries_over_between_units() {
     assert_eq!(result.outcome, Outcome::Failed);
     assert_eq!(shell_stdout(&h.drain()), ["", "hi from /tmp\n"]);
 }
+
+/// A port nothing listens on.
+fn closed_port() -> u16 {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.local_addr().unwrap().port()
+}
+
+#[tokio::test]
+async fn a_refused_connection_cannot_pass_a_step() {
+    let url = format!("http://127.0.0.1:{}/health", closed_port());
+    let args = json!({"method": "GET", "url": url}).to_string();
+    let script = vec![
+        Reply::ok(&tool_calls_reply(&[("c1", "http", &args)])),
+        assess("passed", "satisfied", &["ev-1"]),
+        assess("blocked", "undetermined", &["ev-1"]),
+    ];
+    let h = harness(script, ExecutionLimits::default()).await;
+    let result = h.run(0, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Blocked, "{result:?}");
+    let refusal = &h.tool_results(2)[1];
+    assert!(
+        refusal.contains("the cited evidence holds no answer from the target (`ev-1`: the request got no response"),
+        "{refusal}"
+    );
+}
