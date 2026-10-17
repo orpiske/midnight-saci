@@ -12,6 +12,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+use reqwest::header::CONTENT_TYPE;
 use reqwest::{Method, StatusCode};
 use saci_core::config::WorkerConfig;
 use saci_core::ids::RunId;
@@ -185,13 +186,18 @@ impl KubernetesLauncher {
         Ok(job_state(&job, pod.as_ref()))
     }
 
-    /// Stops `run`'s worker: its pod gets SIGTERM, then SIGKILL after
-    /// `grace`.
+    /// Stops `run`'s worker: its Job is suspended, so its controller starts
+    /// no replacement, then its pod gets SIGTERM, and SIGKILL after `grace`.
     ///
     /// # Errors
     ///
     /// Fails when the API refuses.
     pub async fn stop(&self, run: &RunId, grace: Duration) -> Result<(), LaunchError> {
+        let job = self.api.jobs(&format!("/{}", worker_name(run)));
+        let suspend = json!({"spec": {"suspend": true}});
+        self.api
+            .tolerate_missing(Method::PATCH, &job, Some(&suspend))
+            .await?;
         let Some(pod) = self.pod_of(run).await? else {
             return Ok(());
         };
@@ -339,7 +345,9 @@ pub fn job_state(job: &Value, pod: Option<&Value>) -> WorkerState {
     let status = &job["status"];
     let ended = status["succeeded"].as_u64().unwrap_or(0) > 0
         || status["failed"].as_u64().unwrap_or(0) > 0
-        || conditions(job).any(|kind| kind == "Complete" || kind == "Failed");
+        || conditions(job).any(|kind| kind == "Complete" || kind == "Failed")
+        // A suspended Job runs no pod again once its pod is gone.
+        || (pod.is_none() && conditions(job).any(|kind| kind == "Suspended"));
     let terminated = pod.and_then(|pod| {
         pod["status"]["containerStatuses"][0]["state"]["terminated"]["exitCode"].as_i64()
     });
@@ -444,6 +452,9 @@ impl Api {
             // Re-read on every request: projected tokens are rotated.
             let token = std::fs::read_to_string(file).unwrap_or_default();
             request = request.bearer_auth(token.trim());
+        }
+        if method == Method::PATCH {
+            request = request.header(CONTENT_TYPE, "application/merge-patch+json");
         }
         if let Some(body) = body {
             request = request.json(body);
@@ -553,6 +564,10 @@ mod tests {
             job_state(&json!({"status": {"failed": 1}}), Some(&exited)),
             WorkerState::Exited(3)
         );
+        let suspended =
+            json!({"status": {"conditions": [{"type": "Suspended", "status": "True"}]}});
+        assert_eq!(job_state(&suspended, Some(&running)), WorkerState::Running);
+        assert_eq!(job_state(&suspended, None), WorkerState::Exited(1));
         let deleted_pod = json!({"status": {"conditions": [{"type": "Failed", "status": "True"}]}});
         assert_eq!(job_state(&deleted_pod, None), WorkerState::Exited(1));
         assert_eq!(
