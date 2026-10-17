@@ -19,6 +19,7 @@ AI Test Engineer
 - [The worker: entry point, image and adding utilities](docs/worker.md)
 - [Launching workers with Podman or Docker: runtime, arguments and networking](docs/launchers.md)
 - [Supervising runs: cancellation, deadlines, lost workers, cleanup and restart recovery](docs/supervision.md)
+- [Walkthrough: from installation to a report with a real worker container](docs/walkthrough.md)
 - [Command line: backend start, run submission, following, reports, cancellation and exit codes](docs/cli.md)
 - [REST API and worker reporting protocol](docs/api.md) ([OpenAPI](docs/openapi.yaml))
 - [Implementation ticket drafts](docs/plans/implementation-tickets.md)

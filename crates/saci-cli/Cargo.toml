@@ -29,5 +29,6 @@ uuid.workspace = true
 
 [dev-dependencies]
 axum.workspace = true
+saci-testkit.workspace = true
 saci-worker.workspace = true
 tempfile.workspace = true

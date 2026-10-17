@@ -1,0 +1,48 @@
+{
+  "units": {
+    "Check service health": [
+      {"tool": "http", "arguments": {"method": "GET", "url": "${SERVICE_URL}/health"}},
+      {"tool": "assess", "arguments": {
+        "outcome": "passed",
+        "criteria": [
+          {"criterion": 0, "status": "satisfied", "basis": "mechanical", "evidence": ["$last"],
+           "explanation": "GET /health answered 200 with {\"status\":\"ok\"}"}
+        ],
+        "explanation": "The service is reachable and reports healthy."
+      }}
+    ],
+    "Read an existing order": [
+      {"tool": "http", "arguments": {"method": "GET", "url": "${SERVICE_URL}/orders/1"}},
+      {"tool": "assess", "arguments": {
+        "outcome": "passed",
+        "criteria": [
+          {"criterion": 0, "status": "satisfied", "basis": "mechanical", "evidence": ["$last"],
+           "explanation": "GET /orders/1 answered 200"},
+          {"criterion": 1, "status": "satisfied", "basis": "mechanical", "evidence": ["$last"],
+           "explanation": "the body has \"status\": \"shipped\""}
+        ],
+        "explanation": "Order 1 is readable and shipped."
+      }}
+    ],
+    "Create an order": [
+      {"tool": "http", "arguments": {
+        "method": "POST", "url": "${SERVICE_URL}/orders",
+        "headers": {"Content-Type": "application/json"},
+        "body": "{\"item\": \"mouse\", \"quantity\": 1}"
+      }},
+      {"tool": "assess", "arguments": {
+        "outcome": "failed",
+        "criteria": [
+          {"criterion": 0, "status": "contradicted", "basis": "mechanical", "evidence": ["$last"],
+           "explanation": "POST /orders answered 500, not 201"},
+          {"criterion": 1, "status": "contradicted", "basis": "mechanical", "evidence": ["$last"],
+           "explanation": "the body is {\"error\":\"orders database is read-only\"} and has no id"}
+        ],
+        "explanation": "Creating an order fails: the service reports that its database is read-only."
+      }}
+    ],
+    "Run the nightly export": [
+      {"tool": "shell", "arguments": {"command": "sleep 300 && echo exported"}}
+    ]
+  }
+}

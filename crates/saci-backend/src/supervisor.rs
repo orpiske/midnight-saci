@@ -389,6 +389,8 @@ async fn clean_up(launcher: &Launcher, run: &RunId, timing: Timing) {
 ///   has not acted on anything and is launched now.
 /// - Any other run may already have executed actions and is not repeated:
 ///   it ends `error` with the reason.
+///
+/// Workers left over from runs that had already finished are removed.
 async fn recover(backend: &Backend, launcher: &Launcher, timing: Timing) {
     let records = match backend.store.unfinished().await {
         Ok(records) => records,
@@ -401,16 +403,28 @@ async fn recover(backend: &Backend, launcher: &Launcher, timing: Timing) {
         tracing::warn!(%error, "cannot list workers; treating them as gone");
         Vec::new()
     });
-    for record in records {
-        recover_run(
-            backend,
-            launcher,
-            &record,
-            existing.contains(&record.spec.run_id),
-            timing,
-        )
-        .await;
+    for record in &records {
+        let exists = existing.contains(&record.spec.run_id);
+        recover_run(backend, launcher, record, exists, timing).await;
     }
+    let unfinished: Vec<&RunId> = records.iter().map(|record| &record.spec.run_id).collect();
+    for run in existing.iter().filter(|run| !unfinished.contains(run)) {
+        remove_leftover(backend, launcher, run, timing).await;
+    }
+}
+
+/// Removes the worker of a finished run whose cleanup an earlier backend
+/// process did not complete. Workers of runs this backend does not know
+/// are left alone: another backend may own them.
+async fn remove_leftover(backend: &Backend, launcher: &Launcher, run: &RunId, timing: Timing) {
+    if !is_finished(backend, run).await {
+        return;
+    }
+    tracing::info!(%run, "removing the worker of a run that finished before the restart");
+    let (launcher, run) = (launcher.clone(), run.clone());
+    tokio::spawn(Box::pin(async move {
+        clean_up(&launcher, &run, timing).await;
+    }));
 }
 
 async fn recover_run(

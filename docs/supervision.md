@@ -77,6 +77,10 @@ before it accepts new launches:
 The backend never repeats a run that may already have acted on its
 targets. Resubmit such a run yourself if repeating it is safe.
 
+Workers of runs that had already finished, whose cleanup the earlier
+process did not complete, are removed. Workers of runs this backend does
+not know are left alone, since another backend may own them.
+
 When no runtime is usable at start-up, every unfinished run ends `error`
 with the launch failure.
 
@@ -84,7 +88,7 @@ with the launch failure.
 
 - `crates/saci-backend/tests/supervision.rs` uses a fake runtime to cover
   uncertain launches, cancellation, deadlines, exits with and without a
-  report, disappearance, cleanup and each recovery case.
+  report, disappearance, cleanup, each recovery case and leftover removal.
 - `crates/saci-backend/tests/container_launcher.rs` uses Docker or Podman
   and the real image (`SACI_WORKER_IMAGE`). It launches a worker that runs
   a plan to the end, and cancels one in the middle of `sleep 60`, which

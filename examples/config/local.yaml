@@ -4,20 +4,19 @@
 backend:
   listen: 127.0.0.1:8080
   data_dir: ./saci-data
-  # How workers reach the backend from inside their container.
-  worker_url: http://host.containers.internal:8080
+  # How workers reach the backend. Workers share the host's network
+  # (worker.network below), so loopback works; for bridged workers see
+  # docs/launchers.md#networking.
+  worker_url: http://127.0.0.1:8080
 
 worker:
   runtime: auto            # podman if found in PATH, otherwise docker
   image: localhost/saci-worker:latest
-  # Docker on Linux needs this to resolve host.containers.internal;
-  # Podman provides the name already.
-  add_hosts:
-    - host.containers.internal:host-gateway
+  network: host
 
 llm:
   # OpenRouter. For a host-local Ollama use
-  #   base_url: http://host.containers.internal:11434/v1
+  #   base_url: http://127.0.0.1:11434/v1
   # and omit api_key_env.
   base_url: https://openrouter.ai/api/v1
   model: your-tool-capable-model
@@ -30,7 +29,7 @@ environments:
   local:
     description: A disposable service on the host.
     parameters:
-      SERVICE_URL: http://host.containers.internal:8081
+      SERVICE_URL: http://127.0.0.1:8081
     secrets:
       SERVICE_TOKEN:
         env: SACI_DEMO_SERVICE_TOKEN
