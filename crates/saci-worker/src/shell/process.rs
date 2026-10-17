@@ -128,12 +128,26 @@ fn pump(mut reader: impl AsyncRead + Unpin + Send + 'static) -> Pipe {
     receiver
 }
 
-/// Every live process descended from `root`, found through `/proc`.
+/// Every live process descended from `root`, found through `/proc`, or
+/// through `ps` where there is no `/proc` (macOS).
 fn descendants(root: Pid) -> Vec<Pid> {
-    let mut children: BTreeMap<i32, Vec<i32>> = BTreeMap::new();
-    let Ok(entries) = std::fs::read_dir("/proc") else {
-        return Vec::new();
-    };
+    let children = proc_children().or_else(ps_children).unwrap_or_default();
+    let mut found = Vec::new();
+    let mut queue = VecDeque::from([root.as_raw()]);
+    while let Some(pid) = queue.pop_front() {
+        for child in children.get(&pid).into_iter().flatten() {
+            found.push(Pid::from_raw(*child));
+            queue.push_back(*child);
+        }
+    }
+    found
+}
+
+type Children = BTreeMap<i32, Vec<i32>>;
+
+fn proc_children() -> Option<Children> {
+    let entries = std::fs::read_dir("/proc").ok()?;
+    let mut children = Children::new();
     for entry in entries.flatten() {
         let Some(pid) = entry
             .file_name()
@@ -146,15 +160,30 @@ fn descendants(root: Pid) -> Vec<Pid> {
             children.entry(parent).or_default().push(pid);
         }
     }
-    let mut found = Vec::new();
-    let mut queue = VecDeque::from([root.as_raw()]);
-    while let Some(pid) = queue.pop_front() {
-        for child in children.get(&pid).into_iter().flatten() {
-            found.push(Pid::from_raw(*child));
-            queue.push_back(*child);
+    (!children.is_empty()).then_some(children)
+}
+
+fn ps_children() -> Option<Children> {
+    let output = std::process::Command::new("ps")
+        .args(["-A", "-o", "pid=", "-o", "ppid="])
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| parse_ps(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// Children by parent from `ps -o pid= -o ppid=` lines.
+fn parse_ps(text: &str) -> Children {
+    let mut children = Children::new();
+    for line in text.lines() {
+        let mut fields = line.split_whitespace().map(str::parse::<i32>);
+        if let (Some(Ok(pid)), Some(Ok(parent))) = (fields.next(), fields.next()) {
+            children.entry(parent).or_default().push(pid);
         }
     }
-    found
+    children
 }
 
 fn parent_of(pid: i32) -> Option<i32> {
@@ -162,4 +191,37 @@ fn parent_of(pid: i32) -> Option<i32> {
     // The command name is parenthesized and may contain spaces.
     let after = stat.rsplit_once(')')?.1;
     after.split_whitespace().nth(1)?.parse().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ps_output_gives_the_same_tree_as_proc() {
+        let parsed = parse_ps("    1     0\n  42     1\n  43    42\nbad line\n");
+        assert_eq!(parsed[&1], [42]);
+        assert_eq!(parsed[&42], [43]);
+        let me = i32::try_from(std::process::id()).unwrap();
+        let parent = nix::unistd::getppid().as_raw();
+        let listed = ps_children().expect("ps is available");
+        assert!(listed[&parent].contains(&me), "{listed:?}");
+        if let Some(proc) = proc_children() {
+            assert!(proc[&parent].contains(&me));
+        }
+    }
+
+    #[test]
+    fn descendants_are_found_through_ps() {
+        let mut child = std::process::Command::new("sleep")
+            .arg("5")
+            .spawn()
+            .unwrap();
+        let me = Pid::from_raw(i32::try_from(std::process::id()).unwrap());
+        let child_pid = i32::try_from(child.id()).unwrap();
+        let listed = ps_children().unwrap();
+        assert!(listed[&me.as_raw()].contains(&child_pid));
+        child.kill().unwrap();
+        child.wait().unwrap();
+    }
 }
