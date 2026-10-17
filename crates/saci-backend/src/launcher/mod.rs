@@ -203,7 +203,7 @@ impl Launcher {
     /// A [`LaunchError`]; `uncertain` when the worker may exist anyway.
     pub async fn launch(&self, assignment: &Assignment) -> Result<(), LaunchError> {
         match self {
-            Self::Container(launcher) => launcher.launch(assignment).await,
+            Self::Container(launcher) => Box::pin(launcher.launch(assignment)).await,
         }
     }
 
@@ -214,7 +214,7 @@ impl Launcher {
     /// Fails when the runtime cannot be asked.
     pub async fn state(&self, run: &RunId) -> Result<WorkerState, LaunchError> {
         match self {
-            Self::Container(launcher) => launcher.state(run).await,
+            Self::Container(launcher) => Box::pin(launcher.state(run)).await,
         }
     }
 
@@ -225,14 +225,14 @@ impl Launcher {
     /// Fails when the runtime refuses.
     pub async fn stop(&self, run: &RunId, grace: Duration) -> Result<(), LaunchError> {
         match self {
-            Self::Container(launcher) => launcher.stop(run, grace).await,
+            Self::Container(launcher) => Box::pin(launcher.stop(run, grace)).await,
         }
     }
 
     /// The last lines of `run`'s worker output, for diagnosing failures.
     pub async fn logs(&self, run: &RunId) -> String {
         match self {
-            Self::Container(launcher) => launcher.logs(run).await,
+            Self::Container(launcher) => Box::pin(launcher.logs(run)).await,
         }
     }
 
@@ -243,7 +243,7 @@ impl Launcher {
     /// Fails when the runtime refuses.
     pub async fn remove(&self, run: &RunId) -> Result<(), LaunchError> {
         match self {
-            Self::Container(launcher) => launcher.remove(run).await,
+            Self::Container(launcher) => Box::pin(launcher.remove(run)).await,
         }
     }
 
@@ -254,7 +254,7 @@ impl Launcher {
     /// Fails when the runtime cannot be asked.
     pub async fn workers(&self) -> Result<Vec<RunId>, LaunchError> {
         match self {
-            Self::Container(launcher) => launcher.workers().await,
+            Self::Container(launcher) => Box::pin(launcher.workers()).await,
         }
     }
 }

@@ -6,13 +6,12 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use saci_core::config::Config;
-use saci_core::status::Outcome;
 use tokio::net::TcpListener;
 
 use crate::api::{Backend, ClientAuth, router};
 use crate::launcher::{LaunchError, Launcher};
 use crate::store::Store;
-use crate::supervisor::{self, Command, CommandReceiver};
+use crate::supervisor;
 
 /// Loads `config_path` and serves until interrupted (Ctrl-C or SIGTERM).
 ///
@@ -52,7 +51,13 @@ pub async fn serve(
     let launcher = start_launcher(&config).await;
     let (commands, receiver) = supervisor::channel();
     let backend = Backend::new(store, config, Arc::new(commands));
-    tokio::spawn(Box::pin(supervise(backend.clone(), launcher, receiver)));
+    let timing = supervisor::Timing::default();
+    tokio::spawn(Box::pin(supervisor::run(
+        backend.clone(),
+        launcher,
+        receiver,
+        timing,
+    )));
     let address = listener.local_addr()?;
     tracing::info!(%address, data_dir = %data_dir.display(), "Saci backend listening");
     println!(
@@ -75,38 +80,6 @@ async fn start_launcher(config: &Config) -> Result<Launcher, LaunchError> {
         Err(error) => tracing::warn!(%error, "runs cannot be launched until this is fixed"),
     }
     launcher
-}
-
-/// Handles launch and cancellation requests.
-async fn supervise(
-    backend: Backend,
-    launcher: Result<Launcher, LaunchError>,
-    mut commands: CommandReceiver,
-) {
-    while let Some(command) = commands.recv().await {
-        Box::pin(handle(&backend, launcher.as_ref(), command)).await;
-    }
-}
-
-async fn handle(backend: &Backend, launcher: Result<&Launcher, &LaunchError>, command: Command) {
-    match command {
-        Command::Launch(run) => {
-            let launched = match launcher {
-                Ok(launcher) => Box::pin(supervisor::launch(backend, launcher, &run)).await,
-                Err(error) => Err(error.clone()),
-            };
-            if let Err(error) = launched {
-                let reason = format!("the worker could not be launched: {}", error.message);
-                supervisor::finish(backend, &run, Outcome::Error, reason).await;
-            }
-        }
-        Command::Cancel(run) => {
-            let Ok(launcher) = launcher else { return };
-            if let Err(error) = launcher.stop(&run, supervisor::STOP_GRACE).await {
-                tracing::warn!(%run, %error, "cannot stop the worker");
-            }
-        }
-    }
 }
 
 async fn shutdown_signal() {

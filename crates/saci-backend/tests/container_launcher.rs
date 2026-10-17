@@ -257,21 +257,56 @@ fn assignments_name_what_cannot_be_provided() {
     assert!(error.message.contains("backend.worker_url"));
 }
 
-/// A real worker container, launched by a real backend, runs a scripted
-/// plan to its end.
-#[tokio::test]
-async fn the_backend_launches_the_real_image() {
+fn real_runtime() -> Option<(String, String)> {
     let Ok(image) = std::env::var("SACI_WORKER_IMAGE") else {
         eprintln!("SACI_WORKER_IMAGE is not set; skipping the real launch");
-        return;
+        return None;
     };
     let runtime = std::env::var("SACI_CONTAINER_RUNTIME").unwrap_or_else(|_| "docker".into());
-    let outcome = Box::pin(real::run(&image, &runtime)).await;
-    assert_eq!(outcome, "passed");
+    Some((image, runtime))
+}
+
+/// A real worker container, launched by a real backend, runs a scripted
+/// plan to its end and is removed.
+#[tokio::test]
+async fn the_backend_launches_the_real_image() {
+    let Some((image, runtime)) = real_runtime() else {
+        return;
+    };
+    let real = Box::pin(real::Real::start(&image, &runtime, real::passing())).await;
+    let run = Box::pin(real.submit()).await;
+    let summary = Box::pin(real.finished(&run)).await;
+    assert_eq!(summary["outcome"], "passed", "{summary}");
+    Box::pin(real.removed(&run)).await;
+}
+
+/// Cancelling a real run interrupts the running command, keeps its
+/// evidence, ends the run `cancelled` and removes the worker.
+#[tokio::test]
+async fn the_backend_cancels_a_real_worker() {
+    let Some((image, runtime)) = real_runtime() else {
+        return;
+    };
+    let real = Box::pin(real::Real::start(&image, &runtime, real::sleeping())).await;
+    let run = Box::pin(real.submit()).await;
+    Box::pin(real.until(&run, |summary| {
+        summary["last_event_seq"].as_u64() >= Some(2)
+    }))
+    .await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    Box::pin(real.post(&format!("/runs/{run}/cancellation"))).await;
+    let summary = Box::pin(real.finished(&run)).await;
+    assert_eq!(summary["outcome"], "cancelled", "{summary}");
+    let report = Box::pin(real.get(&format!("/runs/{run}/report"))).await;
+    let evidence = &report["evidence"][0];
+    assert_eq!(evidence["tool"], "shell", "{report}");
+    assert_eq!(evidence["command"], "sleep 60", "{report}");
+    assert_eq!(evidence["termination"], "cancelled", "{report}");
+    Box::pin(real.removed(&run)).await;
 }
 
 mod real {
-    use super::{Launcher, RunId};
+    use super::{Launcher, RunId, WorkerState};
     use saci_core::config::Config;
     use saci_testkit::{FakeModel, Reply, tool_calls_reply};
     use serde_json::{Value, json};
@@ -279,7 +314,8 @@ mod real {
     const PLAN: &str = "# Test Plan: Launch\n\n## Phase 1: Main\n\n### Test 1.1: Echo\n\nRun `echo launched`.\n\n\
                         **Expected result:**\n\n- The output is `launched`.\n";
 
-    fn script() -> Vec<Reply> {
+    /// One shell call, then a passing assessment.
+    pub fn passing() -> Vec<Reply> {
         let shell = json!({ "command": "echo launched" }).to_string();
         let assessment = json!({
             "outcome": "passed",
@@ -294,22 +330,94 @@ mod real {
         ]
     }
 
-    /// Runs the plan through a backend on the host network; returns the
-    /// run's outcome.
-    pub async fn run(image: &str, runtime: &str) -> String {
-        let model = FakeModel::start(script()).await.unwrap();
-        let dir = tempfile::tempdir().unwrap();
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let yaml = config_yaml(dir.path(), address, image, runtime, &model.base_url());
-        let config = Config::from_yaml(&yaml, "saci.yaml").unwrap();
-        let launcher = Box::pin(Launcher::from_config(&config)).await.unwrap();
-        spawn_backend(config, listener);
-        let url = format!("http://{address}/api/v1");
-        let run = Box::pin(submit(&url)).await;
-        let summary = Box::pin(finished(&url, &run)).await;
-        Box::pin(launcher.remove(&run)).await.unwrap();
-        summary["outcome"].as_str().unwrap_or_default().to_owned()
+    /// A shell call that runs until it is cancelled.
+    pub fn sleeping() -> Vec<Reply> {
+        let shell = json!({ "command": "sleep 60" }).to_string();
+        vec![Reply::ok(&tool_calls_reply(&[("s", "shell", &shell)]))]
+    }
+
+    /// A backend on the host network launching real workers.
+    pub struct Real {
+        url: String,
+        launcher: Launcher,
+        client: reqwest::Client,
+        _model: FakeModel,
+        _dir: tempfile::TempDir,
+    }
+
+    impl Real {
+        pub async fn start(image: &str, runtime: &str, script: Vec<Reply>) -> Self {
+            let model = FakeModel::start(script).await.unwrap();
+            let dir = tempfile::tempdir().unwrap();
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let yaml = config_yaml(dir.path(), address, image, runtime, &model.base_url());
+            let config = Config::from_yaml(&yaml, "saci.yaml").unwrap();
+            let launcher = Box::pin(Launcher::from_config(&config)).await.unwrap();
+            spawn_backend(config, listener);
+            Self {
+                url: format!("http://{address}/api/v1"),
+                launcher,
+                client: reqwest::Client::new(),
+                _model: model,
+                _dir: dir,
+            }
+        }
+
+        pub async fn submit(&self) -> RunId {
+            let body = json!({"bundle": {"entry": "plan.md", "documents": {"plan.md": PLAN}}, "environment": "local"});
+            let request = self.client.post(format!("{}/runs", self.url)).json(&body);
+            let reply: Value = request.send().await.unwrap().json().await.unwrap();
+            RunId::parse(reply["id"].as_str().unwrap()).unwrap()
+        }
+
+        pub async fn get(&self, path: &str) -> Value {
+            let response = self
+                .client
+                .get(format!("{}{path}", self.url))
+                .send()
+                .await
+                .unwrap();
+            response.json().await.unwrap()
+        }
+
+        pub async fn post(&self, path: &str) -> Value {
+            let response = self
+                .client
+                .post(format!("{}{path}", self.url))
+                .send()
+                .await
+                .unwrap();
+            response.json().await.unwrap()
+        }
+
+        /// Waits until the run's summary satisfies `condition`.
+        pub async fn until(&self, run: &RunId, condition: impl Fn(&Value) -> bool) -> Value {
+            for _ in 0..120 {
+                let summary = self.get(&format!("/runs/{run}")).await;
+                if condition(&summary) {
+                    return summary;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            }
+            panic!("the run never reached the expected state");
+        }
+
+        pub async fn finished(&self, run: &RunId) -> Value {
+            self.until(run, |summary| summary["lifecycle"] == "finished")
+                .await
+        }
+
+        /// Waits until the supervisor has removed the run's worker.
+        pub async fn removed(&self, run: &RunId) {
+            for _ in 0..120 {
+                if self.launcher.state(run).await.unwrap() == WorkerState::Missing {
+                    return;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            }
+            panic!("the worker was not removed");
+        }
     }
 
     fn spawn_backend(config: Config, listener: tokio::net::TcpListener) {
@@ -330,39 +438,5 @@ mod real {
              environments:\n  local: {{}}\n",
             data.display()
         )
-    }
-
-    async fn submit(url: &str) -> RunId {
-        let body = json!({"bundle": {"entry": "plan.md", "documents": {"plan.md": PLAN}}, "environment": "local"});
-        let client = reqwest::Client::new();
-        let reply: Value = client
-            .post(format!("{url}/runs"))
-            .json(&body)
-            .send()
-            .await
-            .unwrap()
-            .json()
-            .await
-            .unwrap();
-        RunId::parse(reply["id"].as_str().unwrap()).unwrap()
-    }
-
-    async fn finished(url: &str, run: &RunId) -> Value {
-        let client = reqwest::Client::new();
-        for _ in 0..120 {
-            let summary: Value = client
-                .get(format!("{url}/runs/{run}"))
-                .send()
-                .await
-                .unwrap()
-                .json()
-                .await
-                .unwrap();
-            if summary["lifecycle"] == "finished" {
-                return summary;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        }
-        panic!("the run did not finish");
     }
 }

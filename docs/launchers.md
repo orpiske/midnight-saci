@@ -63,9 +63,11 @@ podman run --detach --name=saci-run-1a2b… \
 - **Resources.** `environments.<env>.worker.cpu` and `.memory` become
   `--cpus` and `--memory`, in the runtime's own syntax (`1.5`, `2g`).
 
-Cancelling a run stops its worker with `<runtime> stop --time=30`:
-SIGTERM, which makes the worker cancel and report its end, then SIGKILL if
-it has not exited.
+Cancelling a run, or a run overrunning its deadline, stops its worker with
+`<runtime> stop --time=30`: SIGTERM, which makes the worker cancel and
+report its end, then SIGKILL if it has not exited. Once the run has ended
+the worker is removed with `<runtime> rm --force`. See
+[supervision](supervision.md) for deadlines, lost workers and restarts.
 
 ## Networking
 
