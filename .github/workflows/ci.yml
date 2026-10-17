@@ -62,6 +62,13 @@ jobs:
           SACI_WORKER_IMAGE: localhost/saci-worker:ci
           SACI_CONTAINER_RUNTIME: docker
         run: cargo test --locked --package saci-backend --test container_launcher
+      - name: Run the walkthrough with Docker
+        env:
+          IMAGE: localhost/saci-worker:ci
+          RUNTIME: docker
+        run: |
+          cargo build --locked --package saci-cli --package saci-testkit
+          examples/walkthrough/walkthrough.sh
       - name: Launch the image from the backend with Podman
         env:
           SACI_WORKER_IMAGE: localhost/saci-worker:ci

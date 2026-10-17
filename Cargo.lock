@@ -5933,6 +5933,7 @@ dependencies = [
  "reqwest 0.13.5",
  "saci-backend",
  "saci-core",
+ "saci-testkit",
  "saci-worker",
  "serde",
  "serde_json",

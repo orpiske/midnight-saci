@@ -138,19 +138,7 @@ impl Harness {
     /// Stores events as the worker would report them.
     async fn report(&self, run: &RunId, kinds: Vec<EventKind>) {
         let first = self.backend.store.run(run).await.unwrap().report.last_seq + 1;
-        let events = kinds
-            .into_iter()
-            .zip(first..)
-            .map(|(kind, seq)| RunEvent {
-                run_id: run.clone(),
-                seq,
-                at: time::OffsetDateTime::now_utc(),
-                unit: None,
-                attempt: None,
-                source: None,
-                kind,
-            })
-            .collect();
+        let events = numbered(run, first, kinds);
         self.backend
             .store
             .append_events(run, events, Redactor::new())
@@ -171,6 +159,23 @@ impl Harness {
         })
         .await
     }
+}
+
+/// `kinds` as the run's events, numbered from `first`.
+fn numbered(run: &RunId, first: u64, kinds: Vec<EventKind>) -> Vec<RunEvent> {
+    kinds
+        .into_iter()
+        .zip(first..)
+        .map(|(kind, seq)| RunEvent {
+            run_id: run.clone(),
+            seq,
+            at: time::OffsetDateTime::now_utc(),
+            unit: None,
+            attempt: None,
+            source: None,
+            kind,
+        })
+        .collect()
 }
 
 async fn serve(backend: &Backend) -> String {
@@ -401,4 +406,37 @@ async fn restart_recovery_never_repeats_a_run_that_may_have_acted() {
     harness.set_state(&running, "exited 0");
     exists(&harness.container(&running), false).await;
     assert_eq!(harness.finished(&running).await.1, "done");
+}
+
+/// A run an earlier backend process saw finish, without removing its worker.
+async fn finished_earlier(dir: &Path) -> RunId {
+    let store = Store::open(&dir.join("data")).await.unwrap();
+    let (commands, _ignored) = supervisor::channel();
+    let backend = Backend::new(store, config(""), Arc::new(commands));
+    let run = submit(&serve(&backend).await).await;
+    let kinds = [started(), run_finished(Outcome::Passed, "done")];
+    let events = numbered(&run, 1, kinds.into());
+    let store = &backend.store;
+    store
+        .append_events(&run, events, Redactor::new())
+        .await
+        .unwrap();
+    run
+}
+
+#[tokio::test]
+async fn restart_removes_workers_of_finished_runs_only() {
+    let dir = tempfile::tempdir().unwrap();
+    let runtime = fake_runtime(dir.path());
+    let finished = finished_earlier(dir.path()).await;
+    let foreign = RunId::parse("run-abc123").unwrap();
+    for run in [&finished, &foreign] {
+        std::fs::write(runtime.join(format!("state-saci-{run}")), "exited 0").unwrap();
+    }
+    let harness = Harness::supervise(dir, runtime, config("")).await;
+    exists(&harness.container(&finished), false).await;
+    assert!(
+        harness.container(&foreign).exists(),
+        "a worker of a run this backend does not know is left alone"
+    );
 }
