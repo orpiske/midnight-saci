@@ -83,9 +83,13 @@ A worker reports progress as ordered `RunEvent`s (`run_started`,
 them into a `RunReport` with `RunReport::apply`, which rejects events for
 another run, events out of sequence (including retransmissions), events
 after `run_finished`, and unit events that do not match the unit's state:
-an attempt outcome that does not follow its assessment, an assessment
-citing evidence not in the run, or a unit outcome other than its last
-attempt's. A rejected event leaves the report unchanged.
+an attempt outcome that does not follow its assessment, an assessment that
+fails the same checks the worker applies (`assessment::validate`: every
+authored criterion assessed once, outcome consistent with the criteria,
+evidence recorded in the run), a unit outcome other than its last
+attempt's, or a skip of a unit that was attempted. Each unit's identity
+carries its authored `criteria` for this. A rejected event leaves the
+report unchanged.
 
 Examples of complete event streams live in
 `crates/saci-core/tests/fixtures/runs/` (success, failure with stop, and a

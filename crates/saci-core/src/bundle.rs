@@ -270,6 +270,7 @@ fn identity(key: UnitKey, unit: &Unit, phase: &str) -> UnitIdentity {
         phase: phase.to_owned(),
         location: unit.location.clone(),
         cleanup,
+        criteria: unit.expected.clone(),
     }
 }
 

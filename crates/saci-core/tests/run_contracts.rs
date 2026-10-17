@@ -155,7 +155,7 @@ fn attempts_must_follow_valid_assessments() {
     let mut invented = finished.clone();
     invented["assessment"]["criteria"][0]["evidence"][0] = "ev-9".into();
     let invented: RunEvent = serde_json::from_value(invented).unwrap();
-    assert!(rejection(&invented, 3).contains("unknown evidence ev-9"));
+    assert!(rejection(&invented, 3).contains("`ev-9` was not recorded"));
     let mut unassessed = finished.clone();
     unassessed.as_object_mut().unwrap().remove("assessment");
     let unassessed: RunEvent = serde_json::from_value(unassessed).unwrap();
@@ -164,6 +164,40 @@ fn attempts_must_follow_valid_assessments() {
     mismatched["outcome"] = "failed".into();
     let mismatched: RunEvent = serde_json::from_value(mismatched).unwrap();
     assert!(rejection(&mismatched, 3).contains("does not follow its assessment"));
+}
+
+/// An attempt-finished event whose assessment was edited by `change`.
+fn reassessed(change: impl FnOnce(&mut serde_json::Value)) -> RunEvent {
+    let fixture = load("success.json");
+    let mut finished = serde_json::to_value(&fixture.events[3]).unwrap();
+    change(&mut finished["assessment"]);
+    serde_json::from_value(finished).unwrap()
+}
+
+#[test]
+fn assessments_must_cover_the_authored_criteria_consistently() {
+    let uncovered = reassessed(|a| a["criteria"] = serde_json::json!([]));
+    assert!(rejection(&uncovered, 3).contains("criterion 0 (\""));
+    let invented = reassessed(|a| a["criteria"][0]["criterion"] = 7.into());
+    assert!(rejection(&invented, 3).contains("criterion 7 does not exist"));
+    let contradicted = reassessed(|a| a["criteria"][0]["status"] = "contradicted".into());
+    assert!(rejection(&contradicted, 3).contains("passed requires every criterion"));
+    let fixture = load("success.json");
+    let mut report = apply_through(&fixture, 3);
+    let before = report.clone();
+    report.apply(&contradicted).unwrap_err();
+    assert_eq!(report, before, "a refused event changes nothing");
+}
+
+#[test]
+fn an_attempted_unit_cannot_be_skipped() {
+    let fixture = load("success.json");
+    let mut skipped = serde_json::to_value(&fixture.events[4]).unwrap();
+    skipped["type"] = "unit_skipped".into();
+    skipped.as_object_mut().unwrap().remove("outcome");
+    skipped["reason"] = "not needed".into();
+    let skipped: RunEvent = serde_json::from_value(skipped).unwrap();
+    assert!(rejection(&skipped, 4).contains("attempted cannot be skipped"));
 }
 
 #[test]
