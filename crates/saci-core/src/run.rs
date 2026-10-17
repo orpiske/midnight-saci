@@ -3,11 +3,11 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-use crate::assessment::Assessment;
+use crate::assessment::{Assessment, Recorded};
 use crate::event::{EventKind, RunEvent};
 use crate::evidence::Evidence;
 use crate::ids::{EvidenceId, RunId, UnitKey};
-use crate::plan::{SourceLocation, UnitKind};
+use crate::plan::{Criterion, SourceLocation, UnitKind};
 use crate::spec::SCHEMA_VERSION;
 use crate::status::{Lifecycle, Outcome, summarize};
 
@@ -95,6 +95,9 @@ pub struct UnitIdentity {
     pub location: SourceLocation,
     /// Whether the unit or its phase is a cleanup/teardown section.
     pub cleanup: bool,
+    /// The authored expected results an assessment must cover.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub criteria: Vec<Criterion>,
 }
 
 /// The result of one unit.
@@ -499,19 +502,27 @@ impl RunReport {
             );
             return Err(invalid(&key, &reason));
         }
-        let cited = assessment
-            .into_iter()
-            .flat_map(|a| &a.criteria)
-            .flat_map(|c| &c.evidence);
-        for id in cited {
-            if !self.evidence.iter().any(|e| &e.id == id) {
-                return Err(invalid(
+        let Some(assessment) = assessment else {
+            return Ok(());
+        };
+        let unit = self.units.iter().find(|unit| unit.identity.key == key);
+        let unit = unit.ok_or_else(|| ContractError::UnknownUnit(key.clone()))?;
+        crate::assessment::validate(assessment, &unit.identity.criteria, &self.recorded()).map_err(
+            |problems| {
+                invalid(
                     &key,
-                    &format!("assessment cites unknown evidence {id}"),
-                ));
-            }
-        }
-        Ok(())
+                    &format!("invalid assessment: {}", problems.join("; ")),
+                )
+            },
+        )
+    }
+
+    /// The run's evidence, as assessment validation sees it.
+    fn recorded(&self) -> Recorded {
+        self.evidence
+            .iter()
+            .map(|e| (e.id.clone(), e.record.unanswered()))
+            .collect()
     }
 
     fn start_attempt(&mut self, event: &RunEvent) -> Result<(), ContractError> {
@@ -545,6 +556,9 @@ impl RunReport {
         let open = unit.attempts.last().is_some_and(|a| a.outcome.is_none());
         if unit.outcome.is_some() || open {
             return Err(invalid(&key, "unit already finished or attempt still open"));
+        }
+        if outcome == Outcome::Skipped && !unit.attempts.is_empty() {
+            return Err(invalid(&key, "a unit that was attempted cannot be skipped"));
         }
         let last = unit.attempts.last().and_then(|a| a.outcome);
         if outcome != Outcome::Skipped && last != Some(outcome) {
