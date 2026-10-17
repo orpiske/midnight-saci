@@ -20,9 +20,11 @@ clap = { version = "4.6", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 thiserror = "2.0"
+time = { version = "0.3.55", features = ["serde", "formatting", "parsing", "macros"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.28", features = ["v4", "serde"] }
 
 saci-core = { version = "0.1.0", path = "crates/saci-core" }
 saci-worker = { version = "0.1.0", path = "crates/saci-worker" }

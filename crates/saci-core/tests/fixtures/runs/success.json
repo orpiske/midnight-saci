@@ -1,0 +1,291 @@
+{
+  "header": {
+    "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+    "plan_title": "Service health",
+    "entry": "plan.md",
+    "environment": "local",
+    "policy": "default",
+    "model": "test-model",
+    "created_at": "2026-10-17T10:00:00Z"
+  },
+  "units": [
+    {
+      "key": "1.1",
+      "id": "1.1",
+      "kind": "test",
+      "title": "Check service health",
+      "phase": "Service availability",
+      "location": {
+        "document": "plan.md",
+        "line": 12
+      },
+      "cleanup": false
+    },
+    {
+      "key": "1.2",
+      "id": "1.2",
+      "kind": "test",
+      "title": "Reject anonymous writes",
+      "phase": "Service availability",
+      "location": {
+        "document": "plan.md",
+        "line": 24
+      },
+      "cleanup": false
+    },
+    {
+      "key": "2.1",
+      "id": "2.1",
+      "kind": "step",
+      "title": "Remove test data",
+      "phase": "Cleanup",
+      "location": {
+        "document": "plan.md",
+        "line": 40
+      },
+      "cleanup": true
+    }
+  ],
+  "events": [
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 1,
+      "at": "2026-10-17T10:00:01Z",
+      "type": "run_started",
+      "model": "test-model"
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 2,
+      "at": "2026-10-17T10:00:02Z",
+      "unit": "1.1",
+      "attempt": 1,
+      "type": "attempt_started"
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 3,
+      "at": "2026-10-17T10:00:03Z",
+      "unit": "1.1",
+      "attempt": 1,
+      "type": "observation",
+      "evidence": {
+        "id": "ev-1",
+        "unit": "1.1",
+        "attempt": 1,
+        "recorded_at": "2026-10-17T10:00:31Z",
+        "duration_ms": 8,
+        "tool": "http",
+        "method": "GET",
+        "url": "http://target:8080/health",
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": {
+            "text": "{\"status\":\"up\"}",
+            "truncated": false,
+            "total_bytes": 15
+          }
+        }
+      }
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 4,
+      "at": "2026-10-17T10:00:04Z",
+      "unit": "1.1",
+      "attempt": 1,
+      "type": "attempt_finished",
+      "outcome": "passed",
+      "assessment": {
+        "outcome": "passed",
+        "criteria": [
+          {
+            "criterion": 0,
+            "status": "satisfied",
+            "basis": "mechanical",
+            "evidence": [
+              "ev-1"
+            ],
+            "explanation": "recorded observation ev-1"
+          }
+        ],
+        "explanation": "criterion evaluated against ev-1"
+      }
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 5,
+      "at": "2026-10-17T10:00:05Z",
+      "unit": "1.1",
+      "type": "unit_finished",
+      "outcome": "passed"
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 6,
+      "at": "2026-10-17T10:00:06Z",
+      "unit": "1.2",
+      "attempt": 1,
+      "type": "attempt_started"
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 7,
+      "at": "2026-10-17T10:00:07Z",
+      "unit": "1.2",
+      "attempt": 1,
+      "type": "observation",
+      "evidence": {
+        "id": "ev-2",
+        "unit": "1.2",
+        "attempt": 1,
+        "recorded_at": "2026-10-17T10:00:31Z",
+        "duration_ms": 8,
+        "tool": "http",
+        "method": "GET",
+        "url": "http://target:8080/health",
+        "response": {
+          "status": 401,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": {
+            "text": "{\"status\":\"up\"}",
+            "truncated": false,
+            "total_bytes": 15
+          }
+        }
+      }
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 8,
+      "at": "2026-10-17T10:00:08Z",
+      "unit": "1.2",
+      "attempt": 1,
+      "type": "attempt_finished",
+      "outcome": "passed",
+      "assessment": {
+        "outcome": "passed",
+        "criteria": [
+          {
+            "criterion": 0,
+            "status": "satisfied",
+            "basis": "mechanical",
+            "evidence": [
+              "ev-2"
+            ],
+            "explanation": "recorded observation ev-2"
+          }
+        ],
+        "explanation": "criterion evaluated against ev-2"
+      }
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 9,
+      "at": "2026-10-17T10:00:09Z",
+      "unit": "1.2",
+      "type": "unit_finished",
+      "outcome": "passed"
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 10,
+      "at": "2026-10-17T10:00:10Z",
+      "unit": "2.1",
+      "attempt": 1,
+      "type": "attempt_started"
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 11,
+      "at": "2026-10-17T10:00:11Z",
+      "unit": "2.1",
+      "attempt": 1,
+      "type": "observation",
+      "evidence": {
+        "id": "ev-3",
+        "unit": "2.1",
+        "attempt": 1,
+        "recorded_at": "2026-10-17T10:00:30Z",
+        "duration_ms": 15,
+        "tool": "shell",
+        "command": "rm -rf \"${WORKDIR}/data\"",
+        "stdout": {
+          "text": "",
+          "truncated": false,
+          "total_bytes": 0
+        },
+        "stderr": {
+          "text": "",
+          "truncated": false,
+          "total_bytes": 0
+        },
+        "exit_code": 0,
+        "termination": "exited"
+      }
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 12,
+      "at": "2026-10-17T10:00:12Z",
+      "unit": "2.1",
+      "attempt": 1,
+      "type": "attempt_finished",
+      "outcome": "passed",
+      "assessment": {
+        "outcome": "passed",
+        "criteria": [
+          {
+            "criterion": 0,
+            "status": "satisfied",
+            "basis": "mechanical",
+            "evidence": [
+              "ev-3"
+            ],
+            "explanation": "recorded observation ev-3"
+          }
+        ],
+        "explanation": "criterion evaluated against ev-3"
+      }
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 13,
+      "at": "2026-10-17T10:00:13Z",
+      "unit": "2.1",
+      "type": "unit_finished",
+      "outcome": "passed"
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 14,
+      "at": "2026-10-17T10:00:14Z",
+      "type": "run_finished",
+      "outcome": "passed",
+      "reason": "all units passed"
+    }
+  ],
+  "expect": {
+    "outcome": "passed",
+    "counts": {
+      "passed": 3,
+      "failed": 0,
+      "blocked": 0,
+      "inconclusive": 0,
+      "error": 0,
+      "skipped": 0,
+      "cancelled": 0
+    },
+    "cleanup_not_run": [],
+    "attempts": {
+      "1.1": 1,
+      "1.2": 1,
+      "2.1": 1
+    }
+  }
+}
