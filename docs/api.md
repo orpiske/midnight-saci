@@ -185,7 +185,9 @@ cannot use worker routes either.
 
 Before storing a batch, the backend also redacts the secret values it can
 read itself (environment secrets with an `env` reference, the LLM key), on
-top of the worker's own redaction. Long-polling clients are woken as soon as
+top of the worker's own redaction, in every free-text field: evidence,
+assessment and criterion explanations, error messages, and skip and run-end
+reasons. Long-polling clients are woken as soon as
 the batch is committed.
 
 `saci_worker::report` is the worker side: `fetch_specification` retries
