@@ -180,3 +180,69 @@ async fn an_unreachable_backend_is_a_transient_failure() {
     let error = client.specification().await.unwrap_err();
     assert!(matches!(error, ReportError::Transient(_)), "{error:?}");
 }
+
+/// An observation of `unit` whose stdout is `bytes` long.
+fn observation(unit: &saci_core::run::UnitIdentity, index: u64, bytes: usize) -> EventKind {
+    use saci_core::evidence::{CapturedText, Evidence, EvidenceRecord, ShellEvidence, Termination};
+    let record = EvidenceRecord::Shell(ShellEvidence {
+        command: "cat big".into(),
+        stdout: CapturedText::complete("x".repeat(bytes)),
+        stderr: CapturedText::default(),
+        exit_code: Some(0),
+        termination: Termination::Exited,
+        restarted: false,
+        session_lost: false,
+    });
+    EventKind::Observation {
+        evidence: Box::new(Evidence {
+            id: saci_core::ids::EvidenceId::from_index(index),
+            unit: unit.key.clone(),
+            attempt: 1,
+            recorded_at: time::OffsetDateTime::now_utc(),
+            duration_ms: 1,
+            record,
+        }),
+    }
+}
+
+fn stdout_of(kind: &EventKind) -> &saci_core::evidence::ShellEvidence {
+    match kind {
+        EventKind::Observation { evidence } => match &evidence.record {
+            saci_core::evidence::EvidenceRecord::Shell(shell) => shell,
+            other => panic!("{other:?}"),
+        },
+        other => panic!("{other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_large_backlog_is_split_and_an_oversized_observation_cut_to_fit() {
+    let served = serve().await;
+    let client = client(&served).await;
+    let spec = fetch_specification(&client, FAST).await.unwrap();
+    let plan = saci_core::bundle::expand(&spec.bundle).unwrap();
+    let unit = &plan.units[0].identity;
+    let (sink, events) = EventSink::new(client.run().clone());
+    sink.emit(None, None, EventKind::RunStarted { model: "m".into() });
+    sink.emit(Some(unit), Some(1), EventKind::AttemptStarted);
+    // Well past the 2 MiB a default request body allows, in many events.
+    for index in 1..=60 {
+        sink.emit(Some(unit), Some(1), observation(unit, index, 100 * 1024));
+    }
+    let oversized = saci_core::api::MAX_EVENT_BATCH_BYTES + 1024;
+    sink.emit(Some(unit), Some(1), observation(unit, 61, oversized));
+    drop(sink);
+    let acknowledged = deliver(&client, events, FAST).await.unwrap();
+    assert_eq!(acknowledged, 63);
+    let (stored, _) = served
+        .backend
+        .store
+        .events(client.run(), 0, 100)
+        .await
+        .unwrap();
+    assert_eq!(stored.len(), 63);
+    let shell = stdout_of(&stored[62].kind);
+    assert!(shell.stdout.truncated);
+    assert_eq!(shell.stdout.total_bytes, oversized as u64);
+    assert!(shell.stdout.text.len() < saci_core::api::MAX_EVENT_BATCH_BYTES);
+}

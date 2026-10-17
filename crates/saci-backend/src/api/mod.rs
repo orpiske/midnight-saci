@@ -9,12 +9,12 @@ mod worker;
 use std::sync::Arc;
 
 use axum::Router;
-use axum::extract::{Request, State};
+use axum::extract::{DefaultBodyLimit, Request, State};
 use axum::http::header::AUTHORIZATION;
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::{get, post};
-use saci_core::api::{API_BASE, ErrorCode};
+use saci_core::api::{API_BASE, ErrorCode, MAX_EVENT_BATCH_BYTES};
 use saci_core::config::Config;
 use saci_core::ids::RunId;
 use tokio::sync::watch;
@@ -174,7 +174,10 @@ pub fn router(backend: Backend, auth: ClientAuth) -> Router {
             "/worker/runs/{run_id}/specification",
             get(worker::specification),
         )
-        .route("/worker/runs/{run_id}/events", post(worker::events))
+        .route(
+            "/worker/runs/{run_id}/events",
+            post(worker::events).layer(DefaultBodyLimit::max(MAX_EVENT_BATCH_BYTES)),
+        )
         .route("/worker/runs/{run_id}/control", get(worker::control))
         .route_layer(middleware::from_fn_with_state(
             backend.clone(),

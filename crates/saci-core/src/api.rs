@@ -12,6 +12,10 @@ use crate::status::{Lifecycle, Outcome};
 /// Base path of every Saci route.
 pub const API_BASE: &str = "/api/v1";
 
+/// Largest worker event batch, in serialized bytes, the backend accepts.
+/// Workers split batches to stay under it.
+pub const MAX_EVENT_BATCH_BYTES: usize = 16 * 1024 * 1024;
+
 /// Header carrying a client-chosen key that makes submission retry-safe.
 pub const IDEMPOTENCY_KEY: &str = "Idempotency-Key";
 

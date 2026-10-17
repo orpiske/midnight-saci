@@ -42,6 +42,28 @@ pub enum EvidenceRecord {
 }
 
 impl EvidenceRecord {
+    /// Halves every captured text, for an observation too large to report
+    /// whole; the drop stays visible as truncation. Returns false when
+    /// nothing was left to drop.
+    pub fn shrink(&mut self) -> bool {
+        let texts: Vec<&mut CapturedText> = match self {
+            Self::Shell(shell) => vec![&mut shell.stdout, &mut shell.stderr],
+            Self::Http(http) => http
+                .request_body
+                .iter_mut()
+                .chain(http.response.iter_mut().map(|response| &mut response.body))
+                .collect(),
+            Self::Mcp(mcp) => vec![&mut mcp.result],
+            Self::Rejected(_) => Vec::new(),
+        };
+        let mut dropped = false;
+        for text in texts {
+            let half = text.text.len() / 2;
+            dropped |= text.truncate_to(half);
+        }
+        dropped
+    }
+
     /// Why this observation holds no answer from the target, when it holds
     /// none: the request got no response, the command did not finish, the
     /// MCP call got no result, or the call was rejected before it ran.
@@ -92,6 +114,21 @@ impl CapturedText {
             truncated: false,
             total_bytes,
         }
+    }
+
+    /// Keeps at most `bytes` of the text, cut on a character boundary, and
+    /// marks it truncated; returns whether anything was dropped.
+    pub fn truncate_to(&mut self, bytes: usize) -> bool {
+        if self.text.len() <= bytes {
+            return false;
+        }
+        let mut end = bytes;
+        while !self.text.is_char_boundary(end) {
+            end -= 1;
+        }
+        self.text.truncate(end);
+        self.truncated = true;
+        true
     }
 
     /// The text as shown to the model and in reports, with a visible note

@@ -190,10 +190,14 @@ the batch is committed.
 
 `saci_worker::report` is the worker side: `fetch_specification` retries
 while the backend is unreachable; `deliver` reads the run's event channel,
-sends batches of up to 100 events, drops what the backend acknowledges,
+sends batches of up to 100 events and 16 MiB of JSON
+(`saci_core::api::MAX_EVENT_BATCH_BYTES`, the body limit of the events
+route), drops what the backend acknowledges,
 resends the rest (from the acknowledged sequence on a `sequence_gap`), and
 returns once the channel is closed and every event is acknowledged;
 `watch_cancellation` polls `control` and cancels the run's token. Delivery
 retries an unreachable or failing (5xx) backend with backoff for up to five
 minutes, then the worker reports itself lost; a refusal (401, 403, 409
-`run_finished`, 422) ends delivery at once.
+`run_finished`, 422) ends delivery at once. An observation too large for
+one request on its own has its captured output halved until it fits; the
+cut is recorded as truncation, with the original size kept.
