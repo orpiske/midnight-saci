@@ -39,7 +39,8 @@ Errors use one body shape and stable codes:
 | `run_finished` | 409 | Cancellation or worker reporting after the run finished. |
 | `sequence_gap` | 409 | A worker batch skipped a sequence number. |
 | `action_not_pending` | 409 | The action is not awaiting approval: it was already decided, or never needed approval. |
-| `digest_mismatch` | 409 | An approval or rejection named a digest other than the recorded arguments'. |
+| `digest_mismatch` | 409 | An approval, rejection or redispatch named a digest other than the recorded arguments'. |
+| `action_not_resolvable` | 409 | A redispatch of an action that is not `unknown` or `error`, or a reconciliation of one that is not `unknown`. |
 | `validation_failed` | 422 | Invalid plan bundle, unknown environment or policy; `details` lists every diagnostic with its file and line. |
 | `internal` | 500 | The backend failed. |
 
@@ -105,10 +106,17 @@ had already ended for another reason. Cancelling a finished run returns
 
 `GET /api/v1/runs/{run_id}/actions` lists the run's outcome actions with
 their state (`pending_approval`, `queued`, `executing`, `rejected`,
-`completed`, `error`), the exact arguments, their digest, any decision, the
-attempts, and the result or error. The list is empty until the run
+`completed`, `error`, `unknown`), the exact arguments, their digest, the
+idempotency key when the action has one, any decision, the attempts, and
+the result or error. The list is empty until the run
 finishes, and when no action was triggered. Delivery never changes the
 run's outcome. See [outcome actions](actions.md).
+
+`GET /api/v1/runs/{run_id}/actions/{name}` returns one action with its
+`history`: one entry per change, with `at`, `event` (`recorded`,
+`approved`, `rejected`, `claimed`, `answered`, `failed`, `uncertain`,
+`replayed`, `redispatched` or `reconciled`), the `state` and `attempt`
+count afterwards, and the error or note as `detail`.
 
 `GET /api/v1/actions?state=<state>&limit=<n>` lists actions in one state
 across runs, oldest first. The default state is `pending_approval`.
@@ -120,6 +128,14 @@ action waiting for approval. The body is
 They answer `200` with the action, `404 not_found` without such an action,
 `409 digest_mismatch` for another digest, and `409 action_not_pending`
 when the action is not waiting for approval.
+
+`POST /api/v1/runs/{run_id}/actions/{name}/redispatch` queues an `unknown`
+or `error` action again with its recorded arguments; the body is the same
+as an approval's. `POST /api/v1/runs/{run_id}/actions/{name}/reconciliation`
+with `{"state": "completed" | "error", "note": "optional"}` records what a
+person found for an `unknown` action and sends nothing. Both answer `200`
+with the action, or `409 action_not_resolvable` in another state; see
+[retries and restarts](actions.md#retries-and-restarts).
 
 ## Worker reporting protocol
 

@@ -1,9 +1,10 @@
-//! `saci actions`: outcome actions of finished runs, and decisions on the
-//! ones waiting for approval (`docs/actions.md`).
+//! `saci actions`: outcome actions of finished runs, decisions on the ones
+//! waiting for approval, and resolution of unknown or failed deliveries
+//! (`docs/actions.md`).
 
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 use reqwest::Method;
-use saci_core::action::{ActionList, ActionRecord, ActionState, DecisionRequest};
+use saci_core::action::{ActionList, ActionRecord, ActionState, DecisionRequest, ReconcileRequest};
 use saci_core::ids::RunId;
 use serde::Serialize;
 
@@ -31,6 +32,36 @@ pub enum ActionsCommand {
     Approve(Decide),
     /// Reject an action: it is never sent.
     Reject(Decide),
+    /// Send an unknown or failed action again, with the same arguments.
+    ///
+    /// Check first that the server did not act on the earlier call: a tool
+    /// without an idempotency key may act twice.
+    Redispatch(Decide),
+    /// Record what an unknown delivery turned out to be, after checking
+    /// the remote system. Nothing is sent.
+    Reconcile(Reconcile),
+}
+
+/// What the remote system shows for an unknown delivery.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum Found {
+    /// The server acted on the call.
+    Completed,
+    /// The server did not act on it.
+    Error,
+}
+
+/// A reconciliation of one action.
+#[derive(Debug, Args)]
+pub struct Reconcile {
+    #[command(flatten)]
+    action: ActionArg,
+    /// What the remote system shows.
+    #[arg(long = "as", value_enum)]
+    found: Found,
+    /// What was checked.
+    #[arg(long)]
+    note: Option<String>,
 }
 
 /// One action of one run.
@@ -77,10 +108,14 @@ fn print_json<T: Serialize>(value: &T) -> Result<(), CliError> {
 /// Fails when the backend refuses or cannot be reached.
 pub async fn run(client: &Client, command: ActionsCommand) -> Result<u8, CliError> {
     match command {
-        ActionsCommand::List { run, json } => list(client, run.as_ref(), json).await,
-        ActionsCommand::Show(action) => show(client, &action).await,
-        ActionsCommand::Approve(decide) => decision(client, &decide, "approval").await,
-        ActionsCommand::Reject(decide) => decision(client, &decide, "rejection").await,
+        ActionsCommand::List { run, json } => Box::pin(list(client, run.as_ref(), json)).await,
+        ActionsCommand::Show(action) => Box::pin(show(client, &action)).await,
+        ActionsCommand::Approve(decide) => Box::pin(decision(client, &decide, "approval")).await,
+        ActionsCommand::Reject(decide) => Box::pin(decision(client, &decide, "rejection")).await,
+        ActionsCommand::Redispatch(decide) => {
+            Box::pin(decision(client, &decide, "redispatch")).await
+        }
+        ActionsCommand::Reconcile(reconcile) => Box::pin(reconciliation(client, &reconcile)).await,
     }
 }
 
@@ -108,17 +143,9 @@ async fn list(client: &Client, run: Option<&RunId>, json: bool) -> Result<u8, Cl
 }
 
 async fn fetch(client: &Client, action: &ActionArg) -> Result<ActionRecord, CliError> {
-    let actions: ActionList = client.get(&format!("/runs/{}/actions", action.run)).await?;
-    actions
-        .items
-        .into_iter()
-        .find(|item| item.name == action.name)
-        .ok_or_else(|| {
-            CliError::new(
-                exit::INVALID,
-                format!("run {} has no action `{}`", action.run, action.name),
-            )
-        })
+    client
+        .get(&format!("/runs/{}/actions/{}", action.run, action.name))
+        .await
 }
 
 async fn show(client: &Client, action: &ActionArg) -> Result<u8, CliError> {
@@ -131,7 +158,31 @@ async fn show(client: &Client, action: &ActionArg) -> Result<u8, CliError> {
     Ok(exit::OK)
 }
 
-/// Approves or rejects, naming the digest of the arguments reviewed: the
+async fn reconciliation(client: &Client, reconcile: &Reconcile) -> Result<u8, CliError> {
+    let body = ReconcileRequest {
+        state: match reconcile.found {
+            Found::Completed => ActionState::Completed,
+            Found::Error => ActionState::Error,
+        },
+        note: reconcile.note.clone(),
+    };
+    let action = &reconcile.action;
+    let route = format!(
+        "/runs/{}/actions/{}/reconciliation",
+        action.run, action.name
+    );
+    let (_, reconciled): (_, ActionRecord) = client
+        .request(Method::POST, &route, Some(&body), &[])
+        .await?;
+    if action.json {
+        print_json(&reconciled)?;
+    } else {
+        println!("{}", render::action_line(&reconciled));
+    }
+    Ok(exit::OK)
+}
+
+/// Approves, rejects or redispatches, naming the digest of the arguments reviewed: the
 /// one given, or the one of the arguments printed here.
 async fn decision(client: &Client, decide: &Decide, kind: &str) -> Result<u8, CliError> {
     let digest = match &decide.digest {

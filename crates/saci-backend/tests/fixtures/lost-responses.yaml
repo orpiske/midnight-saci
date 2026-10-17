@@ -1,0 +1,37 @@
+# Outcome actions whose answers are lost: saci-fake-mcp records the call,
+# then pauses longer than the operation timeout. One has an idempotency
+# key, one does not. @SERVER@ and @RECORD@ are replaced by the test.
+llm:
+  base_url: http://model:11434/v1
+  model: test-model
+limits:
+  operation_timeout_secs: 2
+environments:
+  local:
+    parameters:
+      URL: http://service
+actions:
+  servers:
+    tickets:
+      command: @SERVER@
+      env:
+        FAKE_MCP_RECORD: @RECORD@
+  definitions:
+    slow-keyed:
+      server: tickets
+      tool: record
+      on: [failed]
+      idempotency_key: key
+      arguments:
+        title: Slow keyed
+        pause: 4
+    slow:
+      server: tickets
+      tool: record
+      on: [failed]
+      arguments:
+        title: Slow
+        pause: 4
+policies:
+  default:
+    actions: [slow-keyed, slow]

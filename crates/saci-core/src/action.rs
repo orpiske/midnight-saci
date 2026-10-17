@@ -68,6 +68,18 @@ pub struct ActionDefinition {
     /// The tool's arguments, as a template.
     #[serde(default = "empty_object")]
     pub arguments: Value,
+    /// The argument that carries Saci's stable idempotency key for this
+    /// run and action ([`idempotency_key`]). Set it only when the tool
+    /// deduplicates calls on that argument: Saci then replays a call whose
+    /// answer was lost instead of leaving its delivery unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<String>,
+}
+
+/// The idempotency key a run's action sends: the same on every attempt.
+#[must_use]
+pub fn idempotency_key(run: &str, name: &str) -> String {
+    format!("saci-{run}-{name}")
 }
 
 fn empty_object() -> Value {
@@ -98,6 +110,9 @@ pub enum ActionState {
     Completed,
     /// Delivery failed; the result or reason says why.
     Error,
+    /// The call may have reached the server, but no answer was recorded.
+    /// It waits for reconciliation or an explicit redispatch.
+    Unknown,
 }
 
 impl ActionState {
@@ -111,6 +126,7 @@ impl ActionState {
             Self::Rejected => "rejected",
             Self::Completed => "completed",
             Self::Error => "error",
+            Self::Unknown => "unknown",
         }
     }
 
@@ -124,6 +140,7 @@ impl ActionState {
             Self::Rejected,
             Self::Completed,
             Self::Error,
+            Self::Unknown,
         ]
         .into_iter()
         .find(|state| state.as_str() == text)
@@ -182,6 +199,100 @@ pub struct DecisionRequest {
     pub note: Option<String>,
 }
 
+/// Body of a reconciliation: what a person found the action's delivery to
+/// be, after checking the remote system.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReconcileRequest {
+    /// `completed` when the server acted on the call, `error` when it did
+    /// not.
+    pub state: ActionState,
+    /// What was checked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// What happened to an action, as kept in its history.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ActionEvent {
+    /// Recorded with the final report.
+    Recorded,
+    /// A person approved it.
+    Approved,
+    /// A person rejected it.
+    Rejected,
+    /// The dispatcher claimed it for an attempt.
+    Claimed,
+    /// The server answered with a successful result.
+    Answered,
+    /// Delivery failed.
+    Failed,
+    /// Whether the server acted on the call is unknown.
+    Uncertain,
+    /// Queued again to replay the call with its idempotency key.
+    Replayed,
+    /// A person queued it again.
+    Redispatched,
+    /// A person recorded the delivery's outcome.
+    Reconciled,
+}
+
+impl ActionEvent {
+    /// The event's wire name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Recorded => "recorded",
+            Self::Approved => "approved",
+            Self::Rejected => "rejected",
+            Self::Claimed => "claimed",
+            Self::Answered => "answered",
+            Self::Failed => "failed",
+            Self::Uncertain => "uncertain",
+            Self::Replayed => "replayed",
+            Self::Redispatched => "redispatched",
+            Self::Reconciled => "reconciled",
+        }
+    }
+
+    /// Parses a wire name.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        [
+            Self::Recorded,
+            Self::Approved,
+            Self::Rejected,
+            Self::Claimed,
+            Self::Answered,
+            Self::Failed,
+            Self::Uncertain,
+            Self::Replayed,
+            Self::Redispatched,
+            Self::Reconciled,
+        ]
+        .into_iter()
+        .find(|event| event.as_str() == text)
+    }
+}
+
+/// One entry of an action's history.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HistoryEntry {
+    /// When it happened.
+    #[serde(with = "time::serde::rfc3339")]
+    pub at: OffsetDateTime,
+    /// What happened.
+    pub event: ActionEvent,
+    /// The action's state afterwards.
+    pub state: ActionState,
+    /// Dispatch attempts so far.
+    pub attempt: u32,
+    /// The reason, error or note.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
 /// An action of a run, as recorded and served by the API.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActionRecord {
@@ -202,6 +313,10 @@ pub struct ActionRecord {
     pub arguments: Value,
     /// Hex SHA-256 of the canonical arguments.
     pub digest: String,
+    /// The idempotency key in the arguments, when the action has one: a
+    /// call whose answer was lost is then replayed with it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<String>,
     /// The approval decision, once made.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decision: Option<Decision>,
@@ -219,6 +334,10 @@ pub struct ActionRecord {
     /// Why delivery failed or is uncertain.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// What happened to the action, oldest first. Served for a single
+    /// action; lists leave it empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub history: Vec<HistoryEntry>,
 }
 
 /// Actions, as `GET /runs/{run_id}/actions` and `GET /actions` return them.

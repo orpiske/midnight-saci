@@ -765,6 +765,17 @@ fn validate_action(
         );
     }
     validate_arguments(path, &definition.arguments, issues);
+    if let Some(argument) = &definition.idempotency_key {
+        let path = format!("{path}.idempotency_key");
+        if argument.trim().is_empty() {
+            issues.push(&path, "name the tool argument that carries the key");
+        } else if definition.arguments.get(argument).is_some() {
+            issues.push(
+                &path,
+                &format!("`{argument}` is also set under arguments; Saci fills it with the key"),
+            );
+        }
+    }
 }
 
 fn validate_arguments(path: &str, arguments: &serde_json::Value, issues: &mut Issues) {
@@ -970,7 +981,7 @@ mod tests {
     #[test]
     fn outcome_actions_are_validated() {
         let bad = format!(
-            "{MINIMAL}actions:\n  secrets:\n    TOKEN: {{ secret: tickets, key: token }}\n  definitions:\n    ticket:\n      server: missing\n      tool: ''\n      on: []\n      arguments:\n        title: '{{{{run.secret}}}}'\npolicies:\n  p:\n    actions: [ticket, ghost]\n"
+            "{MINIMAL}actions:\n  secrets:\n    TOKEN: {{ secret: tickets, key: token }}\n  definitions:\n    ticket:\n      server: missing\n      tool: ''\n      on: []\n      idempotency_key: title\n      arguments:\n        title: '{{{{run.secret}}}}'\npolicies:\n  p:\n    actions: [ticket, ghost]\n"
         );
         let found = issues(&bad);
         for expected in [
@@ -980,6 +991,7 @@ mod tests {
             "actions.definitions.ticket.on: list the run outcomes",
             "actions.definitions.ticket.arguments: unknown variable `{{run.secret}}`",
             "policies.p.actions: `ghost` is not defined",
+            "actions.definitions.ticket.idempotency_key: `title` is also set",
         ] {
             assert!(
                 found.iter().any(|i| i.starts_with(expected)),

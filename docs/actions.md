@@ -40,6 +40,7 @@ actions:
       tool: create_issue
       on: [failed, error]       # run outcomes that trigger it
       approval: none            # or required
+      idempotency_key: request_id   # only if the tool deduplicates on it
       arguments:
         title: "{{plan.title}}: {{run.outcome}}"
         body: |
@@ -65,6 +66,7 @@ policies:
 | `.on` | Run outcomes that trigger the action: `passed`, `failed`, `blocked`, `inconclusive`, `error`, `cancelled`. Required. |
 | `.approval` | `none` (default): dispatched once recorded. `required`: kept as `pending_approval` until approved. |
 | `.arguments` | The tool's arguments. Strings may contain the variables below. Other values are sent as written. |
+| `.idempotency_key` | Optional. The tool argument that receives Saci's key for this run and action, `saci-<run-id>-<name>`. Set it only when the tool deduplicates calls on that argument; see [Retries and restarts](#retries-and-restarts). |
 | `policies.<name>.actions` | The actions considered when a run under this policy finishes. |
 
 The configuration is checked at startup: unknown servers, unknown
@@ -109,23 +111,69 @@ The dispatcher runs inside the backend process, not in a worker:
 | State | Meaning |
 | --- | --- |
 | `pending_approval` | Recorded with `approval: required`. It is not dispatched until approved. |
-| `queued` | Waiting for the dispatcher: automatic, or approved. |
+| `queued` | Waiting for the dispatcher: automatic, approved, replayed or redispatched. |
 | `rejected` | A person rejected it. It is never dispatched. |
 | `executing` | Claimed: the claim is stored before the call is made. |
-| `completed` | The tool returned a result. |
+| `completed` | The tool returned a result, or a person reconciled it as completed. |
 | `error` | Delivery failed. `error` says why, and `result` holds the tool's text when it answered. |
+| `unknown` | The call may have reached the server, but no answer was recorded. It waits for a person. |
 
 The dispatcher connects to the server, initializes it and lists its tools
 within `limits.operation_timeout_secs`. It then checks the recorded
 arguments against the tool's input schema: required properties, property
 types, and `additionalProperties: false`. A mismatch is an `error`, and
-nothing is sent. The call itself must answer within the same limit. An
-action is dispatched once. It is not retried automatically, and the run's
-outcome stays as it was whatever happens.
+nothing is sent. The call itself must answer within the same limit.
+Whatever happens to an action, the run's outcome stays as it was.
 
-When the backend stops while an action is `executing`, the server may or
-may not have received the call. On restart such an action becomes `error`
-with that explanation, and it is not called again.
+## Retries and restarts
+
+Saci never retries a call blindly, and promises no exactly-once delivery
+for arbitrary tools: only the server can tell whether it acted on a call.
+What Saci guarantees:
+
+- **Each action is recorded once.** A run's actions are recorded with its
+  final report, once per run and action, however often the worker resends
+  its events. Each dispatch first claims the action durably, so two
+  dispatchers never send the same attempt.
+- **Failures before sending are errors.** When the server cannot be
+  reached or the arguments do not fit its schema, nothing was sent, and
+  the action ends `error`.
+- **Lost answers are unknown.** When the call was sent but no answer came
+  (a timeout or a broken connection), or the backend stopped while an
+  action was `executing`, the server may or may not have acted.
+  - With an `idempotency_key`, the call is replayed with the same key, up
+    to 3 attempts in all. The server recognizes the key and does not act
+    twice. When attempts run out, the action becomes `unknown`.
+  - Without one, the action becomes `unknown` at once and is not sent
+    again.
+  - A replay that fails before sending anything stays `unknown`, since
+    an earlier attempt may have reached the server.
+
+An `unknown` action needs a person who checks the remote system (for
+example, whether the ticket exists):
+
+```sh
+saci actions show <run-id> open-ticket          # error, attempts and history
+saci actions reconcile <run-id> open-ticket --as completed --note "ticket 42 exists"
+saci actions reconcile <run-id> open-ticket --as error --note "no ticket"
+saci actions redispatch <run-id> open-ticket --note "no ticket; sending again"
+```
+
+- `reconcile` records what the remote system shows, `completed` or
+  `error`, and sends nothing. Only `unknown` actions can be reconciled.
+- `redispatch` queues the same recorded arguments again. It applies to
+  `unknown` and `error` actions and names the arguments' digest, like an
+  approval. Without an idempotency key, a tool that already acted acts
+  again, so check first.
+- Anything else is refused with `409 action_not_resolvable`.
+
+### History
+
+Each action keeps its history in SQLite: when it was recorded, approved or
+rejected, claimed, answered, failed, found uncertain, replayed,
+redispatched or reconciled, with its state and attempt count afterwards
+and the error or note. `saci actions show` prints it, and
+`GET /api/v1/runs/{run_id}/actions/{name}` returns it.
 
 ## Approvals
 
@@ -194,8 +242,26 @@ through the worker API, and the backend dispatches to a stdio
 - pending approvals and decisions survive a restart, and only approved
   actions are sent afterwards.
 
+`crates/saci-backend/tests/action_recovery.rs` uses
+[`fixtures/recovery.yaml`](../crates/saci-backend/tests/fixtures/recovery.yaml)
+and [`fixtures/lost-responses.yaml`](../crates/saci-backend/tests/fixtures/lost-responses.yaml).
+The fake server records each call and ignores repeated idempotency keys.
+The tests check that:
+
+- events resent after the final report, and two dispatchers at once,
+  still record and send each action once;
+- after a crash before the call was sent, the keyed action is replayed
+  and sent once, and the unkeyed one becomes `unknown`, unsent, until it
+  is redispatched;
+- after a crash once the server acted, the keyed replay is deduplicated
+  by the server, and the unkeyed action becomes `unknown` and is
+  reconciled without a second call;
+- after a lost answer (a timeout), only the keyed action is replayed;
+- the run's outcome stays `failed` throughout.
+
 `crates/saci-cli/tests/action_commands.rs` drives `saci actions list`,
-`show`, `approve` and `reject` and the actions section of `saci report`.
+`show`, `approve`, `reject`, `redispatch` and `reconcile` and the actions
+section of `saci report`.
 
 `saci-core` unit tests check template rendering and configuration
 validation.
