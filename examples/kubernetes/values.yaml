@@ -1,0 +1,21 @@
+# Helm values for the namespace example (docs/namespace-workflows.md):
+# the model and the orders service are Services in the same namespace.
+llm:
+  baseUrl: http://model:11435/v1
+  model: walkthrough-playbook
+
+config:
+  limits:
+    run_timeout_secs: 900
+    step_timeout_secs: 600
+  environments:
+    same-namespace:
+      description: The orders service in Saci's namespace.
+      parameters:
+        SERVICE_URL: http://orders:8081
+      worker:
+        cpu: 250m
+        memory: 256Mi
+  policies:
+    default:
+      on_failure: stop

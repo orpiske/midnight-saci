@@ -70,9 +70,12 @@ namespace. Only the worker pods read them; the backend cannot.
 
 ### OpenShift
 
-The same command works with `oc` in place of `kubectl`. On OpenShift the
+OpenShift support has not been tested on a cluster yet; see
+[what is verified](namespace-workflows.md#not-verified).
+
+The same command is meant to work with `oc` in place of `kubectl`. On OpenShift the
 chart sets no `runAsUser` or `fsGroup`: the `restricted-v2` SCC assigns
-both, and the image works under any UID in group 0. The chart detects
+both, and the image is built to run under any UID in group 0. The chart detects
 OpenShift from the `security.openshift.io` API. On other clusters it sets
 `fsGroup: 10001` so the volume is writable. Override either with
 `backend.podSecurityContext`.
@@ -148,3 +151,7 @@ report again. Delete them yourself to remove the data:
   and checks the API through `kubectl port-forward`. It then upgrades the
   release and checks that one backend pod remains and the token is
   unchanged.
+- The same job runs the [namespace workflow](namespace-workflows.md):
+  runs, a backend restart, cancellation, retained reports and Job removal.
+  That page also lists the platforms tested so far. OpenShift is not among
+  them.

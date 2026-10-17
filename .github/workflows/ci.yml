@@ -91,6 +91,8 @@ jobs:
         uses: helm/kind-action@v1.12.0
         with:
           cluster_name: saci
+          version: v0.26.0
+          node_image: kindest/node:v1.32.0
       - name: Load the image and prepare a namespace
         run: |
           kind load docker-image localhost/saci-worker:ci --name saci
@@ -124,9 +126,28 @@ jobs:
           kubectl -n saci-test rollout status deployment/saci
           test "$(kubectl -n saci-test get pods -l app.kubernetes.io/component=backend -o name | wc -l)" = 1
           test "$(kubectl -n saci-test get secret saci-auth -o jsonpath='{.data.token}' | base64 -d)" = "$token"
+      - name: Build the fixtures image and the CLI
+        run: |
+          docker build -f examples/kubernetes/Containerfile.fixtures -t localhost/saci-fixtures:ci .
+          kind load docker-image localhost/saci-fixtures:ci --name saci
+          cargo build --locked --package saci-cli --bin saci
+      - name: Run the namespace workflow
+        env:
+          NAMESPACE: saci-test
+          IMAGE: localhost/saci-worker:ci
+          FIXTURES: localhost/saci-fixtures:ci
+          PULL_POLICY: Never
+          # An arbitrary UID in group 0 for the backend, as OpenShift assigns.
+          HELM_ARGS: >-
+            --set backend.podSecurityContext.runAsUser=1000680000
+            --set backend.podSecurityContext.runAsGroup=0
+            --set backend.podSecurityContext.fsGroup=1000680000
+        run: examples/kubernetes/namespace-workflow.sh
       - name: Show the namespace on failure
         if: failure()
         run: |
           kubectl -n saci-test get all,jobs,secrets,pvc -o wide
           kubectl -n saci-test describe pods
           kubectl -n saci-test logs deployment/saci --tail=100 || true
+          kubectl -n saci-test logs deployment/model --tail=50 || true
+          kubectl -n saci-test logs deployment/orders --tail=50 || true
