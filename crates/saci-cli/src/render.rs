@@ -80,10 +80,10 @@ pub fn observation(evidence: &Evidence) -> String {
             format!("http {} {} {result}", http.method, http.url)
         }
         EvidenceRecord::Mcp(mcp) => {
-            let result = if mcp.is_error {
-                "returned an error"
-            } else {
-                "returned"
+            let result = match (&mcp.protocol_error, mcp.is_error) {
+                (Some(error), _) => format!("got no result: {error}"),
+                (None, true) => "returned an error".to_owned(),
+                (None, false) => "returned".to_owned(),
             };
             format!("mcp {}/{} {result}", mcp.server, mcp.tool)
         }

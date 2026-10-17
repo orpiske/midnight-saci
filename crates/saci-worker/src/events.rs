@@ -89,6 +89,12 @@ impl Recorder {
         &self.events
     }
 
+    /// The run's redactor.
+    #[must_use]
+    pub const fn redactor(&self) -> &Redactor {
+        &self.redactor
+    }
+
     /// Records one observation of `attempt` of `unit`.
     pub fn record(
         &self,

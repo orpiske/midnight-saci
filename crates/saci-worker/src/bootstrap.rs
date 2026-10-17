@@ -25,6 +25,7 @@ use crate::credentials::Credentials;
 use crate::events::{EventReceiver, EventSink, Recorder};
 use crate::http::HttpTool;
 use crate::llm::LlmConnection;
+use crate::mcp;
 use crate::sequence::{self, RunEnding, RunPlan};
 use crate::shell::{ShellConfig, ShellSession};
 
@@ -142,35 +143,50 @@ pub fn executor(prepared: Box<Prepared>) -> Result<(Box<Running>, EventReceiver)
         llm,
         workspace,
     } = *prepared;
-    let limits = spec.limits;
-    let shell = ShellSession::new(ShellConfig {
-        workspace,
-        environment: credentials.shell_environment().clone(),
-        output_limit: limits.output_limit_bytes,
-        redactor: credentials.redactor().clone(),
-    })?;
     let (sink, events) = EventSink::new(spec.run_id.clone());
-    let toolbox = Toolbox {
-        shell,
-        http: HttpTool::new(credentials.clone(), limits.output_limit_bytes)?,
-        recorder: Recorder::new(Arc::new(sink), credentials.redactor().clone()),
-        environment: credentials.model_context(),
-    };
-    let executor = Executor::new(llm, toolbox, limits);
+    let toolbox = toolbox(
+        &credentials,
+        workspace,
+        spec.limits.output_limit_bytes,
+        sink,
+    )?;
+    let executor = Executor::new(llm, toolbox, spec.limits);
     Ok((
         Box::new(Running {
             spec,
             plan,
+            credentials,
             executor,
         }),
         events,
     ))
 }
 
+fn toolbox(
+    credentials: &Credentials,
+    workspace: PathBuf,
+    output_limit: u64,
+    sink: EventSink,
+) -> Result<Toolbox, ExecutionError> {
+    let shell = ShellSession::new(ShellConfig {
+        workspace,
+        environment: credentials.shell_environment().clone(),
+        output_limit,
+        redactor: credentials.redactor().clone(),
+    })?;
+    Ok(Toolbox {
+        shell,
+        http: HttpTool::new(credentials.clone(), output_limit)?,
+        recorder: Recorder::new(Arc::new(sink), credentials.redactor().clone()),
+        environment: credentials.model_context(),
+    })
+}
+
 /// A run ready to execute.
 pub struct Running {
     spec: RunSpec,
     plan: ExpandedPlan,
+    credentials: Credentials,
     executor: Executor,
 }
 
@@ -182,14 +198,21 @@ impl std::fmt::Debug for Running {
     }
 }
 
-/// Executes every unit until the run ends or `cancel` fires, then closes the
-/// tools and the event stream.
+/// Connects the environment's MCP servers, executes every unit until the
+/// run ends or `cancel` fires, then closes the tools and the event stream.
+/// A server that cannot be connected ends the run `error` before anything
+/// runs.
 pub async fn execute(running: Box<Running>, cancel: &CancellationToken) -> RunEnding {
     let Running {
         spec,
         plan,
-        executor,
+        credentials,
+        mut executor,
     } = *running;
+    if let Err(ending) = Box::pin(connect_mcp(&mut executor, &spec, &credentials)).await {
+        executor.close().await;
+        return ending;
+    }
     let run_plan = RunPlan {
         plan: &plan,
         policy: &spec.policy,
@@ -200,4 +223,34 @@ pub async fn execute(running: Box<Running>, cancel: &CancellationToken) -> RunEn
     let ending = Box::pin(sequence::run(&executor, run_plan, cancel)).await;
     executor.close().await;
     ending
+}
+
+async fn connect_mcp(
+    executor: &mut Executor,
+    spec: &RunSpec,
+    credentials: &Credentials,
+) -> Result<(), RunEnding> {
+    let servers = &spec.environment.mcp;
+    if servers.is_empty() {
+        return Ok(());
+    }
+    let timeout = Duration::from_secs(spec.limits.operation_timeout_secs);
+    match Box::pin(mcp::connect_all(servers, credentials, timeout)).await {
+        Ok(connected) => {
+            executor.attach_mcp(connected);
+            Ok(())
+        }
+        Err(error) => {
+            let reason = format!("the run could not start: {}", error.message);
+            let kind = EventKind::RunFinished {
+                outcome: Outcome::Error,
+                reason: reason.clone(),
+            };
+            executor.recorder().events().emit(None, None, kind);
+            Err(RunEnding {
+                outcome: Outcome::Error,
+                reason,
+            })
+        }
+    }
 }

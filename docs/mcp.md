@@ -90,3 +90,44 @@ The legacy HTTP+SSE transport, WebSocket and OAuth flows are not enabled.
 `echo`, `fail`, `sleep` and `env` tools. It speaks stdio by default, or
 Streamable HTTP with `saci-fake-mcp --http 127.0.0.1:9090` (endpoint `/mcp`,
 requiring `Authorization: Bearer $FAKE_MCP_TOKEN` when that variable is set).
+
+## Tools in steps
+
+Every selected tool of every connected server is offered to the model in
+each step, beside `shell`, `http` and `assess`. Its name is
+`mcp__<server>__<tool>`, for example `mcp__wanaku__get_route`. Characters
+other than letters, digits, `_` and `-` become `_`. A name longer than 64
+characters is shortened and ends with a hash of the full name. If two tools
+end up with the same name, the later one gets a `_2` suffix, then `_3`, in
+configuration order. Names are therefore stable from run to run, and they
+cannot collide with the built-in tools. The model sees the server's
+description and input schema unchanged.
+
+MCP calls are under the same controls as the built-in tools:
+
+- Each call counts against `limits.tool_calls_per_step`.
+- A call must answer within `limits.operation_timeout_secs`, and stops
+  when the run is cancelled.
+- The result is captured up to `limits.output_limit_bytes`, with the
+  truncation shown.
+- Arguments and results are redacted with the run's secrets.
+- Every call is recorded as evidence the assessment can cite.
+
+A call ends in one of two kinds of evidence:
+
+| Evidence | Meaning |
+| --- | --- |
+| `is_error: true` | The server answered, and its tool reported an error. This is an observation of the tested system, like a failing command. |
+| `protocol_error` | No result. The connection failed, the server broke the protocol, the deadline passed, or the run was cancelled. The model is told there is no result. |
+
+Arguments that are not a JSON object are rejected before anything is sent.
+Non-text content such as images is described as `[image content, not
+shown]`. Structured content is appended as JSON.
+
+Runs whose environment enables no server connect to nothing, and their
+steps are offered only `shell`, `http` and `assess`.
+
+`crates/saci-worker/tests/mcp_tools.rs` runs whole plans through the
+`saci-worker` binary with the fake server. It checks the report, the
+redacted evidence, the offered tool names and schemas, tool and protocol
+errors, a server that cannot start, and runs without MCP.
