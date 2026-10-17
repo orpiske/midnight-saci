@@ -347,7 +347,7 @@ impl<'a> State<'a> {
         if let BlockKind::Paragraph(paragraph) = &block.kind
             && let Some(marker) = Marker::of(paragraph)
         {
-            if let Err(message) = open.marker(marker, block, location) {
+            if let Err(message) = open.marker(marker, (block, self.source), location) {
                 self.error(block.range.start, message);
             }
             return;
@@ -434,7 +434,7 @@ impl OpenUnit {
     fn marker(
         &mut self,
         marker: Marker,
-        block: &Block,
+        (block, source): (&Block, &str),
         location: SourceLocation,
     ) -> Result<(), String> {
         match marker {
@@ -457,7 +457,7 @@ impl OpenUnit {
                     self.action_end = Some(block.range.start);
                 }
                 self.part = UnitPart::Verification;
-                self.verification_start = Some(block.range.end);
+                self.verification_start = Some(after_marker(source, block));
             }
         }
         Ok(())
@@ -520,6 +520,19 @@ impl Marker {
             _ => None,
         }
     }
+}
+
+/// Where the text after a leading `**Verification:**` marker begins in
+/// `source`, so text on the marker's own line is kept.
+fn after_marker(source: &str, block: &Block) -> usize {
+    let raw = &source[block.range.clone()];
+    let delimiter = raw.get(..2).unwrap_or("**");
+    let Some(close) = raw.get(2..).and_then(|rest| rest.find(delimiter)) else {
+        return block.range.end;
+    };
+    let rest = &raw[close + 4..];
+    let skipped = rest.len() - rest.trim_start_matches(':').len();
+    block.range.start + close + 4 + skipped
 }
 
 /// The target of a `Follow [path](path).` paragraph.
