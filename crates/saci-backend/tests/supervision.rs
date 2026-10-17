@@ -24,7 +24,8 @@ const PLAN: &str = "# Test Plan: Supervised\n\n## Phase 1: Main\n\n### Test 1.1:
                     **Expected result:**\n\n- It exits 0.\n";
 
 /// A runtime whose containers are `state-<name>` files holding
-/// "<status> <exit code>". Marker files make the next launch time out
+/// "<status> <exit code>", written atomically so that a concurrent
+/// `inspect` never reads a partial file. Marker files make the next launch time out
 /// with (`launch-slow`) or without (`launch-lost`) creating the container.
 const FAKE_RUNTIME: &str = r#"#!/bin/sh
 D='@DIR@'
@@ -36,13 +37,13 @@ case "$1" in
   run)
     if [ -e "$D/state-$name" ]; then echo "Error: the container name \"$name\" is already in use" >&2; exit 125; fi
     if [ -e "$D/launch-lost" ]; then rm "$D/launch-lost"; sleep 3; exit 0; fi
-    echo "running 0" > "$D/state-$name"
+    echo "running 0" > "$D/tmp-$name" && mv "$D/tmp-$name" "$D/state-$name"
     if [ -e "$D/launch-slow" ]; then rm "$D/launch-slow"; sleep 3; fi
     echo 0123456789ab;;
   inspect)
     if [ -e "$D/state-$last" ]; then cat "$D/state-$last"; else echo "Error: no such container $last" >&2; exit 125; fi;;
   stop)
-    if [ -e "$D/state-$last" ]; then echo "exited 143" > "$D/state-$last"; else echo "Error: no such container $last" >&2; exit 125; fi;;
+    if [ -e "$D/state-$last" ]; then echo "exited 143" > "$D/tmp-$last" && mv "$D/tmp-$last" "$D/state-$last"; else echo "Error: no such container $last" >&2; exit 125; fi;;
   rm) rm -f "$D/state-$last";;
   logs) echo "worker: cannot reach the backend: connection refused";;
   ps) for f in "$D"/state-*; do [ -e "$f" ] && echo "${f##*/state-}"; done;;
@@ -124,7 +125,9 @@ impl Harness {
     }
 
     fn set_state(&self, run: &RunId, state: &str) {
-        std::fs::write(self.container(run), state).unwrap();
+        let partial = self.runtime.join(format!("tmp-saci-{run}"));
+        std::fs::write(&partial, state).unwrap();
+        std::fs::rename(partial, self.container(run)).unwrap();
     }
 
     fn calls(&self, prefix: &str) -> usize {
@@ -139,11 +142,16 @@ impl Harness {
     async fn report(&self, run: &RunId, kinds: Vec<EventKind>) {
         let first = self.backend.store.run(run).await.unwrap().report.last_seq + 1;
         let events = numbered(run, first, kinds);
-        self.backend
+        let result = self
+            .backend
             .store
             .append_events(run, events, Redactor::new())
-            .await
-            .unwrap();
+            .await;
+        if let Err(e) = result {
+            let record = self.backend.store.run(run).await.unwrap();
+            let reason = record.report.reason;
+            panic!("cannot store the worker's events ({e:?}); the run already ended: {reason:?}");
+        }
         self.backend.notify();
     }
 
