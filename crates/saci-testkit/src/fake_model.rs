@@ -30,6 +30,7 @@ pub struct Reply {
     status: u16,
     body: String,
     delay: Option<Duration>,
+    headers: Vec<(&'static str, String)>,
 }
 
 impl Reply {
@@ -46,6 +47,7 @@ impl Reply {
             status,
             body: body.into(),
             delay: None,
+            headers: Vec::new(),
         }
     }
 
@@ -53,6 +55,13 @@ impl Reply {
     #[must_use]
     pub const fn delayed(mut self, delay: Duration) -> Self {
         self.delay = Some(delay);
+        self
+    }
+
+    /// Adds a response header, for example `Retry-After`.
+    #[must_use]
+    pub fn header(mut self, name: &'static str, value: impl Into<String>) -> Self {
+        self.headers.push((name, value.into()));
         self
     }
 }
@@ -146,6 +155,10 @@ async fn respond(
     if let Some(delay) = reply.delay {
         tokio::time::sleep(delay).await;
     }
+    into_response(reply)
+}
+
+fn into_response(reply: Reply) -> Response {
     let status = StatusCode::from_u16(reply.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     let mut response = Response::new(Body::from(reply.body));
     *response.status_mut() = status;
@@ -153,6 +166,11 @@ async fn respond(
         "content-type",
         axum::http::HeaderValue::from_static("application/json"),
     );
+    for (name, value) in reply.headers {
+        if let Ok(value) = axum::http::HeaderValue::from_str(&value) {
+            response.headers_mut().insert(name, value);
+        }
+    }
     response
 }
 

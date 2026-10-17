@@ -164,6 +164,8 @@ pub struct LimitsOverride {
     pub operation_timeout_secs: Option<u64>,
     /// See [`ExecutionLimits::model_request_timeout_secs`].
     pub model_request_timeout_secs: Option<u64>,
+    /// See [`ExecutionLimits::model_request_retries`].
+    pub model_request_retries: Option<u32>,
     /// See [`ExecutionLimits::model_calls_per_step`].
     pub model_calls_per_step: Option<u32>,
     /// See [`ExecutionLimits::tool_calls_per_step`].
@@ -185,6 +187,9 @@ impl LimitsOverride {
             model_request_timeout_secs: self
                 .model_request_timeout_secs
                 .unwrap_or(base.model_request_timeout_secs),
+            model_request_retries: self
+                .model_request_retries
+                .unwrap_or(base.model_request_retries),
             model_calls_per_step: self
                 .model_calls_per_step
                 .unwrap_or(base.model_calls_per_step),

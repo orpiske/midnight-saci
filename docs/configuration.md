@@ -37,7 +37,8 @@ Complete examples:
 ## `llm`
 
 One backend-default connection, inherited by every worker. See the
-[execution contract](execution.md#llm-connection).
+[execution contract](execution.md#llm-connection) and [LLM providers](llm-providers.md)
+for OpenRouter and Ollama settings, retries and error messages.
 
 | Setting | Default | Meaning |
 |---------|---------|---------|
@@ -51,7 +52,7 @@ setting.
 
 ## `limits`
 
-Every execution limit is configurable and must be greater than zero. Omitted
+Every execution limit is configurable and, except `model_request_retries`, must be greater than zero. Omitted
 values use these defaults. An environment's `limits` override these for
 runs in that environment.
 
@@ -61,6 +62,7 @@ runs in that environment.
 | `step_timeout_secs` | `600` | Deadline for one attempt of one unit. Must not exceed `run_timeout_secs`. |
 | `operation_timeout_secs` | `120` | Deadline for one tool operation (shell command, HTTP request, MCP call). Clamped to the remaining step and run time. |
 | `model_request_timeout_secs` | `120` | Deadline for one model request. Clamped to the remaining step and run time. |
+| `model_request_retries` | `2` | Extra attempts for a model request that failed to connect or returned HTTP 429 (other than an exhausted quota) or 5xx, with backoff honoring `Retry-After`. `0` disables retries. Only the model request is repeated; tool calls are never replayed. Unlike the other limits it may be `0`. |
 | `model_calls_per_step` | `25` | Model requests per attempt, including requests whose tool calls were rejected. |
 | `tool_calls_per_step` | `40` | Tool calls per attempt, including rejected calls. |
 | `output_limit_bytes` | `65536` | Bytes kept of each captured stream or body; the rest is dropped and marked as truncated. |

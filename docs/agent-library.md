@@ -44,9 +44,12 @@ These are the only places Saci adds behavior Rig does not provide:
 2. **Cancellation token.** Rig has no token API; Saci races the run future
    against its own token with `tokio::select!`, and hooks stop runs from the
    inside.
-3. **Bounded transport retries.** Rig has none. Saci retries only model
-   requests that failed before a response was received, a bounded number of
-   times, and never replays tool calls (see the LLM connection code).
+3. **Bounded transport retries.** Rig has none. `saci_worker::llm::RetryingClient`
+   wraps Rig's HTTP transport and repeats a model request that could not
+   connect or got HTTP 429 (not an exhausted quota), 500, 502, 503 or 504,
+   up to `limits.model_request_retries` times. Tool calls are executed by
+   the agent loop only after a successful response, so they are never
+   replayed (see [LLM providers](llm-providers.md#retries-and-errors)).
 4. **Unknown tool names.** By default Rig fails the run on an unknown tool.
    Saci's hook converts that into a rejected-call observation and feedback
    to the model, counted against the tool-call limit. Rig then also skips

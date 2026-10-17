@@ -128,6 +128,9 @@ pub struct ExecutionLimits {
     pub operation_timeout_secs: u64,
     /// Deadline for one model request.
     pub model_request_timeout_secs: u64,
+    /// Extra attempts for a model request that failed with a connection
+    /// error, HTTP 429 (not quota) or 5xx. Zero disables retries.
+    pub model_request_retries: u32,
     /// Model requests allowed per attempt, including rejected ones.
     pub model_calls_per_step: u32,
     /// Tool calls allowed per attempt, including rejected ones.
@@ -143,6 +146,7 @@ impl Default for ExecutionLimits {
             step_timeout_secs: 600,
             operation_timeout_secs: 120,
             model_request_timeout_secs: 120,
+            model_request_retries: 2,
             model_calls_per_step: 25,
             tool_calls_per_step: 40,
             output_limit_bytes: 64 * 1024,
