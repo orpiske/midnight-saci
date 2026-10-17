@@ -4,4 +4,5 @@
 pub mod credentials;
 pub mod http;
 pub mod llm;
+pub mod mcp;
 pub mod shell;

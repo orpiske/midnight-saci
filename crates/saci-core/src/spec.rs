@@ -73,6 +73,57 @@ pub struct EnvironmentSpec {
     /// Worker container resources.
     #[serde(default)]
     pub worker: WorkerResources,
+    /// MCP servers whose tools steps may use, by name.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub mcp: BTreeMap<String, McpServerSpec>,
+}
+
+/// How the worker reaches an MCP server: `command` for a child process,
+/// `url` for Streamable HTTP.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum McpTransport {
+    /// A child process speaking MCP on standard input and output.
+    Stdio(StdioServer),
+    /// A Streamable HTTP endpoint.
+    Http(HttpServer),
+}
+
+/// An MCP server started as a worker child process.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StdioServer {
+    /// Command name, resolved through the worker's `PATH`, or a path.
+    pub command: String,
+    /// Arguments.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub args: Vec<String>,
+    /// Extra environment variables; values may use `${NAME}` for an
+    /// environment parameter or secret.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub env: BTreeMap<String, String>,
+}
+
+/// An MCP server reached over Streamable HTTP.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HttpServer {
+    /// Endpoint URL as reachable from the worker.
+    pub url: String,
+    /// Extra request headers; values may use `${NAME}`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub headers: BTreeMap<String, String>,
+}
+
+/// An MCP server enabled for an environment.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct McpServerSpec {
+    /// How to reach it.
+    pub transport: McpTransport,
+    /// Tools exposed to steps; all discovered tools when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
 }
 
 /// Resources requested for the worker container.

@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::spec::{
-    EnvironmentSpec, ExecutionLimits, FailureAction, LlmSettings, RetryPolicy, RunPolicy,
-    SecretRef, WorkerResources,
+    EnvironmentSpec, ExecutionLimits, FailureAction, LlmSettings, McpServerSpec, McpTransport,
+    RetryPolicy, RunPolicy, SecretRef, WorkerResources,
 };
 
 /// Name of the policy used when a run names none.
@@ -37,6 +37,9 @@ pub struct Config {
     /// Run policies by name. `default` is implied when absent.
     #[serde(default)]
     pub policies: BTreeMap<String, PolicyConfig>,
+    /// MCP servers by name; environments enable them under `mcp`.
+    #[serde(default)]
+    pub mcp_servers: BTreeMap<String, McpTransport>,
 }
 
 /// Backend service settings.
@@ -218,6 +221,18 @@ pub struct EnvironmentConfig {
     /// Worker container resources.
     #[serde(default)]
     pub worker: WorkerResources,
+    /// Configured MCP servers enabled for steps in this environment.
+    #[serde(default)]
+    pub mcp: BTreeMap<String, McpSelection>,
+}
+
+/// Enables a configured MCP server for an environment.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct McpSelection {
+    /// Tools exposed to steps; all discovered tools when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
 }
 
 /// A run policy.
@@ -347,6 +362,9 @@ impl Config {
         for (name, policy) in &self.policies {
             validate_policy(&format!("policies.{name}"), policy, &mut issues);
         }
+        for (name, server) in &self.mcp_servers {
+            validate_mcp_server(&format!("mcp_servers.{name}"), name, server, &mut issues);
+        }
         if self.worker.image.trim().is_empty() {
             issues.push("worker.image", "must not be empty");
         }
@@ -392,6 +410,26 @@ impl Config {
         }
         let limits = env.limits.apply(self.default_limits());
         validate_limits(&format!("{path}.limits"), limits, issues);
+        self.validate_mcp_selection(&path, env, issues);
+    }
+
+    fn validate_mcp_selection(&self, path: &str, env: &EnvironmentConfig, issues: &mut Issues) {
+        for (name, selection) in &env.mcp {
+            let path = format!("{path}.mcp.{name}");
+            if !self.mcp_servers.contains_key(name) {
+                issues.push(&path, "is not defined under mcp_servers");
+            }
+            let tools = selection.tools.iter().flatten();
+            if tools.clone().any(|tool| tool.trim().is_empty()) {
+                issues.push(&format!("{path}.tools"), "tool names must not be empty");
+            }
+            if selection.tools.as_ref().is_some_and(Vec::is_empty) {
+                issues.push(
+                    &format!("{path}.tools"),
+                    "omit `tools` to enable all tools; an empty list enables none",
+                );
+            }
+        }
     }
 
     /// The top-level limits applied over the built-in defaults.
@@ -418,8 +456,20 @@ impl Config {
             parameters: env.parameters.clone(),
             secrets: env.secrets.clone(),
             worker: env.worker.clone(),
+            mcp: self.enabled_mcp(env),
         };
         Ok((spec, env.limits.apply(self.default_limits())))
+    }
+
+    fn enabled_mcp(&self, env: &EnvironmentConfig) -> BTreeMap<String, McpServerSpec> {
+        env.mcp
+            .iter()
+            .filter_map(|(name, selection)| {
+                let transport = self.mcp_servers.get(name)?.clone();
+                let tools = selection.tools.clone();
+                Some((name.clone(), McpServerSpec { transport, tools }))
+            })
+            .collect()
     }
 
     /// The policy called `name`. `default` exists even when not configured.
@@ -573,6 +623,30 @@ fn validate_secret(path: &str, secret: &SecretRef, issues: &mut Issues) {
     }
 }
 
+fn validate_mcp_server(path: &str, name: &str, server: &McpTransport, issues: &mut Issues) {
+    if !is_name(name) {
+        issues.push(path, "names use letters, digits, `-` and `_`");
+    }
+    match server {
+        McpTransport::Stdio(stdio) => {
+            if stdio.command.trim().is_empty() {
+                issues.push(&format!("{path}.command"), "must not be empty");
+            }
+            for key in stdio.env.keys().filter(|key| !is_variable_name(key)) {
+                issues.push(
+                    &format!("{path}.stdio.env.{key}"),
+                    "must be a variable name",
+                );
+            }
+        }
+        McpTransport::Http(http) => {
+            if !is_http_url(&http.url) {
+                issues.push(&format!("{path}.url"), "must be an http:// or https:// URL");
+            }
+        }
+    }
+}
+
 fn is_http_url(value: &str) -> bool {
     let rest = value
         .strip_prefix("http://")
@@ -714,5 +788,47 @@ mod tests {
             found.iter().any(|i| i.contains("is llm.api_key_env")),
             "{found:?}"
         );
+    }
+
+    const MCP: &str = "mcp_servers:\n  tools:\n    command: saci-fake-mcp\n    env:\n      TOKEN: ${MCP_TOKEN}\n  remote:\n    url: http://mcp:9090/mcp\n    headers:\n      Authorization: Bearer ${MCP_TOKEN}\nenvironments:\n  local:\n    mcp:\n      tools:\n        tools: [echo]\n      remote: {}\n";
+
+    #[test]
+    fn mcp_servers_are_enabled_per_environment() {
+        let config = Config::from_yaml(&format!("{MINIMAL}{MCP}"), "test.yaml").unwrap();
+        let (spec, _) = config.environment("local").unwrap();
+        assert_eq!(
+            spec.mcp["tools"].tools.as_deref(),
+            Some(&["echo".to_owned()][..])
+        );
+        assert!(matches!(
+            spec.mcp["tools"].transport,
+            McpTransport::Stdio(_)
+        ));
+        assert_eq!(spec.mcp["remote"].tools, None);
+        let json = serde_json::to_value(&spec).unwrap();
+        assert_eq!(
+            json["mcp"]["remote"]["transport"]["url"],
+            "http://mcp:9090/mcp"
+        );
+    }
+
+    #[test]
+    fn mcp_configuration_is_validated() {
+        let bad = format!(
+            "{MINIMAL}mcp_servers:\n  bad name:\n    command: ''\n  web:\n    url: mcp:9090\nenvironments:\n  local:\n    mcp:\n      missing: {{}}\n      web:\n        tools: []\n"
+        );
+        let found = issues(&bad);
+        for expected in [
+            "mcp_servers.bad name: names use",
+            "mcp_servers.bad name.command: must not be empty",
+            "mcp_servers.web.url: must be",
+            "environments.local.mcp.missing: is not defined",
+            "environments.local.mcp.web.tools: omit",
+        ] {
+            assert!(
+                found.iter().any(|i| i.starts_with(expected)),
+                "{expected}: {found:?}"
+            );
+        }
     }
 }

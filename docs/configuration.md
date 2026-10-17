@@ -1,6 +1,6 @@
 # Configuration reference
 
-Saci reads one YAML file, passed to the backend with `--config`. It has six
+Saci reads one YAML file, passed to the backend with `--config`. It has seven
 sections. Unknown fields, missing required values and invalid values are
 rejected at startup with the setting's path, for example
 `limits.tool_calls_per_step: must be greater than 0`. There is no expression
@@ -78,6 +78,13 @@ Named target environments. Names use letters, digits, `-` and `_`.
 | `secrets` | `{}` | Values exported to the worker shell as variables, by name. Each is `{ env: VAR }` (a backend environment variable) or `{ secret: name, key: key }` (a Kubernetes Secret). The model sees only the names; values are redacted from evidence. A name cannot also be a parameter. See [credentials and redaction](security.md). |
 | `limits` | `{}` | Overrides of the top-level `limits`. |
 | `worker.cpu`, `worker.memory` | none | Worker container resource limits, in the runtime's notation (`"1"`, `500m`, `1g`, `512Mi`). |
+| `mcp.<server>.tools` | none | Enables a server from `mcp_servers` for steps; `tools` limits the exposed tools. See [MCP servers](mcp.md). |
+
+## `mcp_servers`
+
+MCP server definitions by name, each with `command` (and `args`, `env`) for
+a stdio server or `url` (and `headers`) for Streamable HTTP. Environments
+enable them; see [MCP servers](mcp.md).
 
 ## `policies`
 
