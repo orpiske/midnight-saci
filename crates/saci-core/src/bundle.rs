@@ -208,17 +208,26 @@ struct Expander<'a> {
 }
 
 impl Expander<'_> {
-    fn plan_units(&mut self, plan: &Plan, parent: Option<&UnitKey>, invoked_by: &[UnitKey]) {
+    /// Expands `plan`'s units. A nested unit's key names its invoking unit
+    /// and `segment`, the procedure document with the invocation's
+    /// occurrence when the same unit follows it more than once.
+    fn plan_units(
+        &mut self,
+        plan: &Plan,
+        parent: Option<(&UnitKey, &str)>,
+        invoked_by: &[UnitKey],
+    ) {
         for phase in &plan.phases {
             for unit in &phase.units {
                 let key = parent.map_or_else(
                     || UnitKey::new(unit.id.clone()),
-                    |parent| parent.nested(&plan.document, &unit.id),
+                    |(parent, segment)| parent.nested(segment, &unit.id),
                 );
                 let mut chain = invoked_by.to_vec();
                 chain.push(key.clone());
+                let mut occurrences = BTreeMap::new();
                 for procedure in &unit.procedures {
-                    self.invoke(&plan.document, procedure, &key, &chain);
+                    self.invoke(&plan.document, procedure, (&key, &mut occurrences), &chain);
                 }
                 self.units.push(ExecutionUnit {
                     identity: identity(key, unit, &phase.title),
@@ -230,12 +239,25 @@ impl Expander<'_> {
         }
     }
 
-    fn invoke(&mut self, from: &str, procedure: &ProcedureRef, key: &UnitKey, chain: &[UnitKey]) {
+    fn invoke(
+        &mut self,
+        from: &str,
+        procedure: &ProcedureRef,
+        (key, occurrences): (&UnitKey, &mut BTreeMap<String, usize>),
+        chain: &[UnitKey],
+    ) {
         let parsed = resolve(from, procedure).and_then(|target| self.procedure(&target, procedure));
         match parsed {
             Ok(plan) => {
+                let seen = occurrences.entry(plan.document.clone()).or_insert(0);
+                *seen += 1;
+                let segment = if *seen == 1 {
+                    plan.document.clone()
+                } else {
+                    format!("{}@{seen}", plan.document)
+                };
                 self.stack.push(plan.document.clone());
-                self.plan_units(&plan, Some(key), chain);
+                self.plan_units(&plan, Some((key, &segment)), chain);
                 self.stack.pop();
             }
             Err(error) => self.diagnostics.extend(error.diagnostics),
