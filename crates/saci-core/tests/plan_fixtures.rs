@@ -76,3 +76,11 @@ fn starter_template_parses() {
     let plan = parse_document("test-plan.md", &source, DocumentRole::Entry).unwrap();
     assert_eq!(plan.title, "Service health");
 }
+
+#[test]
+fn complete_example_parses() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/templates/example.md");
+    let source = std::fs::read_to_string(path).unwrap();
+    let plan = parse_document("example.md", &source, DocumentRole::Entry).unwrap();
+    assert_eq!(plan.units().count(), 5);
+}

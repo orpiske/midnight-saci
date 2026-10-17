@@ -5736,6 +5736,7 @@ dependencies = [
  "anyhow",
  "clap",
  "saci-core",
+ "tempfile",
 ]
 
 [[package]]

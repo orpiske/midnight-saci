@@ -6,23 +6,23 @@ This document specifies the plan format and the `saci new test-plan` command.
 
 ## Create a plan
 
-The CLI will provide:
+The CLI provides:
 
 ```sh
 saci new test-plan saci-on-the-cloud.md
 ```
 
-This creates an editable Markdown starter based on the [starter template](templates/test-plan.md). Edit the overview, prerequisites, actions, and expected results for your system before submitting a run.
+This creates an editable Markdown starter based on the [starter template](templates/test-plan.md). A complete example lives next to it in [templates/example.md](templates/example.md). Edit the overview, prerequisites, actions, and expected results for your system before submitting a run.
 
-The command must:
+The command:
 
-- Work locally without a running backend, LLM connection, or network access.
-- Embed the starter template in the CLI distribution so it works after installation.
-- Derive an editable title from the destination filename.
-- Create the requested file and print its location.
-- Refuse to overwrite an existing file, leaving its contents intact and returning a nonzero exit code.
-- Return a clear error if the destination cannot be written or its parent directory does not exist.
-- Create the document without executing its contents.
+- Works locally without a running backend, LLM connection, or network access.
+- Embeds the starter template in the CLI distribution so it works after installation.
+- Derives an editable title from the destination filename.
+- Creates the requested file and print its location.
+- Refuses to overwrite an existing file, leaving its contents intact and returning a nonzero exit code.
+- Returns a clear error if the destination cannot be written or its parent directory does not exist.
+- Creates the document without executing its contents.
 
 ## Document structure
 
