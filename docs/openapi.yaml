@@ -1,0 +1,460 @@
+openapi: 3.1.0
+info:
+  title: Saci API
+  version: 0.1.0
+  description: |
+    REST API of the Saci backend. Every route lives under `/api/v1/<problem-domain>`.
+    Client routes (`/api/v1/runs`) require `Authorization: Bearer <token>` when the
+    backend is configured with `backend.auth`; it must be when it listens beyond
+    loopback. Worker routes (`/api/v1/worker/...`) require the run-scoped worker
+    token issued at launch, which grants access to that one run only.
+    See docs/api.md for semantics and examples.
+servers:
+  - url: http://127.0.0.1:8080
+tags:
+  - name: runs
+    description: Submitting, inspecting and cancelling runs.
+  - name: worker
+    description: Run-scoped reporting by a worker.
+  - name: health
+paths:
+  /api/v1/health:
+    get:
+      tags: [health]
+      summary: Liveness check. Never requires authentication.
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: The backend is serving.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, const: ok }
+  /api/v1/runs:
+    post:
+      tags: [runs]
+      summary: Submit a run. Execution starts immediately; there is no approval stage.
+      operationId: submitRun
+      security: [{ clientToken: [] }, {}]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitRun" }
+      responses:
+        "202":
+          description: |
+            Accepted and stored. The worker launches asynchronously; follow progress through
+            `/events`. A retry with the same `Idempotency-Key` and body returns the original
+            run with status 200 instead.
+          headers:
+            Location:
+              schema: { type: string }
+              description: "`/api/v1/runs/{run_id}`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunSummary" }
+        "200":
+          description: Replay of an earlier submission with the same idempotency key.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunSummary" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    get:
+      tags: [runs]
+      summary: List runs, newest first.
+      operationId: listRuns
+      security: [{ clientToken: [] }, {}]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - name: cursor
+          in: query
+          description: "`next_cursor` of the previous page."
+          schema: { type: string }
+      responses:
+        "200":
+          description: One page of runs.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/RunSummary" }
+                  next_cursor: { type: string }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/v1/runs/{run_id}:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      tags: [runs]
+      summary: Inspect a run.
+      operationId: getRun
+      security: [{ clientToken: [] }, {}]
+      responses:
+        "200":
+          description: The run.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunSummary" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/runs/{run_id}/events:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      tags: [runs]
+      summary: Progress events after a sequence number.
+      description: |
+        Returns events with `seq > after`, in order. With `wait`, the request is held
+        (long poll) until at least one new event exists, the run finishes, or `wait`
+        seconds pass. Clients reconnect with `after = next_after` and never miss or
+        duplicate an event.
+      operationId: listRunEvents
+      security: [{ clientToken: [] }, {}]
+      parameters:
+        - name: after
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - $ref: "#/components/parameters/Limit"
+        - name: wait
+          in: query
+          description: Seconds to wait for new events (0 to 60).
+          schema: { type: integer, minimum: 0, maximum: 60, default: 0 }
+      responses:
+        "200":
+          description: A page of events.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventPage" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/runs/{run_id}/report:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      tags: [runs]
+      summary: The run report. Final once `lifecycle` is `finished`; retained after the worker is removed.
+      operationId: getRunReport
+      security: [{ clientToken: [] }, {}]
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunReport" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/runs/{run_id}/evidence/{evidence_id}:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+      - name: evidence_id
+        in: path
+        required: true
+        schema: { type: string, pattern: "^ev-[0-9]+$" }
+    get:
+      tags: [runs]
+      summary: One recorded observation.
+      operationId: getRunEvidence
+      security: [{ clientToken: [] }, {}]
+      responses:
+        "200":
+          description: The evidence.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Evidence" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/runs/{run_id}/cancellation:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    post:
+      tags: [runs]
+      summary: Request cancellation.
+      description: |
+        Records the request and asks the worker to stop. Idempotent: repeating it returns
+        the same `cancel_requested_at`. The run is finished only once its lifecycle is
+        `finished` (outcome `cancelled` unless it ended for another reason first).
+      operationId: cancelRun
+      security: [{ clientToken: [] }, {}]
+      responses:
+        "202":
+          description: Cancellation requested.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunSummary" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409":
+          description: The run already finished (`run_finished`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorBody" }
+  /api/v1/worker/runs/{run_id}/specification:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      tags: [worker]
+      summary: The immutable run specification assigned to this worker.
+      operationId: getWorkerSpecification
+      security: [{ workerToken: [] }]
+      responses:
+        "200":
+          description: The specification. Secrets are references; values are injected into the worker environment.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunSpec" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/v1/worker/runs/{run_id}/events:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    post:
+      tags: [worker]
+      summary: Report events. Acknowledged only after they are persisted.
+      description: |
+        The batch holds consecutive events. Events at or below the acknowledged sequence are
+        ignored (retransmissions), so a worker that did not receive an acknowledgment resends
+        the same batch. A batch that would skip a sequence number is rejected with
+        `sequence_gap` and the current `acknowledged_seq` in `details`.
+      operationId: postWorkerEvents
+      security: [{ workerToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [events]
+              properties:
+                events:
+                  type: array
+                  items: { $ref: "#/components/schemas/RunEvent" }
+      responses:
+        "200":
+          description: Persisted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventAck" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /api/v1/worker/runs/{run_id}/control:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      tags: [worker]
+      summary: Whether the worker must stop.
+      operationId: getWorkerControl
+      security: [{ workerToken: [] }]
+      responses:
+        "200":
+          description: Control state.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [cancel_requested]
+                properties:
+                  cancel_requested: { type: boolean }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    clientToken:
+      type: http
+      scheme: bearer
+      description: Token from the environment variable named by `backend.auth.token_env`.
+    workerToken:
+      type: http
+      scheme: bearer
+      description: Run-scoped token generated by the backend for one worker.
+  parameters:
+    RunId:
+      name: run_id
+      in: path
+      required: true
+      schema: { type: string, pattern: "^run-[a-z0-9]+$" }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: |
+        Client-chosen key (1 to 200 visible ASCII characters). Retrying a submission with the
+        same key and body returns the original run instead of creating another one; reusing it
+        with a different body fails with `idempotency_conflict`.
+      schema: { type: string, minLength: 1, maxLength: 200 }
+  responses:
+    Error:
+      description: A structured error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+  schemas:
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [unauthorized, forbidden, not_found, validation_failed, idempotency_conflict, run_finished, sequence_gap, bad_request, internal]
+            message: { type: string }
+            details:
+              type: array
+              items: { type: string }
+    Lifecycle:
+      type: string
+      enum: [accepted, starting, running, stopping, finished]
+    Outcome:
+      type: string
+      enum: [passed, failed, blocked, inconclusive, error, skipped, cancelled]
+    PlanBundle:
+      type: object
+      required: [entry, documents]
+      properties:
+        entry: { type: string, description: Bundle-relative path of the entry document. }
+        documents:
+          type: object
+          description: Markdown sources keyed by bundle-relative path (`/` separators, no `..`).
+          additionalProperties: { type: string }
+    SubmitRun:
+      type: object
+      additionalProperties: false
+      required: [bundle, environment]
+      properties:
+        bundle: { $ref: "#/components/schemas/PlanBundle" }
+        environment: { type: string }
+        policy: { type: string, default: default }
+    OutcomeCounts:
+      type: object
+      properties:
+        passed: { type: integer }
+        failed: { type: integer }
+        blocked: { type: integer }
+        inconclusive: { type: integer }
+        error: { type: integer }
+        skipped: { type: integer }
+        cancelled: { type: integer }
+    RunSummary:
+      type: object
+      required: [id, plan_title, environment, policy, lifecycle, counts, total_units, last_event_seq, created_at]
+      properties:
+        id: { type: string }
+        plan_title: { type: string }
+        environment: { type: string }
+        policy: { type: string }
+        lifecycle: { $ref: "#/components/schemas/Lifecycle" }
+        outcome: { $ref: "#/components/schemas/Outcome" }
+        reason: { type: string }
+        current_unit: { type: string }
+        counts: { $ref: "#/components/schemas/OutcomeCounts" }
+        total_units: { type: integer }
+        last_event_seq: { type: integer }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time }
+        cancel_requested_at: { type: string, format: date-time }
+    EventPage:
+      type: object
+      required: [items, next_after, finished]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/RunEvent" }
+        next_after: { type: integer }
+        finished: { type: boolean }
+    EventAck:
+      type: object
+      required: [acknowledged_seq]
+      properties:
+        acknowledged_seq: { type: integer }
+    RunEvent:
+      type: object
+      description: |
+        One progress event. `type` is one of run_started, attempt_started, observation,
+        attempt_finished, unit_finished, unit_skipped, cancellation_requested, run_finished;
+        the remaining properties depend on it (see docs/contracts.md).
+      required: [run_id, seq, at, type]
+      properties:
+        run_id: { type: string }
+        seq: { type: integer, minimum: 1 }
+        at: { type: string, format: date-time }
+        unit: { type: string }
+        attempt: { type: integer, minimum: 1 }
+        source:
+          type: object
+          properties:
+            document: { type: string }
+            line: { type: integer }
+        type:
+          type: string
+          enum: [run_started, attempt_started, observation, attempt_finished, unit_finished, unit_skipped, cancellation_requested, run_finished]
+      additionalProperties: true
+    Evidence:
+      type: object
+      description: A redacted tool observation; `tool` is shell, http, mcp or rejected.
+      required: [id, unit, attempt, recorded_at, duration_ms, tool]
+      properties:
+        id: { type: string }
+        unit: { type: string }
+        attempt: { type: integer }
+        recorded_at: { type: string, format: date-time }
+        duration_ms: { type: integer }
+        tool: { type: string, enum: [shell, http, mcp, rejected] }
+      additionalProperties: true
+    RunReport:
+      type: object
+      description: The durable run report (see docs/contracts.md).
+      required: [schema_version, run_id, lifecycle, counts, units, evidence, last_seq]
+      properties:
+        schema_version: { type: integer }
+        run_id: { type: string }
+        plan_title: { type: string }
+        lifecycle: { $ref: "#/components/schemas/Lifecycle" }
+        outcome: { $ref: "#/components/schemas/Outcome" }
+        reason: { type: string }
+        counts: { $ref: "#/components/schemas/OutcomeCounts" }
+        units:
+          type: array
+          items: { type: object, additionalProperties: true }
+        cleanup_not_run:
+          type: array
+          items: { type: string }
+        evidence:
+          type: array
+          items: { $ref: "#/components/schemas/Evidence" }
+        last_seq: { type: integer }
+      additionalProperties: true
+    RunSpec:
+      type: object
+      description: The immutable run specification (see crates/saci-core/src/spec.rs).
+      required: [schema_version, run_id, created_at, bundle, environment, policy, limits, llm]
+      properties:
+        schema_version: { type: integer }
+        run_id: { type: string }
+        created_at: { type: string, format: date-time }
+        bundle: { $ref: "#/components/schemas/PlanBundle" }
+        environment: { type: object, additionalProperties: true }
+        policy: { type: object, additionalProperties: true }
+        limits: { type: object, additionalProperties: true }
+        llm: { type: object, additionalProperties: true }
