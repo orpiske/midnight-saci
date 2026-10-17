@@ -35,4 +35,5 @@ serde_json.workspace = true
 
 [dev-dependencies]
 axum.workspace = true
+saci-backend.workspace = true
 saci-testkit.workspace = true
