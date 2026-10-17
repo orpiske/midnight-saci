@@ -412,7 +412,10 @@ components:
       additionalProperties: true
     Evidence:
       type: object
-      description: A redacted tool observation; `tool` is shell, http, mcp or rejected.
+      description: >-
+        A redacted tool observation; `tool` is shell, http, mcp or rejected. MCP evidence also has
+        `server`, `tool_name`, `arguments`, `result`, `is_error` (the tool reported an error) and
+        `protocol_error` (no result: the call failed, timed out or was cancelled).
       required: [id, unit, attempt, recorded_at, duration_ms, tool]
       properties:
         id: { type: string }

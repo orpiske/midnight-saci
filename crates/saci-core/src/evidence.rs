@@ -159,7 +159,9 @@ pub struct HttpResponseEvidence {
 pub struct McpEvidence {
     /// Configured server name.
     pub server: String,
-    /// Tool name as exposed by the server.
+    /// Tool name as exposed by the server. Serialized as `tool_name`:
+    /// `tool` is the evidence kind.
+    #[serde(rename = "tool_name")]
     pub tool: String,
     /// Arguments sent, with secrets redacted.
     pub arguments: serde_json::Value,

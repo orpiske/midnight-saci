@@ -8,6 +8,7 @@
 //! assessment or the reason the attempt stopped.
 
 mod hook;
+pub mod mcp;
 pub mod prompt;
 mod render;
 mod state;
@@ -36,6 +37,7 @@ use state::{AttemptState, Setup};
 use crate::events::Recorder;
 use crate::http::HttpTool;
 use crate::llm::LlmConnection;
+use crate::mcp::McpServer;
 use crate::shell::ShellSession;
 
 /// How long an interrupted tool may take to stop before its future is
@@ -48,6 +50,8 @@ pub struct Executor {
     llm: LlmConnection,
     shell: Arc<Mutex<ShellSession>>,
     http: Arc<HttpTool>,
+    mcp: Vec<Arc<mcp::McpBinding>>,
+    mcp_servers: Mutex<Vec<McpServer>>,
     recorder: Recorder,
     limits: ExecutionLimits,
     environment: String,
@@ -144,6 +148,8 @@ impl Executor {
             llm,
             shell: Arc::new(Mutex::new(toolbox.shell)),
             http: Arc::new(toolbox.http),
+            mcp: Vec::new(),
+            mcp_servers: Mutex::new(Vec::new()),
             recorder: toolbox.recorder,
             limits,
             environment: toolbox.environment,
@@ -154,6 +160,22 @@ impl Executor {
     #[must_use]
     pub const fn recorder(&self) -> &Recorder {
         &self.recorder
+    }
+
+    /// Exposes the selected tools of the run's connected MCP servers to
+    /// every attempt; [`Executor::close`] shuts the servers down.
+    pub fn attach_mcp(&mut self, servers: Vec<McpServer>) {
+        self.mcp = mcp::bindings(&servers).into_iter().map(Arc::new).collect();
+        self.mcp_servers = Mutex::new(servers);
+    }
+
+    /// The names the model calls the MCP tools by.
+    #[must_use]
+    pub fn mcp_tools(&self) -> Vec<String> {
+        self.mcp
+            .iter()
+            .map(|binding| binding.exposed().to_owned())
+            .collect()
     }
 
     /// Runs one attempt and reports its start, observations and result.
@@ -201,11 +223,16 @@ impl Executor {
     }
 
     fn tools(&self, state: &Arc<AttemptState>) -> Result<Vec<DynamicTool>, ExecutionError> {
-        Ok(vec![
+        let mut tools = vec![
             tools::shell(state.clone(), self.shell.clone())?,
             tools::http(state.clone(), self.http.clone())?,
             tools::assess(state.clone())?,
-        ])
+        ];
+        for binding in &self.mcp {
+            let redactor = self.recorder.redactor().clone();
+            tools.push(mcp::tool(state.clone(), binding.clone(), redactor)?);
+        }
+        Ok(tools)
     }
 
     /// Builds the attempt's agent and starts its run.
@@ -303,8 +330,11 @@ impl Executor {
         )
     }
 
-    /// Stops the shell session and everything it started.
+    /// Stops the shell session and everything it started, and shuts the
+    /// MCP servers down.
     pub async fn close(&self) {
         self.shell.lock().await.close().await;
+        let servers = std::mem::take(&mut *self.mcp_servers.lock().await);
+        crate::mcp::shutdown_all(servers).await;
     }
 }
