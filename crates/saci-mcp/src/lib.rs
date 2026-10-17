@@ -20,6 +20,7 @@ use rmcp::service::RunningService;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
 use rmcp::transport::{StreamableHttpClientTransport, TokioChildProcess};
 use rmcp::{Peer, RoleClient, ServiceExt};
+use saci_core::redaction::Redactor;
 use saci_core::run::{ErrorKind, ExecutionError};
 use saci_core::spec::{HttpServer, McpServerSpec, McpTransport, StdioServer};
 
@@ -33,6 +34,9 @@ pub trait Projection: Sync {
     fn environment(&self) -> &BTreeMap<String, String>;
     /// `text` with `${NAME}` replaced by the values this projection allows.
     fn expand(&self, text: &str) -> String;
+    /// Hides the credential values a server may receive, in what the
+    /// server writes to its standard error.
+    fn redactor(&self) -> &Redactor;
 }
 
 /// Who connects, and with what.
@@ -236,21 +240,54 @@ fn start_stdio(
                 .map(|(key, value)| (key, credentials.expand(value))),
         )
         .kill_on_drop(true);
-    let (transport, _) = TokioChildProcess::builder(command)
-        .stderr(Stdio::inherit())
+    let (transport, stderr) = TokioChildProcess::builder(command)
+        .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| {
-            let reason = if error.kind() == std::io::ErrorKind::NotFound {
-                format!(
-                    "command `{}` was not found in the {} PATH",
-                    stdio.command, client.place
-                )
-            } else {
-                format!("cannot start `{}`: {error}", stdio.command)
-            };
-            mcp_error(name, reason)
-        })?;
+        .map_err(|error| spawn_error(name, stdio, client.place, &error))?;
+    if let Some(stderr) = stderr {
+        tokio::spawn(log_stderr(
+            name.to_owned(),
+            stderr,
+            credentials.redactor().clone(),
+        ));
+    }
     Ok(transport)
+}
+
+fn spawn_error(
+    name: &str,
+    stdio: &StdioServer,
+    place: &str,
+    error: &std::io::Error,
+) -> ExecutionError {
+    let reason = if error.kind() == std::io::ErrorKind::NotFound {
+        format!(
+            "command `{}` was not found in the {place} PATH",
+            stdio.command
+        )
+    } else {
+        format!("cannot start `{}`: {error}", stdio.command)
+    };
+    mcp_error(name, reason)
+}
+
+/// Longest stderr line logged, after redaction; the rest is dropped.
+const STDERR_LINE: usize = 2048;
+
+/// Logs what a stdio server writes to its standard error, a line at a
+/// time, with every credential it may have received redacted.
+async fn log_stderr(name: String, stderr: tokio::process::ChildStderr, redactor: Redactor) {
+    use tokio::io::AsyncBufReadExt as _;
+    let mut lines = tokio::io::BufReader::new(stderr).split(b'\n');
+    while let Ok(Some(line)) = lines.next_segment().await {
+        let text = String::from_utf8_lossy(&line);
+        let text = redactor.redact(text.trim_end());
+        let mut end = text.len().min(STDERR_LINE);
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        tracing::info!(server = %name, "mcp server: {}", &text[..end]);
+    }
 }
 
 fn http_transport(

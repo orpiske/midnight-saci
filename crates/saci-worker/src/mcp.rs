@@ -20,6 +20,10 @@ impl saci_mcp::Projection for Credentials {
     fn expand(&self, text: &str) -> String {
         Self::expand(self, text)
     }
+
+    fn redactor(&self) -> &saci_core::redaction::Redactor {
+        Self::redactor(self)
+    }
 }
 
 const fn client(credentials: &Credentials, timeout: Duration) -> saci_mcp::Client<'_> {
