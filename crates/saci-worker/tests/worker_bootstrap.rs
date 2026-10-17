@@ -398,3 +398,76 @@ async fn refused_events_cancel_the_run_before_its_next_action() {
     );
     assert!(!workspace.path().join("made-by-saci").exists());
 }
+
+/// A run whose only MCP server never answers, with `run_timeout_secs`.
+fn hanging_mcp(model_url: String, run_timeout_secs: u64) -> RunSpec {
+    use saci_core::spec::{McpServerSpec, McpTransport, StdioServer};
+    let mut spec = spec(RunId::generate(), model_url);
+    let server = McpServerSpec {
+        transport: McpTransport::Stdio(StdioServer {
+            command: "sleep".into(),
+            args: vec!["60".into()],
+            env: BTreeMap::new(),
+        }),
+        tools: None,
+    };
+    spec.environment.mcp = BTreeMap::from([("mute".to_owned(), server)]);
+    spec.limits.run_timeout_secs = run_timeout_secs;
+    spec.limits.step_timeout_secs = run_timeout_secs;
+    spec.limits.operation_timeout_secs = 60;
+    spec
+}
+
+#[tokio::test]
+async fn connecting_mcp_servers_stops_at_the_run_deadline() {
+    let model = FakeModel::start(script()).await.unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let spec = hanging_mcp(model.base_url(), 1);
+    let started = std::time::Instant::now();
+    let (output, events) = local(&spec, workspace.path(), &[]).await;
+    assert!(started.elapsed() < std::time::Duration::from_secs(10));
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let reason = rejection(&events);
+    assert!(reason.contains("deadline"), "{reason}");
+    assert!(model.requests().is_empty());
+}
+
+/// Stops `child` as a container runtime would.
+fn terminate(child: &tokio::process::Child) {
+    let pid = nix::unistd::Pid::from_raw(i32::try_from(child.id().unwrap()).unwrap());
+    nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGTERM).unwrap();
+}
+
+#[tokio::test]
+async fn cancelling_while_mcp_servers_connect_ends_the_run_cancelled() {
+    let model = FakeModel::start(script()).await.unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("run.json");
+    let spec = hanging_mcp(model.base_url(), 600);
+    std::fs::write(&path, serde_json::to_string(&spec).unwrap()).unwrap();
+    let child = Command::new(WORKER)
+        .args(["--spec", path.to_str().unwrap()])
+        .current_dir(workspace.path())
+        .env_clear()
+        .env("PATH", std::env::var("PATH").unwrap())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    terminate(&child);
+    let output = tokio::time::timeout(std::time::Duration::from_secs(10), child.wait_with_output())
+        .await
+        .expect("the worker stops")
+        .unwrap();
+    let events = parse(&output.stdout);
+    let Some(RunEvent {
+        kind: EventKind::RunFinished { outcome, reason },
+        ..
+    }) = events.last()
+    else {
+        panic!("{events:?}");
+    };
+    assert_eq!(*outcome, Outcome::Cancelled, "{reason}");
+    assert!(reason.contains("MCP servers were connecting"), "{reason}");
+}

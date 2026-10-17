@@ -209,7 +209,12 @@ pub async fn execute(running: Box<Running>, cancel: &CancellationToken) -> RunEn
         credentials,
         mut executor,
     } = *running;
-    if let Err(ending) = Box::pin(connect_mcp(&mut executor, &spec, &credentials)).await {
+    let deadline = Instant::now() + Duration::from_secs(spec.limits.run_timeout_secs);
+    let connecting = connect_mcp(&mut executor, &spec, &credentials);
+    if let Err(ending) = Box::pin(bounded(connecting, deadline, cancel)).await {
+        let (outcome, reason) = (ending.outcome, ending.reason.clone());
+        let finished = EventKind::RunFinished { outcome, reason };
+        executor.recorder().events().emit(None, None, finished);
         executor.close().await;
         return ending;
     }
@@ -217,7 +222,7 @@ pub async fn execute(running: Box<Running>, cancel: &CancellationToken) -> RunEn
         plan: &plan,
         policy: &spec.policy,
         step_timeout: Duration::from_secs(spec.limits.step_timeout_secs),
-        deadline: Instant::now() + Duration::from_secs(spec.limits.run_timeout_secs),
+        deadline,
         model: &spec.llm.model,
     };
     let ending = Box::pin(sequence::run(&executor, run_plan, cancel)).await;
@@ -240,17 +245,31 @@ async fn connect_mcp(
             executor.attach_mcp(connected);
             Ok(())
         }
-        Err(error) => {
-            let reason = format!("the run could not start: {}", error.message);
-            let kind = EventKind::RunFinished {
-                outcome: Outcome::Error,
-                reason: reason.clone(),
-            };
-            executor.recorder().events().emit(None, None, kind);
-            Err(RunEnding {
-                outcome: Outcome::Error,
-                reason,
-            })
-        }
+        Err(error) => Err(RunEnding {
+            outcome: Outcome::Error,
+            reason: format!("the run could not start: {}", error.message),
+        }),
+    }
+}
+
+/// Connecting the MCP servers counts against the run: it stops on
+/// cancellation and at the run deadline, before anything has run.
+async fn bounded(
+    connecting: impl Future<Output = Result<(), RunEnding>>,
+    deadline: Instant,
+    cancel: &CancellationToken,
+) -> Result<(), RunEnding> {
+    tokio::select! {
+        connected = connecting => connected,
+        () = cancel.cancelled() => Err(RunEnding {
+            outcome: Outcome::Cancelled,
+            reason: "the run was cancelled while its MCP servers were connecting".to_owned(),
+        }),
+        () = tokio::time::sleep_until(deadline.into()) => Err(RunEnding {
+            outcome: Outcome::Error,
+            reason: "the run deadline (limits.run_timeout_secs) passed while its MCP servers \
+                     were connecting"
+                .to_owned(),
+        }),
     }
 }
