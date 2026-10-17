@@ -323,6 +323,14 @@ fn retry_decision(error: &http_client::Error) -> Option<Option<Duration>> {
     is_connect_error(error).then_some(None)
 }
 
+/// Why a request is retried, without anything the provider sent back.
+fn retry_reason(error: &http_client::Error) -> String {
+    error.non_success_status().map_or_else(
+        || "the connection to the provider failed".to_owned(),
+        |status| format!("the provider answered HTTP {}", status.as_u16()),
+    )
+}
+
 fn retry_after(error: &http_client::Error) -> Option<Duration> {
     let seconds = error
         .non_success_headers()?
@@ -409,7 +417,10 @@ impl HttpClientExt for RetryingClient {
                     return Err(describe(error));
                 };
                 let delay = client.backoff.delay(retry, wait);
-                tracing::warn!(retry = retry + 1, ?delay, %error, "retrying model request");
+                // The provider's response body can echo the API key, so only
+                // the status or the kind of failure is logged.
+                let reason = retry_reason(&error);
+                tracing::warn!(retry = retry + 1, ?delay, %reason, "retrying model request");
                 tokio::time::sleep(delay).await;
                 retry += 1;
             }
