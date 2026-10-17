@@ -22,6 +22,7 @@ bytes = "1.12"
 http = "1.4"
 # MCP SDK; must stay on the major version rig-rmcp uses (see docs/mcp.md).
 rmcp = { version = "2.2", default-features = false }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "http2", "system-proxy"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
 nix = { version = "0.31", default-features = false, features = ["signal", "process"] }
 clap = { version = "4.6", features = ["derive"] }
@@ -34,7 +35,7 @@ serde_yaml = { package = "yaml_serde", version = "0.10.4" }
 tempfile = "3.27"
 thiserror = "2.0"
 time = { version = "0.3.55", features = ["serde", "formatting", "parsing", "macros"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "process", "io-util", "fs"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "process", "io-util", "fs", "net", "signal"] }
 tokio-util = "0.7"
 tower = { version = "0.5", features = ["util"] }
 tracing = "0.1.44"

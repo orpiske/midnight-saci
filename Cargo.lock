@@ -5927,8 +5927,15 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "reqwest 0.13.5",
+ "saci-backend",
  "saci-core",
+ "serde",
+ "serde_json",
  "tempfile",
+ "tokio",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
