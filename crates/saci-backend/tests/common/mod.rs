@@ -3,6 +3,8 @@
 
 #![allow(dead_code, clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+pub mod actions;
+
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
@@ -72,7 +74,9 @@ pub struct TestBackend {
     pub backend: Backend,
     pub app: Router,
     pub supervisor: Arc<Recording>,
-    _dir: tempfile::TempDir,
+    auth: ClientAuth,
+    yaml: String,
+    dir: tempfile::TempDir,
 }
 
 pub struct Answer {
@@ -88,17 +92,28 @@ impl TestBackend {
 
     /// A backend with the configuration `yaml`.
     pub async fn start_with(auth: ClientAuth, yaml: &str) -> Self {
-        let dir = tempfile::tempdir().unwrap();
+        Self::open(auth, yaml, tempfile::tempdir().unwrap()).await
+    }
+
+    /// A new backend on the same database and configuration, as after a
+    /// restart.
+    pub async fn restart(self) -> Self {
+        Self::open(self.auth, &self.yaml, self.dir).await
+    }
+
+    async fn open(auth: ClientAuth, yaml: &str, dir: tempfile::TempDir) -> Self {
         let store = Store::open(dir.path()).await.unwrap();
         let config = Config::from_yaml(yaml, "test.yaml").unwrap_or_else(|e| panic!("{e}"));
         let supervisor = Arc::new(Recording::default());
         let backend = Backend::new(store, config, supervisor.clone());
-        let app = saci_backend::api::router(backend.clone(), auth);
+        let app = saci_backend::api::router(backend.clone(), auth.clone());
         Self {
             backend,
             app,
             supervisor,
-            _dir: dir,
+            auth,
+            yaml: yaml.to_owned(),
+            dir,
         }
     }
 

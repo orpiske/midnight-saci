@@ -38,6 +38,8 @@ Errors use one body shape and stable codes:
 | `idempotency_conflict` | 409 | An `Idempotency-Key` reused with a different body. |
 | `run_finished` | 409 | Cancellation or worker reporting after the run finished. |
 | `sequence_gap` | 409 | A worker batch skipped a sequence number. |
+| `action_not_pending` | 409 | The action is not awaiting approval: it was already decided, or never needed approval. |
+| `digest_mismatch` | 409 | An approval or rejection named a digest other than the recorded arguments'. |
 | `validation_failed` | 422 | Invalid plan bundle, unknown environment or policy; `details` lists every diagnostic with its file and line. |
 | `internal` | 500 | The backend failed. |
 
@@ -102,11 +104,22 @@ had already ended for another reason. Cancelling a finished run returns
 ## Outcome actions
 
 `GET /api/v1/runs/{run_id}/actions` lists the run's outcome actions with
-their state (`pending_approval`, `queued`, `executing`, `completed`,
-`error`), the exact arguments, their digest, the attempts, and the result
-or error. The list is empty until the run finishes, and when no action was
-triggered. Delivery never changes the run's outcome. See
-[outcome actions](actions.md).
+their state (`pending_approval`, `queued`, `executing`, `rejected`,
+`completed`, `error`), the exact arguments, their digest, any decision, the
+attempts, and the result or error. The list is empty until the run
+finishes, and when no action was triggered. Delivery never changes the
+run's outcome. See [outcome actions](actions.md).
+
+`GET /api/v1/actions?state=<state>&limit=<n>` lists actions in one state
+across runs, oldest first. The default state is `pending_approval`.
+
+`POST /api/v1/runs/{run_id}/actions/{name}/approval` and
+`POST /api/v1/runs/{run_id}/actions/{name}/rejection` decide on an
+action waiting for approval. The body is
+`{"digest": "<sha256 of the recorded arguments>", "note": "optional"}`.
+They answer `200` with the action, `404 not_found` without such an action,
+`409 digest_mismatch` for another digest, and `409 action_not_pending`
+when the action is not waiting for approval.
 
 ## Worker reporting protocol
 

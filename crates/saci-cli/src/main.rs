@@ -1,6 +1,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 //! `saci` command-line entry point.
 
+mod actions;
 mod client;
 mod inspect;
 mod new;
@@ -63,6 +64,12 @@ enum Command {
     },
     /// Print a run's report: units, attempts, criteria and evidence.
     Report(inspect::RunArg),
+    /// Outcome actions of finished runs: list, show, approve and reject.
+    ///
+    /// Actions run after a run's report is final and never change its
+    /// outcome. Approval-required actions wait for `approve`.
+    #[command(subcommand)]
+    Actions(actions::ActionsCommand),
     /// Request cancellation of a run.
     ///
     /// The worker stops after its current action; the remaining units are
@@ -134,6 +141,7 @@ async fn remote(client: &Client, command: Command) -> Result<u8, CliError> {
         }
         Command::Report(run) => inspect::report(client, &run).await,
         Command::Cancel { run, wait } => Box::pin(inspect::cancel(client, &run, wait)).await,
+        Command::Actions(command) => Box::pin(actions::run(client, command)).await,
         Command::New(_) | Command::Backend(_) => Ok(exit::OK),
     }
 }

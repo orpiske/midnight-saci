@@ -73,6 +73,10 @@ impl From<StoreError> for Failure {
         match error {
             StoreError::NotFound => Self::run_not_found(),
             StoreError::InvalidCursor => Self::bad_request("invalid cursor"),
+            StoreError::ActionNotPending(_) => {
+                Self::new(ErrorCode::ActionNotPending, error.to_string())
+            }
+            StoreError::DigestMismatch => Self::new(ErrorCode::DigestMismatch, error.to_string()),
             StoreError::IdempotencyConflict => {
                 Self::new(ErrorCode::IdempotencyConflict, error.to_string())
             }
