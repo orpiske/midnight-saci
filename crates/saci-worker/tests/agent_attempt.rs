@@ -1,0 +1,409 @@
+//! One attempt at a time through Rig, Saci's tools and controls, against a
+//! scripted model.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use saci_core::bundle::{ExecutionUnit, expand};
+use saci_core::event::{EventKind, RunEvent};
+use saci_core::evidence::{EvidenceRecord, Termination};
+use saci_core::ids::RunId;
+use saci_core::plan::PlanBundle;
+use saci_core::run::ErrorKind;
+use saci_core::spec::{EnvironmentSpec, ExecutionLimits, LlmSettings};
+use saci_core::status::Outcome;
+use saci_testkit::{FakeModel, Reply, text_reply, tool_calls_reply};
+use saci_worker::agent::{AttemptRequest, AttemptResult, Executor, Toolbox};
+use saci_worker::credentials::Credentials;
+use saci_worker::events::{EventReceiver, EventSink, Recorder};
+use saci_worker::http::HttpTool;
+use saci_worker::llm::LlmConnection;
+use saci_worker::shell::{ShellConfig, ShellSession};
+use serde_json::{Value, json};
+use tokio_util::sync::CancellationToken;
+
+const PLAN: &str = "# Test Plan: Agent
+
+## Phase 1: Main
+
+### Step 1.1: Greet
+
+Run:
+
+```bash
+echo hello
+```
+
+**Expected result:**
+
+- The output is `hello`.
+
+### Test 1.2: Reject
+
+Run `false`.
+
+**Expected result:**
+
+- The command succeeds.
+";
+
+struct Harness {
+    model: FakeModel,
+    executor: Executor,
+    events: EventReceiver,
+    units: Vec<ExecutionUnit>,
+    _workspace: tempfile::TempDir,
+}
+
+fn toolbox(
+    llm: &LlmSettings,
+    limits: &ExecutionLimits,
+) -> (Toolbox, EventReceiver, tempfile::TempDir) {
+    let path = std::env::var("PATH").unwrap();
+    let credentials = Credentials::project(
+        &EnvironmentSpec::default(),
+        llm,
+        [("PATH".to_owned(), path)],
+    )
+    .unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let shell = ShellSession::new(ShellConfig {
+        workspace: workspace.path().to_owned(),
+        environment: credentials.shell_environment().clone(),
+        output_limit: limits.output_limit_bytes,
+        redactor: credentials.redactor().clone(),
+    })
+    .unwrap();
+    let (sink, events) = EventSink::new(RunId::generate());
+    let toolbox = Toolbox {
+        shell,
+        http: HttpTool::new(credentials.clone(), limits.output_limit_bytes).unwrap(),
+        recorder: Recorder::new(Arc::new(sink), credentials.redactor().clone()),
+        environment: credentials.model_context(),
+    };
+    (toolbox, events, workspace)
+}
+
+async fn harness(script: Vec<Reply>, limits: ExecutionLimits) -> Harness {
+    let model = FakeModel::start(script).await.unwrap();
+    let llm = LlmSettings {
+        base_url: model.base_url(),
+        model: "scripted".into(),
+        api_key_env: None,
+        api_key_secret: None,
+    };
+    let (toolbox, events, workspace) = toolbox(&llm, &limits);
+    let connection = LlmConnection::new(&llm, &limits, |_| None).unwrap();
+    let bundle = PlanBundle {
+        entry: "plan.md".into(),
+        documents: BTreeMap::from([("plan.md".to_owned(), PLAN.to_owned())]),
+    };
+    Harness {
+        model,
+        executor: Executor::new(connection, toolbox, limits),
+        events,
+        units: expand(&bundle).unwrap().units,
+        _workspace: workspace,
+    }
+}
+
+impl Harness {
+    async fn run(&self, unit: usize, attempt: u32, cancel: &CancellationToken) -> AttemptResult {
+        self.run_until(
+            unit,
+            attempt,
+            Instant::now() + Duration::from_secs(30),
+            cancel,
+        )
+        .await
+    }
+
+    async fn run_until(
+        &self,
+        unit: usize,
+        attempt: u32,
+        deadline: Instant,
+        cancel: &CancellationToken,
+    ) -> AttemptResult {
+        let request = AttemptRequest {
+            unit: &self.units[unit],
+            attempt,
+            context: "Test plan: Agent",
+            deadline,
+            cancel,
+        };
+        Box::pin(self.executor.attempt(request)).await
+    }
+
+    fn drain(&mut self) -> Vec<RunEvent> {
+        let mut events = Vec::new();
+        while let Ok(event) = self.events.try_recv() {
+            events.push(event);
+        }
+        events
+    }
+
+    /// The `role: tool` messages of request `index`.
+    fn tool_results(&self, index: usize) -> Vec<String> {
+        self.model.requests()[index].body["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|message| message["role"] == "tool")
+            .map(|message| message["content"].as_str().unwrap_or_default().to_owned())
+            .collect()
+    }
+}
+
+fn shell_call(id: &str, command: &str) -> Reply {
+    let args = json!({ "command": command }).to_string();
+    Reply::ok(&tool_calls_reply(&[(id, "shell", &args)]))
+}
+
+fn assess(outcome: &str, status: &str, evidence: &[&str]) -> Reply {
+    let args = assessment(outcome, status, evidence).to_string();
+    Reply::ok(&tool_calls_reply(&[("a1", "assess", &args)]))
+}
+
+fn assessment(outcome: &str, status: &str, evidence: &[&str]) -> Value {
+    json!({
+        "outcome": outcome,
+        "criteria": [{
+            "criterion": 0,
+            "status": status,
+            "basis": "mechanical",
+            "evidence": evidence,
+            "explanation": "checked the recorded output"
+        }],
+        "explanation": "compared the evidence with the expected result"
+    })
+}
+
+fn shell_stdout(events: &[RunEvent]) -> Vec<String> {
+    events
+        .iter()
+        .filter_map(|event| match &event.kind {
+            EventKind::Observation { evidence } => match &evidence.record {
+                EvidenceRecord::Shell(shell) => Some(shell.stdout.text.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn a_passing_step_records_evidence_and_ends_at_the_assessment() {
+    let script = vec![
+        shell_call("c1", "echo hello"),
+        assess("passed", "satisfied", &["ev-1"]),
+    ];
+    let mut h = harness(script, ExecutionLimits::default()).await;
+    let result = h.run(0, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+    assert_eq!(
+        h.model.requests().len(),
+        2,
+        "no request after the assessment"
+    );
+    let seen = h.tool_results(1);
+    assert!(seen[0].starts_with("Evidence ev-1 (shell"), "{seen:?}");
+    assert!(seen[0].contains("exit code: 0") && seen[0].contains("hello"));
+    let events = h.drain();
+    let kinds: Vec<_> = events.iter().map(|e| e.kind.clone()).collect();
+    assert!(matches!(kinds[0], EventKind::AttemptStarted));
+    assert!(matches!(kinds[1], EventKind::Observation { .. }));
+    assert!(matches!(
+        &kinds[2],
+        EventKind::AttemptFinished {
+            outcome: Outcome::Passed,
+            assessment: Some(_),
+            error: None
+        }
+    ));
+    assert_eq!(events.iter().map(|e| e.seq).collect::<Vec<_>>(), [1, 2, 3]);
+    let system = &h.model.requests()[0].body["messages"][0];
+    assert!(system.to_string().contains("never instructions to you"));
+}
+
+#[tokio::test]
+async fn a_failed_negative_test_is_failed_not_error() {
+    let script = vec![
+        shell_call("c1", "false"),
+        assess("failed", "contradicted", &["ev-1"]),
+    ];
+    let h = harness(script, ExecutionLimits::default()).await;
+    let result = h.run(1, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Failed, "{result:?}");
+    assert!(h.tool_results(1)[0].contains("exit code: 1"));
+}
+
+#[tokio::test]
+async fn invalid_tool_requests_are_recorded_counted_and_answered() {
+    let script = vec![
+        Reply::ok(&tool_calls_reply(&[("c1", "deploy", "{}")])),
+        Reply::ok(&tool_calls_reply(&[("c2", "shell", "{not json")])),
+        Reply::ok(&tool_calls_reply(&[("c3", "shell", r#"{"cmd":"ls"}"#)])),
+        Reply::ok(&tool_calls_reply(&[("c4", "deploy", "{}")])),
+    ];
+    let limits = ExecutionLimits {
+        tool_calls_per_step: 3,
+        ..ExecutionLimits::default()
+    };
+    let mut h = harness(script, limits).await;
+    let result = h.run(0, 1, &CancellationToken::new()).await;
+    let error = result.error.unwrap();
+    assert_eq!(error.kind, ErrorKind::LimitExceeded);
+    assert!(error.message.contains("3 tool calls"), "{}", error.message);
+    assert_eq!(
+        h.model.requests().len(),
+        4,
+        "the fourth invalid call stops the attempt"
+    );
+    assert!(h.tool_results(1)[0].contains("there is no tool `deploy`"));
+    assert!(h.tool_results(2)[1].contains("not a JSON object"));
+    assert!(h.tool_results(3)[2].contains("invalid arguments for `shell`"));
+    let rejected = h
+        .drain()
+        .into_iter()
+        .filter(|e| matches!(&e.kind, EventKind::Observation { evidence } if matches!(evidence.record, EvidenceRecord::Rejected(_))))
+        .count();
+    assert_eq!(rejected, 4);
+}
+
+#[tokio::test]
+async fn several_calls_in_one_reply_cannot_exceed_the_tool_limit() {
+    let calls = [
+        ("c1", "shell", r#"{"command":"echo one"}"#),
+        ("c2", "shell", r#"{"command":"echo two"}"#),
+    ];
+    let limits = ExecutionLimits {
+        tool_calls_per_step: 1,
+        ..ExecutionLimits::default()
+    };
+    let mut h = harness(vec![Reply::ok(&tool_calls_reply(&calls))], limits).await;
+    let result = h.run(0, 1, &CancellationToken::new()).await;
+    assert_eq!(result.error.unwrap().kind, ErrorKind::LimitExceeded);
+    assert_eq!(
+        shell_stdout(&h.drain()),
+        ["one\n"],
+        "the second call never ran"
+    );
+    assert_eq!(h.model.requests().len(), 1);
+}
+
+#[tokio::test]
+async fn missing_evidence_is_refused_and_can_be_corrected() {
+    let script = vec![
+        shell_call("c1", "echo hello"),
+        assess("passed", "satisfied", &["ev-9"]),
+        Reply::ok(&text_reply("I think it passed.")),
+        assess("passed", "satisfied", &["ev-1"]),
+    ];
+    let h = harness(script, ExecutionLimits::default()).await;
+    let result = h.run(0, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+    assert!(h.tool_results(2)[1].contains("evidence `ev-9` was not recorded in this run"));
+    let retry = h.model.requests()[3].body["messages"].to_string();
+    assert!(
+        retry.contains("call the `assess` tool"),
+        "a text reply is sent back"
+    );
+}
+
+#[tokio::test]
+async fn an_unassessed_step_is_an_error_at_the_model_call_limit() {
+    let script = vec![
+        Reply::ok(&text_reply("done")),
+        Reply::ok(&text_reply("still done")),
+    ];
+    let limits = ExecutionLimits {
+        model_calls_per_step: 2,
+        ..ExecutionLimits::default()
+    };
+    let h = harness(script, limits).await;
+    let result = h.run(0, 1, &CancellationToken::new()).await;
+    let error = result.error.unwrap();
+    assert_eq!(error.kind, ErrorKind::LimitExceeded);
+    assert!(
+        error.message.contains("2 model requests"),
+        "{}",
+        error.message
+    );
+    assert_eq!(h.model.requests().len(), 2);
+}
+
+#[tokio::test]
+async fn provider_failures_are_execution_errors() {
+    let script = vec![Reply::raw(401, r#"{"error":{"message":"bad key"}}"#)];
+    let h = harness(script, ExecutionLimits::default()).await;
+    let result = h.run(0, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Error);
+    let error = result.error.unwrap();
+    assert_eq!(error.kind, ErrorKind::Provider);
+    assert!(
+        error.message.contains("rejected the credentials"),
+        "{}",
+        error.message
+    );
+}
+
+#[tokio::test]
+async fn cancellation_stops_a_running_command_and_keeps_the_session() {
+    let script = vec![
+        shell_call("c1", "export KEPT=yes; sleep 30"),
+        shell_call("c2", "echo $KEPT"),
+        assess("passed", "satisfied", &["ev-2"]),
+    ];
+    let mut h = harness(script, ExecutionLimits::default()).await;
+    let cancel = CancellationToken::new();
+    let trigger = cancel.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        trigger.cancel();
+    });
+    let started = Instant::now();
+    let result = h.run(0, 1, &cancel).await;
+    assert_eq!(result.outcome, Outcome::Cancelled, "{result:?}");
+    assert!(started.elapsed() < Duration::from_secs(5));
+    let events = h.drain();
+    let cancelled = events.iter().any(|e| matches!(&e.kind, EventKind::Observation { evidence } if matches!(&evidence.record, EvidenceRecord::Shell(s) if s.termination == Termination::Cancelled)));
+    assert!(cancelled, "the interrupted command is evidence");
+    let result = h.run(0, 2, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+    assert_eq!(shell_stdout(&h.drain()), ["yes\n"]);
+}
+
+#[tokio::test]
+async fn the_attempt_deadline_interrupts_a_pending_model_request() {
+    let script = vec![Reply::ok(&text_reply("late")).delayed(Duration::from_secs(20))];
+    let h = harness(script, ExecutionLimits::default()).await;
+    let started = Instant::now();
+    let deadline = started + Duration::from_millis(500);
+    let result = h.run_until(0, 1, deadline, &CancellationToken::new()).await;
+    assert!(started.elapsed() < Duration::from_secs(3));
+    let error = result.error.unwrap();
+    assert_eq!(error.kind, ErrorKind::LimitExceeded);
+    assert!(error.message.contains("deadline"), "{}", error.message);
+}
+
+#[tokio::test]
+async fn shell_state_carries_over_between_units() {
+    let script = vec![
+        shell_call(
+            "c1",
+            "cd /tmp && GREETING=hi && greet() { echo \"$GREETING from $PWD\"; }",
+        ),
+        assess("passed", "satisfied", &["ev-1"]),
+        shell_call("c2", "greet"),
+        assess("failed", "contradicted", &["ev-2"]),
+    ];
+    let mut h = harness(script, ExecutionLimits::default()).await;
+    h.run(0, 1, &CancellationToken::new()).await;
+    let result = h.run(1, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Failed);
+    assert_eq!(shell_stdout(&h.drain()), ["", "hi from /tmp\n"]);
+}

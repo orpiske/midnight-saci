@@ -24,6 +24,7 @@ saci-core.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tempfile.workspace = true
+time.workspace = true
 uuid.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
