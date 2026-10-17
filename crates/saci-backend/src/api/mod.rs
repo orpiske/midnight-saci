@@ -19,7 +19,7 @@ use saci_core::ids::RunId;
 use tokio::sync::watch;
 
 pub use error::Failure;
-pub use worker::issue_token;
+pub use worker::{backend_redactor, issue_token};
 
 use crate::store::Store;
 

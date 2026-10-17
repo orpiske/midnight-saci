@@ -87,7 +87,10 @@ pub async fn specification(
 /// Redacts the secret values the backend itself knows (environment
 /// secrets read from its own variables and the LLM key), as a second line
 /// of defense behind the worker's redaction.
-fn backend_redactor(spec: &RunSpec, lookup: impl Fn(&str) -> Option<String>) -> Redactor {
+/// Redacts the secrets the backend can resolve for `spec`: the target
+/// secrets from its environment and the LLM key.
+#[must_use]
+pub fn backend_redactor(spec: &RunSpec, lookup: impl Fn(&str) -> Option<String>) -> Redactor {
     let mut redactor = Redactor::new();
     for (name, secret) in &spec.environment.secrets {
         if let SecretRef::Env { env } = secret

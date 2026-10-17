@@ -49,6 +49,7 @@ pub struct ContainerLauncher {
     image: String,
     network: Option<String>,
     add_hosts: Vec<String>,
+    launch_timeout: Duration,
 }
 
 /// Finds `name` in `path` the way a shell would. Returns a non-executable
@@ -124,7 +125,16 @@ impl ContainerLauncher {
             image: worker.image.clone(),
             network: worker.network.clone(),
             add_hosts: worker.add_hosts.clone(),
+            launch_timeout: LAUNCH_TIMEOUT,
         }
+    }
+
+    /// Changes how long a launch may take before its outcome counts as
+    /// unknown.
+    #[must_use]
+    pub const fn with_launch_timeout(mut self, timeout: Duration) -> Self {
+        self.launch_timeout = timeout;
+        self
     }
 
     /// The runtime in use.
@@ -208,7 +218,7 @@ impl ContainerLauncher {
                 .map(|(name, value)| (name, value)),
         );
         let name = worker_name(&assignment.run);
-        execute(command, LAUNCH_TIMEOUT)
+        execute(command, self.launch_timeout)
             .await
             .map(drop)
             .map_err(|error| LaunchError {
