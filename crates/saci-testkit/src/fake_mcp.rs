@@ -145,13 +145,24 @@ async fn record(arguments: Option<&Map<String, Value>>) -> CallToolResult {
     env.sort();
     let line = json!({"arguments": arguments, "env": env});
     let count = existing.lines().count() + 1;
-    if let Err(error) = std::fs::write(&path, format!("{existing}{line}\n")) {
+    let appended = append_line(&path, &line);
+    if let Err(error) = appended {
         return CallToolResult::error(vec![Content::text(format!("cannot record: {error}"))]);
     }
     if let Some(pause) = arguments.get("pause").and_then(Value::as_f64) {
         tokio::time::sleep(Duration::from_secs_f64(pause.clamp(0.0, 600.0))).await;
     }
     CallToolResult::success(vec![Content::text(format!("recorded action {count}"))])
+}
+
+/// Appends `line` in one write: servers for different actions can record
+/// at the same time.
+fn append_line(path: &str, line: &Value) -> std::io::Result<()> {
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    std::io::Write::write_all(&mut file, format!("{line}\n").as_bytes())
 }
 
 /// A Streamable HTTP router serving [`FakeMcp`] at `/mcp`. When `token` is
