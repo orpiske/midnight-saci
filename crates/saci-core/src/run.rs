@@ -147,6 +147,26 @@ pub struct OutcomeCounts {
 }
 
 impl OutcomeCounts {
+    /// Each outcome with its count, in precedence order.
+    #[must_use]
+    pub const fn by_outcome(&self) -> [(Outcome, u32); 7] {
+        [
+            (Outcome::Passed, self.passed),
+            (Outcome::Failed, self.failed),
+            (Outcome::Blocked, self.blocked),
+            (Outcome::Inconclusive, self.inconclusive),
+            (Outcome::Error, self.error),
+            (Outcome::Skipped, self.skipped),
+            (Outcome::Cancelled, self.cancelled),
+        ]
+    }
+
+    /// Units that have an outcome.
+    #[must_use]
+    pub fn total(&self) -> u32 {
+        self.by_outcome().iter().map(|(_, count)| count).sum()
+    }
+
     const fn add(&mut self, outcome: Outcome) {
         let slot = match outcome {
             Outcome::Passed => &mut self.passed,

@@ -5,7 +5,7 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use reqwest::{Method, StatusCode};
-use saci_core::api::{API_BASE, ErrorBody, ErrorCode};
+use saci_core::api::{API_BASE, ApiError, ErrorBody, ErrorCode};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -14,12 +14,38 @@ pub const DEFAULT_BACKEND: &str = "http://127.0.0.1:8080";
 
 /// Exit codes (`docs/cli.md#exit-codes`).
 pub mod exit {
+    use saci_core::status::Outcome;
+
+    /// The command succeeded; for a finished run, it passed.
+    pub const OK: u8 = 0;
+    /// The run finished `failed`.
+    pub const FAILED: u8 = 1;
     /// Invalid input: plan, configuration or arguments.
     pub const INVALID: u8 = 2;
     /// The backend is unreachable, refused the credentials, or failed.
     pub const BACKEND: u8 = 3;
     /// The outcome of a request is unknown; see the message for a safe retry.
     pub const UNCERTAIN: u8 = 4;
+    /// The run finished `blocked` or `inconclusive`, or units were skipped.
+    pub const INCOMPLETE: u8 = 5;
+    /// The run finished `error`: infrastructure, provider or limits.
+    pub const ERROR: u8 = 6;
+    /// The run finished `cancelled`.
+    pub const CANCELLED: u8 = 7;
+    /// The run has not finished.
+    pub const RUNNING: u8 = 8;
+
+    /// The exit code of a run that ended with `outcome`.
+    #[must_use]
+    pub const fn for_outcome(outcome: Outcome) -> u8 {
+        match outcome {
+            Outcome::Passed => OK,
+            Outcome::Failed => FAILED,
+            Outcome::Blocked | Outcome::Inconclusive | Outcome::Skipped => INCOMPLETE,
+            Outcome::Error => ERROR,
+            Outcome::Cancelled => CANCELLED,
+        }
+    }
 }
 
 /// A failure with its exit code.
@@ -29,6 +55,9 @@ pub struct CliError {
     pub code: u8,
     /// What happened and what to do about it.
     pub message: String,
+    /// Repeating the request may succeed: the connection failed or the
+    /// backend had a transient failure.
+    pub retryable: bool,
 }
 
 impl CliError {
@@ -38,7 +67,15 @@ impl CliError {
         Self {
             code,
             message: message.into(),
+            retryable: false,
         }
+    }
+
+    /// Marks the failure as worth retrying.
+    #[must_use]
+    pub const fn retryable(mut self) -> Self {
+        self.retryable = true;
+        self
     }
 
     /// The process exit code.
@@ -138,6 +175,16 @@ impl Client {
         Err(self.refusal(status, &bytes))
     }
 
+    /// `GET route`.
+    ///
+    /// # Errors
+    ///
+    /// See [`Client::request`].
+    pub async fn get<T: DeserializeOwned>(&self, route: &str) -> Result<T, CliError> {
+        let (_, body) = self.request::<(), T>(Method::GET, route, None, &[]).await?;
+        Ok(body)
+    }
+
     fn build<B: Serialize>(
         &self,
         method: Method,
@@ -168,7 +215,8 @@ impl Client {
                      or point --backend (SACI_BACKEND_URL) at a running one.",
                     self.base
                 ),
-            );
+            )
+            .retryable();
         }
         if changes {
             return CliError::new(
@@ -186,35 +234,47 @@ impl Client {
                 self.base
             ),
         )
+        .retryable()
     }
 
     fn refusal(&self, status: StatusCode, bytes: &[u8]) -> CliError {
-        let Ok(body) = serde_json::from_slice::<ErrorBody>(bytes) else {
-            return CliError::new(
-                exit::BACKEND,
-                format!("{} answered HTTP {status}", self.base),
-            );
-        };
-        let error = body.error;
-        let mut message = error.message.clone();
-        for detail in &error.details {
-            message.push_str(&format!("\n  {detail}"));
+        let failure = serde_json::from_slice::<ErrorBody>(bytes).map_or_else(
+            |_| {
+                CliError::new(
+                    exit::BACKEND,
+                    format!("{} answered HTTP {status}", self.base),
+                )
+            },
+            |body| explain(body.error),
+        );
+        if status.is_server_error() {
+            failure.retryable()
+        } else {
+            failure
         }
-        let code = match error.code {
-            ErrorCode::Unauthorized => {
-                message.push_str(
-                    "\nSet SACI_TOKEN (or the variable named by --token-env) to the token configured by the \
-                     backend's backend.auth.token_env.",
-                );
-                exit::BACKEND
-            }
-            ErrorCode::ValidationFailed
-            | ErrorCode::BadRequest
-            | ErrorCode::IdempotencyConflict
-            | ErrorCode::NotFound
-            | ErrorCode::RunFinished => exit::INVALID,
-            _ => exit::BACKEND,
-        };
-        CliError::new(code, message)
     }
+}
+
+/// An API error with its exit code and, where it helps, what to do.
+fn explain(error: ApiError) -> CliError {
+    let mut message = error.message;
+    for detail in &error.details {
+        message.push_str(&format!("\n  {detail}"));
+    }
+    let code = match error.code {
+        ErrorCode::Unauthorized => {
+            message.push_str(
+                "\nSet SACI_TOKEN (or the variable named by --token-env) to the token configured by the \
+                 backend's backend.auth.token_env.",
+            );
+            exit::BACKEND
+        }
+        ErrorCode::ValidationFailed
+        | ErrorCode::BadRequest
+        | ErrorCode::IdempotencyConflict
+        | ErrorCode::NotFound
+        | ErrorCode::RunFinished => exit::INVALID,
+        _ => exit::BACKEND,
+    };
+    CliError::new(code, message)
 }

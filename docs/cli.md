@@ -48,8 +48,8 @@ saci run plan.md --environment staging [--policy keep-going] \
 3. Prints the accepted run ID on standard output, and a one-line summary on
    standard error; `--json` prints the run summary instead.
 
-`saci run` returns once the backend accepts the run; it does not wait for the
-run to finish.
+`saci run` returns once the backend accepts the run. With `--follow` it then
+behaves like `saci follow` and exits with the run's outcome.
 
 ### When the reply is lost
 
@@ -66,11 +66,70 @@ the run it already accepted (the summary says "already accepted for this
 idempotency key"), or accepts it now. Reusing a key with a different plan,
 environment or policy is refused with `idempotency_conflict`.
 
+## Following a run
+
+```sh
+saci list [--limit 20]                 # recent runs, newest first
+saci status <run-id>                   # state, progress, cancellation, outcome
+saci follow <run-id> [--after <seq>]   # progress until the run finishes
+saci report <run-id>                   # units, attempts, criteria and evidence
+saci cancel <run-id> [--wait]          # request cancellation
+```
+
+Every command accepts `--json`, which prints the API's own body instead of
+text: the run summary for `status`, `cancel` and `run`, the report for
+`report`, and for `follow` one event per line (JSON Lines). Text goes to
+standard output; notes about waiting and reconnecting go to standard error.
+
+### Waiting
+
+`saci follow` prints each event as one line, for example:
+
+```text
+[2] 1.1 attempt 1 started
+[3] 1.1 attempt 1   ev-1 shell `curl $URL/health` exited 0 (12 ms)
+[4] 1.1 attempt 1 passed: the service answered 200
+[5] 1.1 passed
+[10] run finished failed: stopped after 1.2 ended failed
+```
+
+The number in brackets is the event's sequence number. Each request waits up
+to 30 seconds on the backend for new events (a long poll), so a quiet run
+costs one request per 30 seconds. When the connection fails or the backend
+answers with a server error, `follow` says so on standard error and
+reconnects every two seconds, continuing after the last event it printed:
+no event is skipped or printed twice. After five minutes without a
+successful request it gives up (exit 3) and prints the command that resumes
+where it stopped, `saci follow <run-id> --after <seq>`.
+
+Interrupting `follow` (Ctrl-C) stops following, not the run; `saci cancel`
+stops the run.
+
+### Cancellation
+
+`saci cancel <run-id>` records the request and returns at once. The worker
+stops after its current action (a running tool gets a few seconds to finish
+and record its evidence), skips the remaining units and reports the end.
+Until then `saci status` shows the request as *pending*; afterwards as
+*completed*, with the run's outcome. `--wait` follows the run quietly until
+it has stopped and exits with its outcome, normally 7 (`cancelled`). A run
+that finished before the request reached it keeps its outcome, and
+cancelling a finished run exits 2 ("the run already finished"). Repeating a
+cancel request is harmless.
+
 ## Exit codes
 
 | Code | Meaning | What to do |
 | --- | --- | --- |
-| 0 | Success. | |
-| 2 | Invalid input: plan, configuration, arguments, an unknown environment or policy, or a run that does not exist. | Fix the input named in the message. |
+| 0 | Success; for `status`, `follow`, `report`, `cancel --wait` and `run --follow`, the run passed. | |
+| 1 | The run finished `failed`: an expected result did not hold. | Read `saci report`. |
+| 2 | Invalid input: plan, configuration, arguments, an unknown environment, policy or run, or a run that already finished. | Fix the input named in the message. |
 | 3 | The backend is unreachable, refused the credentials, or failed. | Start the backend, check `--backend`, or set `SACI_TOKEN`; the message says which. |
-| 4 | The outcome of a request is unknown. | Repeat it as the message says. |
+| 4 | The outcome of a request that changes state is unknown. | Repeat it as the message says. |
+| 5 | The run finished `blocked` or `inconclusive`, or units were skipped. | Read `saci report` for what was not established. |
+| 6 | The run finished `error`: infrastructure, the model provider or limits. | Read the reason; the run says nothing about the target. |
+| 7 | The run finished `cancelled`. | |
+| 8 | The run has not finished (`status` and `report` only). | Wait with `saci follow`. |
+
+Codes 0, 1 and 5 to 8 come from the run's summary outcome, which the backend
+computes; the CLI never combines unit results itself.

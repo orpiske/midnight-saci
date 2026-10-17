@@ -8,6 +8,7 @@ use saci_core::bundle;
 use uuid::Uuid;
 
 use crate::client::{CliError, Client, exit};
+use crate::inspect::{self, RunArg};
 
 /// Arguments of `saci run`.
 #[derive(Debug, Clone, clap::Args)]
@@ -23,9 +24,12 @@ pub struct RunArgs {
     /// Key that makes the submission safe to repeat; generated when omitted.
     #[arg(long)]
     pub idempotency_key: Option<String>,
-    /// Print the accepted run as JSON.
+    /// Print the accepted run as JSON (with --follow, every event as a JSON line).
     #[arg(long)]
     pub json: bool,
+    /// Follow the run's progress until it finishes and exit with its outcome.
+    #[arg(long)]
+    pub follow: bool,
 }
 
 /// Submits the plan and prints the accepted run.
@@ -34,7 +38,7 @@ pub struct RunArgs {
 ///
 /// A [`CliError`] for invalid plans, unreachable or refusing backends, and
 /// lost replies; the latter names the key that makes a retry safe.
-pub async fn submit(client: &Client, args: RunArgs) -> Result<(), CliError> {
+pub async fn submit(client: &Client, args: RunArgs) -> Result<u8, CliError> {
     let bundle = bundle::load(&args.plan).map_err(|error| {
         CliError::new(
             exit::INVALID,
@@ -49,12 +53,32 @@ pub async fn submit(client: &Client, args: RunArgs) -> Result<(), CliError> {
         environment: args.environment,
         policy: args.policy,
     };
-    let headers = [(IDEMPOTENCY_KEY, key.clone())];
-    let result = client
-        .request::<_, RunSummary>(Method::POST, "/runs", Some(&request), &headers)
-        .await;
-    let (status, run) = result.map_err(|error| retry_hint(error, &key))?;
-    print(&run, status, args.json)
+    let (status, run) = send(client, &request, &key).await?;
+    if !args.follow {
+        print(&run, status, args.json)?;
+        return Ok(exit::OK);
+    }
+    eprintln!(
+        "Run {} accepted; following it (Ctrl-C stops following, not the run).",
+        run.id
+    );
+    let followed = RunArg {
+        run: run.id,
+        json: args.json,
+    };
+    Box::pin(inspect::follow_command(client, &followed, 0)).await
+}
+
+async fn send(
+    client: &Client,
+    request: &SubmitRun,
+    key: &str,
+) -> Result<(StatusCode, RunSummary), CliError> {
+    let headers = [(IDEMPOTENCY_KEY, key.to_owned())];
+    client
+        .request(Method::POST, "/runs", Some(request), &headers)
+        .await
+        .map_err(|error| retry_hint(error, key))
 }
 
 fn print(run: &RunSummary, status: StatusCode, json: bool) -> Result<(), CliError> {
