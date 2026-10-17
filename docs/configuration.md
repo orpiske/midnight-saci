@@ -74,8 +74,8 @@ Named target environments. Names use letters, digits, `-` and `_`.
 | Setting | Default | Meaning |
 |---------|---------|---------|
 | `description` | none | Free text. |
-| `parameters` | `{}` | Non-secret values exported to the worker shell as variables and listed to the model. Keys must be shell variable names. |
-| `secrets` | `{}` | Values exported to the worker shell as variables, by name. Each is `{ env: VAR }` (a backend environment variable) or `{ secret: name, key: key }` (a Kubernetes Secret). The model sees only the names; values are redacted from evidence. A name cannot also be a parameter. |
+| `parameters` | `{}` | Non-secret values exported to the worker shell as variables and listed to the model. Keys must be shell variable names, must not start with `SACI_`, and must not equal `llm.api_key_env` (the same applies to `secrets`). |
+| `secrets` | `{}` | Values exported to the worker shell as variables, by name. Each is `{ env: VAR }` (a backend environment variable) or `{ secret: name, key: key }` (a Kubernetes Secret). The model sees only the names; values are redacted from evidence. A name cannot also be a parameter. See [credentials and redaction](security.md). |
 | `limits` | `{}` | Overrides of the top-level `limits`. |
 | `worker.cpu`, `worker.memory` | none | Worker container resource limits, in the runtime's notation (`"1"`, `500m`, `1g`, `512Mi`). |
 
