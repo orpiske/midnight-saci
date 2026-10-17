@@ -1,5 +1,7 @@
 //! Every Saci entry point reports its version and help without side effects.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::process::Command;
 
 fn run(binary: &str, arg: &str) -> String {

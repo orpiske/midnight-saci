@@ -36,3 +36,36 @@ Dependencies only point "down": `saci-cli` → `saci-backend`/`saci-core`,
 `saci-backend` → `saci-core`, `saci-worker` → `saci-core`. The worker and the
 backend never link each other; they communicate through the REST contract in
 `saci-core`.
+
+## Quality gates
+
+Run every gate CI runs with:
+
+```sh
+make check   # cargo fmt --check, cargo clippy -D warnings, cargo test
+```
+
+CI (`.github/workflows/ci.yml`) runs the same three jobs on every push to
+`main` and on pull requests, using the pinned toolchain.
+
+The lint baseline is adopted from the
+[Wanaku Rust project](https://github.com/wanaku-ai/wanaku):
+
+- `clippy.toml` holds Wanaku's thresholds (for example 30-line functions,
+  five arguments, cognitive complexity 25), its MSRV and its disallowed
+  methods (`std::thread::sleep`, `std::thread::spawn` and interactive stdin
+  reads in favor of Tokio equivalents).
+- `[workspace.lints]` in the root `Cargo.toml` enables Wanaku's Rust and
+  Clippy lints: no `unsafe`, no `unwrap`/`expect`/`panic` outside tests,
+  and the correctness, clarity, complexity and async groups. Every crate
+  inherits them with `[lints] workspace = true`; new crates must do the same.
+- CI treats every warning as an error (`-D warnings`).
+
+Scoped exceptions:
+
+- Unit tests may use `unwrap`, `expect` and `panic` through
+  `#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]`
+  at each crate root, and integration test files allow the same three lints.
+  Production code never does.
+- Any other `#[allow(...)]` must sit on the narrowest item and carry a
+  comment that explains why.

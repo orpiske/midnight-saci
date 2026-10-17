@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 //! Shared Saci contracts used by the CLI, backend and worker.
 //!
 //! This crate holds the data types and pure logic that every process agrees
