@@ -13,6 +13,7 @@ AI Test Engineer
 - [LLM providers: OpenRouter, Ollama, retries and errors](docs/llm-providers.md)
 - [Credentials, evidence redaction and isolation limits](docs/security.md)
 - [Worker tools: shell and HTTP](docs/tools.md)
+- [MCP servers: configuration, credentials and SDK](docs/mcp.md)
 - [Operating the backend: data directory and records](docs/operations.md)
 - [REST API and worker reporting protocol](docs/api.md) ([OpenAPI](docs/openapi.yaml))
 - [Implementation ticket drafts](docs/plans/implementation-tickets.md)

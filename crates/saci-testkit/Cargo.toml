@@ -1,6 +1,6 @@
 [package]
 name = "saci-testkit"
-description = "Controlled fixtures for Saci tests: a scripted OpenAI-compatible model server"
+description = "Controlled fixtures for Saci tests: a scripted model server and a fake MCP server"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,7 +11,13 @@ publish = false
 [lints]
 workspace = true
 
+[[bin]]
+name = "saci-fake-mcp"
+path = "src/bin/saci-fake-mcp.rs"
+
 [dependencies]
 axum.workspace = true
+rmcp = { workspace = true, features = ["server", "transport-io", "transport-streamable-http-server"] }
 serde_json.workspace = true
-tokio = { workspace = true, features = ["net", "time", "sync"] }
+tokio = { workspace = true, features = ["net", "time", "sync", "io-std"] }
+tokio-util.workspace = true
