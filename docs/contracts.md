@@ -37,6 +37,37 @@ run with unattempted units cannot pass. When the run ends:
 - cleanup units (a unit or phase whose title mentions cleanup or teardown)
   that did not run are listed in `cleanup_not_run`.
 
+## Assessments
+
+The agent finishes each attempt by submitting an assessment through the
+step-assessment tool: an `outcome`, one result per expected criterion
+(`criterion` index from 0, `status` `satisfied`, `contradicted` or
+`undetermined`, `basis` `mechanical` or `model_judgment`, the `evidence`
+ids it relies on, and an `explanation`), and an overall `explanation`.
+`saci_core::assessment::validate` rejects a submission, telling the model
+every problem so it can resubmit, when:
+
+- the outcome is not `passed`, `failed`, `blocked` or `inconclusive` (`error`,
+  `skipped` and `cancelled` are decided by Saci, not the model);
+- a criterion is missing, assessed twice or does not exist;
+- it cites evidence not recorded in this run, or a `satisfied` or
+  `contradicted` result cites none;
+- `passed` has any criterion that is not satisfied; `failed` has none
+  contradicted; `blocked` or `inconclusive` has one contradicted or none
+  undetermined;
+- an explanation is empty.
+
+So a pass needs evidence for every criterion: a printed `PASS` or a zero
+exit status is only evidence for the criteria it actually shows. A negative
+test passes when its evidence matches the authored expectation, for example
+a recorded HTTP 401 for "the request is rejected". `basis` records whether a
+result rests on a direct check or on the model's interpretation; Saci
+records that claim but does not prove it.
+
+An attempt's outcome is its assessment's outcome, unless an execution error
+occurred, which makes it `error`. A unit's outcome is its last attempt's
+outcome; earlier attempts stay in the report.
+
 ## Events
 
 A worker reports progress as ordered `RunEvent`s (`run_started`,
@@ -44,8 +75,10 @@ A worker reports progress as ordered `RunEvent`s (`run_started`,
 `unit_skipped`, `cancellation_requested`, `run_finished`). The backend folds
 them into a `RunReport` with `RunReport::apply`, which rejects events for
 another run, events out of sequence (including retransmissions), events
-after `run_finished`, and unit events that do not match the unit's state.
-A rejected event leaves the report unchanged.
+after `run_finished`, and unit events that do not match the unit's state:
+an attempt outcome that does not follow its assessment, an assessment
+citing evidence not in the run, or a unit outcome other than its last
+attempt's. A rejected event leaves the report unchanged.
 
 Examples of complete event streams live in
 `crates/saci-core/tests/fixtures/runs/` (success, failure with stop, and a

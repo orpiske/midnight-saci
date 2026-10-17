@@ -444,6 +444,7 @@ impl RunReport {
                 assessment,
                 error,
             } => {
+                self.check_attempt(event, *outcome, assessment.as_ref(), error.is_some())?;
                 let attempt = self.open_attempt(event)?;
                 attempt.outcome = Some(*outcome);
                 attempt.finished_at = Some(event.at);
@@ -457,6 +458,40 @@ impl RunReport {
             }
             _ => Ok(()),
         }
+    }
+
+    /// An attempt's outcome follows its assessment, a pass needs one, and
+    /// the assessment cites only evidence recorded in the run.
+    fn check_attempt(
+        &self,
+        event: &RunEvent,
+        outcome: Outcome,
+        assessment: Option<&Assessment>,
+        error: bool,
+    ) -> Result<(), ContractError> {
+        let key = event.unit.clone().unwrap_or_else(|| UnitKey::new(""));
+        let expected = crate::assessment::attempt_outcome(assessment, error);
+        let interrupted = matches!(outcome, Outcome::Cancelled | Outcome::Error);
+        if outcome != expected && !(interrupted && assessment.is_none()) {
+            let reason = format!(
+                "attempt outcome {} does not follow its assessment",
+                outcome.as_str()
+            );
+            return Err(invalid(&key, &reason));
+        }
+        let cited = assessment
+            .into_iter()
+            .flat_map(|a| &a.criteria)
+            .flat_map(|c| &c.evidence);
+        for id in cited {
+            if !self.evidence.iter().any(|e| &e.id == id) {
+                return Err(invalid(
+                    &key,
+                    &format!("assessment cites unknown evidence {id}"),
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn start_attempt(&mut self, event: &RunEvent) -> Result<(), ContractError> {
@@ -490,6 +525,13 @@ impl RunReport {
         let open = unit.attempts.last().is_some_and(|a| a.outcome.is_none());
         if unit.outcome.is_some() || open {
             return Err(invalid(&key, "unit already finished or attempt still open"));
+        }
+        let last = unit.attempts.last().and_then(|a| a.outcome);
+        if outcome != Outcome::Skipped && last != Some(outcome) {
+            return Err(invalid(
+                &key,
+                "a unit's outcome is its last attempt's outcome",
+            ));
         }
         unit.outcome = Some(outcome);
         unit.reason = reason;
