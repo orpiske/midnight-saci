@@ -59,3 +59,40 @@ These are the only places Saci adds behavior Rig does not provide:
    content parts, as the OpenAI API allows. This has not been checked
    against every OpenAI-compatible server; one that only accepts string
    content will reject Saci's requests with a provider error.
+
+## How an attempt runs
+
+`saci_worker::agent::Executor` runs one attempt of one unit as one Rig agent
+run (`Executor::attempt`):
+
+1. It builds an agent on the configured chat model with the system prompt
+   (`agent::prompt::PREAMBLE`), registers `shell`, `http` and `assess` as
+   `DynamicTool`s, and prompts it with the plan context, earlier results,
+   environment parameters and secret names, the unit's action, notes on
+   code blocks in unsupported languages, and the numbered expected results.
+2. The `Controls` hook sees every boundary. Before each model request and
+   each tool call it checks cancellation and the attempt deadline and counts
+   the operation; the first operation over `limits.model_calls_per_step` or
+   `limits.tool_calls_per_step` stops the run with `DispatchAction::stop`.
+   Unknown tools and malformed arguments arrive in `on_invalid_tool_call`,
+   are recorded as rejected evidence and counted too, so repeated invalid
+   requests end the attempt. Tool concurrency is fixed at 1, so several
+   calls in one reply run in order and each is counted before it runs.
+3. A reply without a tool call and without an accepted assessment is sent
+   back with `ModelTurnAction::retry_with_feedback`, which consumes the same
+   model-request budget. Once `assess` accepts an assessment, `on_outcome`
+   stops the run.
+4. Cancellation and the attempt deadline cancel an attempt-scoped token
+   that the shell and HTTP tools watch. A running tool gets five seconds to
+   stop and record its evidence; a pending model request is dropped at once.
+   If a shell command is abandoned that way, its session is replaced on the
+   next call and that call's evidence says so.
+5. The result is the accepted assessment's outcome; otherwise `cancelled`
+   when the run was cancelled, or `error` with the limit, deadline,
+   provider or tool failure that ended the attempt, or `invalid_assessment`
+   when the model stopped without a valid assessment.
+
+The attempt emits `attempt_started`, one `observation` per recorded
+evidence, and `attempt_finished`. Every observation goes through the run's
+`Recorder`, which numbers evidence across the run, redacts it with the
+run's credentials, and reports it.

@@ -10,7 +10,8 @@
 //! When that ends the command, the session survives; when the command runs
 //! inside the shell itself (a builtin loop), the shell is killed too and the
 //! loss is recorded. A session that was lost or ended is replaced on the next
-//! call, and that call's evidence says so.
+//! call, and that call's evidence says so. So is a session whose command was
+//! abandoned mid-way (its future dropped), since its state is then unknown.
 
 mod process;
 mod scan;
@@ -70,6 +71,10 @@ pub struct ShellSession {
     control: tempfile::TempDir,
     nonce: String,
     commands: u64,
+    /// A command was sent and its result not yet collected. Still set on
+    /// the next call only if that call was abandoned (its future dropped),
+    /// so the shell's state is unknown and it is replaced.
+    busy: bool,
 }
 
 impl ShellSession {
@@ -94,6 +99,7 @@ impl ShellSession {
             control,
             nonce: uuid::Uuid::new_v4().simple().to_string(),
             commands: 0,
+            busy: false,
         })
     }
 
@@ -111,6 +117,7 @@ impl ShellSession {
         cancel: &CancellationToken,
     ) -> Result<ShellRun, ExecutionError> {
         let started = Instant::now();
+        self.discard_abandoned().await;
         let restarted = self.ensure_started()?;
         let script = self.write_script(command)?;
         let line = self.protocol_line(&script);
@@ -119,7 +126,9 @@ impl ShellSession {
             .as_mut()
             .ok_or_else(|| tool_error("the shell is not running".into()))?;
         process.drain();
+        self.busy = true;
         if let Err(error) = process.send(&line).await {
+            self.busy = false;
             self.process = None;
             return Err(tool_error(format!(
                 "cannot send the command to the shell: {error}"
@@ -127,12 +136,21 @@ impl ShellSession {
         }
         let mut collector = Collector::new(&self.nonce, &self.config);
         let ending = collector.collect(process, started + deadline, cancel).await;
+        self.busy = false;
         let _ = std::fs::remove_file(&script);
         let evidence = self.evidence(command, collector, ending, restarted).await;
         Ok(ShellRun {
             evidence,
             duration: started.elapsed(),
         })
+    }
+
+    /// Replaces a session whose last command was abandoned mid-way.
+    async fn discard_abandoned(&mut self) {
+        if std::mem::take(&mut self.busy) {
+            tracing::warn!("an abandoned shell command left the session in an unknown state");
+            self.close().await;
+        }
     }
 
     /// Stops the shell and everything it started.

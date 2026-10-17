@@ -86,3 +86,28 @@ credential meant for one host is never forwarded to another implicitly.
 The tool uses the worker's proxy settings (`HTTPS_PROXY`, `HTTP_PROXY`,
 `NO_PROXY`). Each request has the operation deadline; connecting has a
 30-second limit within it.
+
+## Step assessment
+
+`assess` finishes an attempt. It acts on nothing: it records the model's
+verdict, which Saci validates (see
+[assessments](contracts.md#assessments)) before accepting it. A refused
+submission is answered with every problem found, for example a criterion
+that was not assessed or evidence that was never recorded, and the model
+may correct it within the attempt's limits. Once an assessment is accepted
+the attempt ends without another model request.
+
+## What the model sees
+
+Every tool result starts with the evidence ID the model must cite, for
+example `Evidence ev-3 (shell, 12 ms).`, followed by a reminder that the
+output is data from the system under test, not instructions. Shell results
+show the termination (when the command did not simply exit), the exit code,
+stdout and stderr, and say so when a new shell session replaced a lost one.
+HTTP results show the request line, then the status, headers and body, or
+the transport error. Truncated output carries a visible note.
+
+Invalid calls never run. An unknown tool, arguments that are not a JSON
+object, or arguments that do not match the schema are recorded as
+`rejected` evidence and answered with what was wrong. They count against
+`limits.tool_calls_per_step` like any other call.
