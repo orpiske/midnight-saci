@@ -1,0 +1,11 @@
+Saci is installed in namespace {{ .Release.Namespace }}.
+
+Reach the backend without exposing it:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "saci.fullname" . }} 8080:{{ .Values.service.port }}
+
+  export SACI_BACKEND_URL=http://127.0.0.1:8080
+  export SACI_TOKEN=$(kubectl -n {{ .Release.Namespace }} get secret {{ include "saci.authSecret" . }} -o jsonpath='{.data.{{ .Values.auth.secretKey }}}' | base64 -d)
+  saci list
+
+On OpenShift use `oc` in place of `kubectl`. See docs/helm.md.

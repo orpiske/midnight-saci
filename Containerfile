@@ -1,4 +1,6 @@
-# Saci worker image (docs/worker.md).
+# Saci image (docs/worker.md): the per-run worker, and the backend for
+# cluster installs (docs/helm.md), which runs `saci-backend` instead of
+# the default entry point.
 #
 #   podman build -t localhost/saci-worker:latest .
 #   docker build -f Containerfile -t localhost/saci-worker:latest .
@@ -14,7 +16,8 @@ FROM ${RUST_IMAGE} AS build
 WORKDIR /src
 COPY . .
 RUN cargo build --locked --release --package saci-worker --bin saci-worker \
-    && install -D target/release/saci-worker /out/saci-worker
+        --package saci-backend --bin saci-backend --package saci-cli --bin saci \
+    && install -D -t /out target/release/saci-worker target/release/saci-backend target/release/saci
 
 FROM ${BASE_IMAGE}
 # The utilities test plans most often need. `bash` runs every shell action.
@@ -22,7 +25,7 @@ RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
         bash ca-certificates curl jq git openssh-client procps iproute2 dnsutils netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=build /out/saci-worker /usr/local/bin/saci-worker
+COPY --from=build /out/ /usr/local/bin/
 # The workspace is writable by group 0 so an arbitrary UID can use it.
 RUN mkdir -p /workspace \
     && chgrp 0 /workspace \
@@ -34,6 +37,6 @@ USER 10001:0
 ENTRYPOINT ["/usr/local/bin/saci-worker"]
 
 LABEL org.opencontainers.image.title="saci-worker" \
-      org.opencontainers.image.description="Saci per-run worker: executes one run specification" \
+      org.opencontainers.image.description="Saci: the per-run worker (default entry point) and the backend" \
       org.opencontainers.image.source="https://github.com/orpiske/midnight-saci" \
       org.opencontainers.image.licenses="Apache-2.0"

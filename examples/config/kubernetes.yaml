@@ -1,5 +1,6 @@
 # Saci configuration for a backend running in a Kubernetes or OpenShift
-# namespace. The Helm chart in deploy/helm/saci renders an equivalent file.
+# namespace. The Helm chart in deploy/helm/saci renders an equivalent file
+# (docs/helm.md).
 # Reference: docs/configuration.md
 
 backend:

@@ -34,5 +34,6 @@ uuid.workspace = true
 [dev-dependencies]
 reqwest.workspace = true
 saci-testkit.workspace = true
+serde_yaml.workspace = true
 tempfile.workspace = true
 tower.workspace = true

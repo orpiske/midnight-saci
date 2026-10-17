@@ -1,0 +1,82 @@
+# Saci Helm chart values. Reference: docs/helm.md
+
+# The Saci image. It holds both the backend (`saci-backend`) and the
+# worker, so one image serves the backend Deployment and the run Jobs.
+image:
+  repository: ghcr.io/orpiske/saci-worker
+  # Defaults to the chart's appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Client authentication. Clients send `Authorization: Bearer <token>`.
+auth:
+  # A Secret you created with the token under `secretKey`. When empty, the
+  # chart creates one with a random token and keeps it across upgrades.
+  existingSecret: ""
+  secretKey: token
+
+# The model connection every worker uses (docs/llm-providers.md).
+llm:
+  baseUrl: https://openrouter.ai/api/v1
+  model: your-tool-capable-model
+  # A Secret holding the provider key, read by worker pods only. Leave
+  # `existingSecret` empty for a provider without a key (for example Ollama).
+  apiKey:
+    existingSecret: ""
+    key: api-key
+
+worker:
+  # Worker image; defaults to `image` above.
+  image: ""
+  # The workers' own identity, separate from the backend's. It has no
+  # permissions unless you bind some to it (docs/kubernetes.md#identities).
+  serviceAccount:
+    create: true
+    # Defaults to <release>-saci-worker.
+    name: ""
+
+# Settings passed to saci.yaml as written (docs/configuration.md).
+config:
+  limits: {}
+  # Test environments: parameters, secrets ({secret, key} for Kubernetes
+  # Secrets in this namespace), worker resources and limits.
+  environments:
+    default: {}
+  policies: {}
+  mcp_servers: {}
+
+# SQLite storage. The backend is the only writer: the chart runs one
+# replica and replaces it (Recreate) on upgrades.
+persistence:
+  # Use an existing PersistentVolumeClaim instead of creating one.
+  existingClaim: ""
+  # Storage class of the created claim; empty uses the cluster default.
+  storageClass: ""
+  size: 1Gi
+  accessMode: ReadWriteOnce
+
+backend:
+  serviceAccount:
+    # Defaults to <release>-saci.
+    name: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  # Pod-level security context. When empty, the chart sets fsGroup 10001
+  # on Kubernetes so the volume is writable, and nothing on OpenShift,
+  # which assigns its own.
+  podSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Extra environment variables of the backend, for example values that
+  # `{env: VAR}` secrets read.
+  extraEnv: []
+
+service:
+  type: ClusterIP
+  port: 8080
