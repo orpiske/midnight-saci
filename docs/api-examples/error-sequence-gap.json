@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "sequence_gap",
+    "message": "expected event 8, received 10",
+    "details": [
+      "acknowledged_seq=7"
+    ]
+  }
+}

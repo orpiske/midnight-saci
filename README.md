@@ -10,5 +10,6 @@ AI Test Engineer
 - [Run contracts: identities, statuses, events and reports](docs/contracts.md)
 - [Configuration reference](docs/configuration.md)
 - [Agent library decision (Rig 0.44)](docs/agent-library.md)
+- [REST API and worker reporting protocol](docs/api.md) ([OpenAPI](docs/openapi.yaml))
 - [Implementation ticket drafts](docs/plans/implementation-tickets.md)
 - [Created issues and task breakdown](docs/plans/issue-index.md)

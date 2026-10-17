@@ -4,6 +4,7 @@
 //! This crate holds the data types and pure logic that every process agrees
 //! on. It performs no network or container work.
 
+pub mod api;
 pub mod assessment;
 pub mod config;
 pub mod event;

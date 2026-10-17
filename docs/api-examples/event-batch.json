@@ -1,0 +1,48 @@
+{
+  "events": [
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 6,
+      "at": "2026-10-17T10:00:05Z",
+      "unit": "1.1",
+      "attempt": 1,
+      "source": {
+        "document": "plan.md",
+        "line": 5
+      },
+      "type": "attempt_started"
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 7,
+      "at": "2026-10-17T10:00:06Z",
+      "unit": "1.1",
+      "attempt": 1,
+      "type": "observation",
+      "evidence": {
+        "id": "ev-2",
+        "unit": "1.1",
+        "attempt": 1,
+        "recorded_at": "2026-10-17T10:00:06Z",
+        "duration_ms": 12,
+        "tool": "http",
+        "method": "GET",
+        "url": "http://host.containers.internal:8081/health",
+        "request_headers": {
+          "authorization": "[REDACTED]"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": {
+            "text": "{\"status\":\"up\"}",
+            "truncated": false,
+            "total_bytes": 15
+          }
+        }
+      }
+    }
+  ]
+}

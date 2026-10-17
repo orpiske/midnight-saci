@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "entry": "plan.md",
+    "documents": {
+      "plan.md": "# Test Plan: Service health\n\n## Phase 1: Service availability\n\n### Test 1.1: Check service health\n\nFollow [common/login.md](common/login.md).\n\nUse the HTTP tool to send a GET request to `SERVICE_URL` followed by `/health`.\n\n**Expected result:**\n\n- The response status is 200.\n",
+      "common/login.md": "# Procedure: Log in\n\n## Phase 1: Login\n\n### Step 1: Obtain a session\n\n```bash\nexport SESSION=$(curl -s -H \"Authorization: Bearer ${SERVICE_TOKEN}\" \"${SERVICE_URL}/login\")\n```\n\n**Expected result:**\n\n- `SESSION` is not empty.\n"
+    }
+  },
+  "environment": "local",
+  "policy": "default"
+}

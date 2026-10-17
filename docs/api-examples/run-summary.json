@@ -1,0 +1,20 @@
+{
+  "id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+  "plan_title": "Service health",
+  "environment": "local",
+  "policy": "default",
+  "lifecycle": "running",
+  "current_unit": "1.1",
+  "counts": {
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0,
+    "inconclusive": 0,
+    "error": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "total_units": 2,
+  "last_event_seq": 3,
+  "created_at": "2026-10-17T10:00:00Z"
+}

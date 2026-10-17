@@ -1,0 +1,42 @@
+{
+  "items": [
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 4,
+      "at": "2026-10-17T10:00:04Z",
+      "unit": "1.1>common/login.md#1",
+      "attempt": 1,
+      "source": {
+        "document": "common/login.md",
+        "line": 5
+      },
+      "type": "attempt_finished",
+      "outcome": "passed",
+      "assessment": {
+        "outcome": "passed",
+        "criteria": [
+          {
+            "criterion": 0,
+            "status": "satisfied",
+            "basis": "mechanical",
+            "evidence": [
+              "ev-1"
+            ],
+            "explanation": "ev-1 shows SESSION=abc123 after export"
+          }
+        ],
+        "explanation": "The session variable was set."
+      }
+    },
+    {
+      "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",
+      "seq": 5,
+      "at": "2026-10-17T10:00:04Z",
+      "unit": "1.1>common/login.md#1",
+      "type": "unit_finished",
+      "outcome": "passed"
+    }
+  ],
+  "next_after": 5,
+  "finished": false
+}
