@@ -2,7 +2,7 @@
 
 Saci test plans use GitHub Flavored Markdown with a small set of execution conventions. The format follows Wanaku's phases, numbered tests and steps, prose instructions, fenced commands, and reusable procedures. No YAML front matter is required.
 
-This document specifies the planned format and CLI behavior. The CLI has not been implemented yet.
+This document specifies the plan format and the `saci new test-plan` command.
 
 ## Create a plan
 
@@ -42,6 +42,19 @@ Use these conventions:
 Each plan has a title and at least one executable test or step. Tests and steps appear inside phases and have unique IDs across the entry document. IDs such as `1.1` and `1.2` are labels; execution follows document order rather than sorting IDs. Overview and prerequisites are recommended. Summary tables and other explanatory sections are optional and do not create execution units.
 
 The parser identifies headings, execution boundaries, IDs, and expected-result sections deterministically. The LLM interprets the instructions within those boundaries.
+
+### Parser rules
+
+The parser (`saci_core::parser`) applies these rules exactly:
+
+- Only top-level blocks define structure. A heading inside a fenced code block, block quote or list item is ordinary content, so commands that print `### Test ...` never create units.
+- The first `#` heading must be `# Test Plan: <title>`. A second `#` heading is an error.
+- `## Overview` and `## Prerequisites` are recorded. `## Phase <id>: <title>` opens a phase. Any other `##` heading (for example `## Summary`) is explanatory and closes the current phase.
+- A `### Test` or `### Step` heading that contains a colon, or whose second word starts with a digit, is an execution unit and must have the form `<Test|Step> <id>: <title>`, with an ID without spaces. Other `###` headings, such as `### Test notes`, are explanatory and close the current unit. `####` and deeper headings are part of the unit's content.
+- A unit's action is everything between its heading and `**Expected result:**`. Fenced code blocks in the action are recorded as its commands, with their language.
+- `**Expected result:**` (or `**Expected results:**`) starts the criteria. Each top-level list item is one criterion; a paragraph is one criterion; text after the marker on the same line is a criterion too. The marker may appear once per unit.
+- `**Verification:**` starts optional evidence-collection instructions that run to the end of the unit.
+- Errors name the document and line: a missing or malformed title, malformed phase or unit headings, units outside a phase, duplicate unit IDs, a unit without an action, without `**Expected result:**`, or with no criteria under it, and a plan without any unit. All problems are reported together.
 
 ## Actions and expected results
 
