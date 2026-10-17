@@ -153,6 +153,11 @@ pub struct KubernetesWorkerConfig {
     /// Image pull policy for worker Jobs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_pull_policy: Option<String>,
+    /// Kubernetes API URL for a backend outside the cluster, for example
+    /// `http://127.0.0.1:8001` from `kubectl proxy`. Inside a pod the
+    /// backend uses its service account instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_url: Option<String>,
 }
 
 /// Optional overrides of [`ExecutionLimits`].

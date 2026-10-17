@@ -5,14 +5,16 @@
 //! let the backend find its workers after a restart.
 
 pub mod container;
+pub mod kubernetes;
 
 use std::time::Duration;
 
 use saci_core::config::{Config, Runtime};
 use saci_core::ids::RunId;
-use saci_core::spec::{RunSpec, SecretRef};
+use saci_core::spec::{KubernetesSecretKey, RunSpec, SecretRef};
 
 pub use container::ContainerLauncher;
+pub use kubernetes::KubernetesLauncher;
 
 /// Label carried by every worker the backend starts.
 pub const MANAGED_LABEL: &str = "io.saci.managed";
@@ -82,10 +84,15 @@ pub struct Assignment {
     pub run: RunId,
     /// Environment variables of the worker, values included.
     pub environment: Vec<(String, String)>,
+    /// Environment variables read from Kubernetes Secrets (kubernetes
+    /// runtime only).
+    pub secret_refs: Vec<(String, KubernetesSecretKey)>,
     /// CPU limit, as the runtime accepts it.
     pub cpu: Option<String>,
     /// Memory limit, as the runtime accepts it.
     pub memory: Option<String>,
+    /// The run's `limits.run_timeout_secs`.
+    pub run_timeout: Duration,
 }
 
 impl std::fmt::Debug for Assignment {
@@ -98,6 +105,7 @@ impl std::fmt::Debug for Assignment {
         f.debug_struct("Assignment")
             .field("run", &self.run)
             .field("environment", &names)
+            .field("secret_refs", &self.secret_refs)
             .finish_non_exhaustive()
     }
 }
@@ -127,46 +135,82 @@ pub fn assignment(
         ("SACI_RUN_ID".to_owned(), spec.run_id.to_string()),
         ("SACI_WORKER_TOKEN".to_owned(), token.to_owned()),
     ];
-    environment.extend(credentials(spec, &lookup)?);
+    let kubernetes = config.worker.runtime == Runtime::Kubernetes;
+    let (values, secret_refs) = credentials(spec, kubernetes, &lookup)?;
+    environment.extend(values);
     Ok(Assignment {
         run: spec.run_id.clone(),
         environment,
+        secret_refs,
         cpu: spec.environment.worker.cpu.clone(),
         memory: spec.environment.worker.memory.clone(),
+        run_timeout: Duration::from_secs(spec.limits.run_timeout_secs),
     })
 }
 
-/// The LLM key and the target secrets, under the names the worker reads.
+type Credentials = (Vec<(String, String)>, Vec<(String, KubernetesSecretKey)>);
+
+/// The LLM key and the target secrets, under the names the worker reads:
+/// values from the backend's environment, and (with `kubernetes`)
+/// references to Kubernetes Secrets the worker's pod reads itself.
 fn credentials(
     spec: &RunSpec,
+    kubernetes: bool,
     lookup: &impl Fn(&str) -> Option<String>,
-) -> Result<Vec<(String, String)>, LaunchError> {
-    let mut values = Vec::new();
+) -> Result<Credentials, LaunchError> {
+    let mut credentials = (Vec::new(), Vec::new());
     if let Some(name) = &spec.llm.api_key_env {
-        let value = lookup(name).ok_or_else(|| {
-            LaunchError::new(format!(
-                "llm.api_key_env names {name}, which is not set in the backend's environment"
-            ))
-        })?;
-        values.push((name.clone(), value));
+        match &spec.llm.api_key_secret {
+            Some(secret) if kubernetes => credentials.1.push((name.clone(), secret.clone())),
+            _ => {
+                let value = lookup(name).ok_or_else(|| {
+                    LaunchError::new(format!(
+                        "llm.api_key_env names {name}, which is not set in the backend's environment"
+                    ))
+                })?;
+                credentials.0.push((name.clone(), value));
+            }
+        }
     }
     for (name, secret) in &spec.environment.secrets {
-        let value = match secret {
-            SecretRef::Env { env } => lookup(env).ok_or_else(|| {
+        target_secret(name, secret, kubernetes, lookup, &mut credentials)?;
+    }
+    Ok(credentials)
+}
+
+/// Adds target secret `name` as `SACI_SECRET_<name>`.
+fn target_secret(
+    name: &str,
+    secret: &SecretRef,
+    kubernetes: bool,
+    lookup: &impl Fn(&str) -> Option<String>,
+    (values, refs): &mut Credentials,
+) -> Result<(), LaunchError> {
+    let variable = format!("SACI_SECRET_{name}");
+    match secret {
+        SecretRef::Env { env } => {
+            let value = lookup(env).ok_or_else(|| {
                 LaunchError::new(format!(
                     "secret {name} comes from {env}, which is not set in the backend's environment"
                 ))
-            })?,
-            SecretRef::Kubernetes { secret, key } => {
-                return Err(LaunchError::new(format!(
-                    "secret {name} comes from the Kubernetes Secret {secret}/{key}, which only the \
-                     kubernetes runtime can read"
-                )));
-            }
-        };
-        values.push((format!("SACI_SECRET_{name}"), value));
+            })?;
+            values.push((variable, value));
+        }
+        SecretRef::Kubernetes { secret, key } if kubernetes => {
+            let reference = KubernetesSecretKey {
+                name: secret.clone(),
+                key: key.clone(),
+            };
+            refs.push((variable, reference));
+        }
+        SecretRef::Kubernetes { secret, key } => {
+            return Err(LaunchError::new(format!(
+                "secret {name} comes from the Kubernetes Secret {secret}/{key}, which only the \
+                 kubernetes runtime can read"
+            )));
+        }
     }
-    Ok(values)
+    Ok(())
 }
 
 /// The configured launcher.
@@ -174,6 +218,8 @@ fn credentials(
 pub enum Launcher {
     /// Podman or Docker on the backend's host.
     Container(ContainerLauncher),
+    /// Kubernetes Jobs in one namespace.
+    Kubernetes(KubernetesLauncher),
 }
 
 impl Launcher {
@@ -184,9 +230,11 @@ impl Launcher {
     /// Fails when the runtime's command is missing or unusable.
     pub async fn from_config(config: &Config) -> Result<Self, LaunchError> {
         match config.worker.runtime {
-            Runtime::Kubernetes => Err(LaunchError::new(
-                "the kubernetes runtime is not available in this build",
-            )),
+            Runtime::Kubernetes => {
+                let launcher = KubernetesLauncher::from_config(&config.worker)?;
+                Box::pin(launcher.check()).await?;
+                Ok(Self::Kubernetes(launcher))
+            }
             runtime => {
                 let path = std::env::var_os("PATH").unwrap_or_default();
                 let launcher = ContainerLauncher::resolve(runtime, &path, &config.worker)?;
@@ -204,6 +252,7 @@ impl Launcher {
     pub async fn launch(&self, assignment: &Assignment) -> Result<(), LaunchError> {
         match self {
             Self::Container(launcher) => Box::pin(launcher.launch(assignment)).await,
+            Self::Kubernetes(launcher) => Box::pin(launcher.launch(assignment)).await,
         }
     }
 
@@ -215,6 +264,7 @@ impl Launcher {
     pub async fn state(&self, run: &RunId) -> Result<WorkerState, LaunchError> {
         match self {
             Self::Container(launcher) => Box::pin(launcher.state(run)).await,
+            Self::Kubernetes(launcher) => Box::pin(launcher.state(run)).await,
         }
     }
 
@@ -226,6 +276,7 @@ impl Launcher {
     pub async fn stop(&self, run: &RunId, grace: Duration) -> Result<(), LaunchError> {
         match self {
             Self::Container(launcher) => Box::pin(launcher.stop(run, grace)).await,
+            Self::Kubernetes(launcher) => Box::pin(launcher.stop(run, grace)).await,
         }
     }
 
@@ -233,6 +284,7 @@ impl Launcher {
     pub async fn logs(&self, run: &RunId) -> String {
         match self {
             Self::Container(launcher) => Box::pin(launcher.logs(run)).await,
+            Self::Kubernetes(launcher) => Box::pin(launcher.logs(run)).await,
         }
     }
 
@@ -244,6 +296,7 @@ impl Launcher {
     pub async fn remove(&self, run: &RunId) -> Result<(), LaunchError> {
         match self {
             Self::Container(launcher) => Box::pin(launcher.remove(run)).await,
+            Self::Kubernetes(launcher) => Box::pin(launcher.remove(run)).await,
         }
     }
 
@@ -255,6 +308,7 @@ impl Launcher {
     pub async fn workers(&self) -> Result<Vec<RunId>, LaunchError> {
         match self {
             Self::Container(launcher) => Box::pin(launcher.workers()).await,
+            Self::Kubernetes(launcher) => Box::pin(launcher.workers()).await,
         }
     }
 }

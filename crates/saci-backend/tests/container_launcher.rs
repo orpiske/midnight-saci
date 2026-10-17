@@ -119,8 +119,10 @@ fn sample_assignment() -> Assignment {
                 "target-secret-value".into(),
             ),
         ],
+        secret_refs: Vec::new(),
         cpu: Some("1.5".into()),
         memory: Some("1g".into()),
+        run_timeout: std::time::Duration::from_secs(600),
     }
 }
 

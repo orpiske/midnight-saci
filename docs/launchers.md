@@ -13,7 +13,7 @@ runtime behind it.
 | `auto` (default) | `podman` if it is on the backend's `PATH`, otherwise `docker`. |
 | `podman` | `podman` from the backend's `PATH`. |
 | `docker` | `docker` from the backend's `PATH`. |
-| `kubernetes` | Kubernetes Jobs instead (not available in this build yet). |
+| `kubernetes` | Kubernetes Jobs instead; see [Kubernetes Jobs](kubernetes.md). |
 
 The backend looks the program up in its own `PATH`, the way a shell would,
 and runs `<runtime> version` when it starts. Nothing else is searched: no
