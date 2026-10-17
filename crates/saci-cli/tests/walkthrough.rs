@@ -36,6 +36,31 @@ fn the_walkthrough_configuration_loads() {
     assert_eq!(config.worker.network.as_deref(), Some("host"));
 }
 
+/// What `walkthrough.sh` writes for bridged workers (macOS): no host
+/// network, and every URL a worker uses on the host alias.
+#[test]
+fn the_bridged_walkthrough_configuration_loads() {
+    let path = repository().join("examples/walkthrough/saci.yaml");
+    let bridged = std::fs::read_to_string(&path)
+        .unwrap()
+        .replace("  network: host\n", "")
+        .replace("http://127.0.0.1:", "http://host.containers.internal:");
+    let config = Config::from_yaml(&bridged, "saci.yaml").unwrap();
+    assert_eq!(config.worker.network, None);
+    let worker_url = config.backend.worker_url.as_deref().unwrap();
+    assert_eq!(worker_url, "http://host.containers.internal:18080");
+    assert!(
+        config
+            .llm
+            .base_url
+            .starts_with("http://host.containers.internal:")
+    );
+    let (environment, _) = config.environment("local").unwrap();
+    let service = &environment.parameters["SERVICE_URL"];
+    assert!(service.contains("host.containers.internal"), "{service}");
+    assert!(!bridged.contains("127.0.0.1:11435") && !bridged.contains("127.0.0.1:18081"));
+}
+
 #[test]
 fn the_playbook_covers_every_walkthrough_unit() {
     let path = repository().join("examples/walkthrough/playbook.json");

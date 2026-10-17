@@ -64,7 +64,8 @@ enum Command {
     },
     /// Print a run's report: units, attempts, criteria and evidence.
     Report(inspect::RunArg),
-    /// Outcome actions of finished runs: list, show, approve and reject.
+    /// Outcome actions of finished runs: list, show, approve, reject,
+    /// redispatch and reconcile.
     ///
     /// Actions run after a run's report is final and never change its
     /// outcome. Approval-required actions wait for `approve`.
