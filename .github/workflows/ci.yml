@@ -133,7 +133,9 @@ jobs:
           cargo build --locked --package saci-cli --bin saci
       - name: Run the namespace workflow
         env:
-          NAMESPACE: saci-test
+          # A fresh namespace and volume: the database there is created by
+          # the arbitrary UID below.
+          NAMESPACE: saci-demo
           IMAGE: localhost/saci-worker:ci
           FIXTURES: localhost/saci-fixtures:ci
           PULL_POLICY: Never
@@ -142,12 +144,16 @@ jobs:
             --set backend.podSecurityContext.runAsUser=1000680000
             --set backend.podSecurityContext.runAsGroup=0
             --set backend.podSecurityContext.fsGroup=1000680000
-        run: examples/kubernetes/namespace-workflow.sh
+        run: |
+          kubectl create namespace saci-demo
+          examples/kubernetes/namespace-workflow.sh
       - name: Show the namespace on failure
         if: failure()
         run: |
           kubectl -n saci-test get all,jobs,secrets,pvc -o wide
           kubectl -n saci-test describe pods
           kubectl -n saci-test logs deployment/saci --tail=100 || true
-          kubectl -n saci-test logs deployment/model --tail=50 || true
-          kubectl -n saci-test logs deployment/orders --tail=50 || true
+          kubectl -n saci-demo get all,jobs,pvc -o wide || true
+          kubectl -n saci-demo logs deployment/saci --tail=100 || true
+          kubectl -n saci-demo logs deployment/model --tail=50 || true
+          kubectl -n saci-demo logs deployment/orders --tail=50 || true
