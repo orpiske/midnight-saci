@@ -134,6 +134,21 @@ impl Backend {
     }
 }
 
+/// Client routes for outcome actions (`docs/actions.md`).
+fn action_routes() -> Router<Backend> {
+    Router::new()
+        .route("/runs/{run_id}/actions", get(actions::list))
+        .route(
+            "/runs/{run_id}/actions/{name}/approval",
+            post(actions::approve),
+        )
+        .route(
+            "/runs/{run_id}/actions/{name}/rejection",
+            post(actions::reject),
+        )
+        .route("/actions", get(actions::by_state))
+}
+
 /// The client and worker routes and the health check.
 pub fn router(backend: Backend, auth: ClientAuth) -> Router {
     let runs = Router::new()
@@ -143,7 +158,7 @@ pub fn router(backend: Backend, auth: ClientAuth) -> Router {
         .route("/runs/{run_id}/report", get(runs::report))
         .route("/runs/{run_id}/evidence/{evidence_id}", get(runs::evidence))
         .route("/runs/{run_id}/cancellation", post(runs::cancel))
-        .route("/runs/{run_id}/actions", get(actions::list))
+        .merge(action_routes())
         .route_layer(middleware::from_fn_with_state(Arc::new(auth), authorize));
     let workers = Router::new()
         .route(

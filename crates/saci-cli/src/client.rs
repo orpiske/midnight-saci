@@ -273,7 +273,9 @@ fn explain(error: ApiError) -> CliError {
         | ErrorCode::BadRequest
         | ErrorCode::IdempotencyConflict
         | ErrorCode::NotFound
-        | ErrorCode::RunFinished => exit::INVALID,
+        | ErrorCode::RunFinished
+        | ErrorCode::ActionNotPending
+        | ErrorCode::DigestMismatch => exit::INVALID,
         _ => exit::BACKEND,
     };
     CliError::new(code, message)

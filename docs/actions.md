@@ -108,8 +108,9 @@ The dispatcher runs inside the backend process, not in a worker:
 
 | State | Meaning |
 | --- | --- |
-| `pending_approval` | Recorded with `approval: required`. It is not dispatched. |
-| `queued` | Waiting for the dispatcher. |
+| `pending_approval` | Recorded with `approval: required`. It is not dispatched until approved. |
+| `queued` | Waiting for the dispatcher: automatic, or approved. |
+| `rejected` | A person rejected it. It is never dispatched. |
 | `executing` | Claimed: the claim is stored before the call is made. |
 | `completed` | The tool returned a result. |
 | `error` | Delivery failed. `error` says why, and `result` holds the tool's text when it answered. |
@@ -125,6 +126,38 @@ outcome stays as it was whatever happens.
 When the backend stops while an action is `executing`, the server may or
 may not have received the call. On restart such an action becomes `error`
 with that explanation, and it is not called again.
+
+## Approvals
+
+Approval is configured per action (`approval: required`) and applies after
+a run, never before it: runs start immediately as usual. An approval-
+required action is recorded as `pending_approval` with its arguments
+already rendered. A reviewer decides on exactly that payload:
+
+```sh
+saci actions list                                   # what waits for approval
+saci actions show <run-id> escalate                 # arguments and digest
+saci actions approve <run-id> escalate --digest <digest> --note "on-call agreed"
+saci actions reject <run-id> escalate --note "known issue"
+```
+
+- Every decision names the SHA-256 digest of the recorded arguments. A
+  decision with any other digest is refused (`409 digest_mismatch`), so
+  what is sent is what was reviewed. Recorded arguments never change.
+- Approval moves the action to `queued`, and the dispatcher sends it.
+  Rejection is final.
+- Only `pending_approval` actions take a decision. A second decision, or a
+  decision on an automatic action, is refused (`409 action_not_pending`).
+- The decision, its time and the note are stored with the action in
+  SQLite. Pending approvals and decisions survive backend restarts.
+- Decisions use the client API, so they need the backend's client token
+  when `backend.auth` is configured. Saci records no reviewer identity
+  beyond the note; anyone holding the token can decide.
+
+API: `POST /api/v1/runs/{run_id}/actions/{name}/approval` and
+`.../rejection` with `{"digest": "...", "note": "..."}`, and
+`GET /api/v1/actions?state=pending_approval` across runs
+([API](api.md#outcome-actions)).
 
 ## Inspecting actions
 
@@ -151,6 +184,18 @@ through the worker API, and the backend dispatches to a stdio
   and report are unchanged;
 - approval-required actions stay `pending_approval`;
 - only the outcomes an action names trigger it.
+
+`crates/saci-backend/tests/action_approvals.rs` checks that:
+
+- approval with the reviewed digest sends exactly that payload, and a
+  wrong digest changes nothing;
+- rejected actions are never sent;
+- automatic and already decided actions refuse decisions;
+- pending approvals and decisions survive a restart, and only approved
+  actions are sent afterwards.
+
+`crates/saci-cli/tests/action_commands.rs` drives `saci actions list`,
+`show`, `approve` and `reject` and the actions section of `saci report`.
 
 `saci-core` unit tests check template rendering and configuration
 validation.

@@ -92,6 +92,8 @@ pub enum ActionState {
     Queued,
     /// Claimed by the dispatcher; the call may be in progress.
     Executing,
+    /// A person rejected it; it is never dispatched.
+    Rejected,
     /// The tool returned a successful result.
     Completed,
     /// Delivery failed; the result or reason says why.
@@ -106,6 +108,7 @@ impl ActionState {
             Self::PendingApproval => "pending_approval",
             Self::Queued => "queued",
             Self::Executing => "executing",
+            Self::Rejected => "rejected",
             Self::Completed => "completed",
             Self::Error => "error",
         }
@@ -118,6 +121,7 @@ impl ActionState {
             Self::PendingApproval,
             Self::Queued,
             Self::Executing,
+            Self::Rejected,
             Self::Completed,
             Self::Error,
         ]
@@ -130,6 +134,52 @@ impl std::fmt::Display for ActionState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
     }
+}
+
+/// A person's decision on an approval-required action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Verdict {
+    /// Dispatch the recorded arguments.
+    Approved,
+    /// Never dispatch it.
+    Rejected,
+}
+
+impl Verdict {
+    /// The verdict's wire name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Approved => "approved",
+            Self::Rejected => "rejected",
+        }
+    }
+}
+
+/// A recorded decision.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Decision {
+    /// Approved or rejected.
+    pub verdict: Verdict,
+    /// When it was recorded.
+    #[serde(with = "time::serde::rfc3339")]
+    pub at: OffsetDateTime,
+    /// The reviewer's note.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// Body of an approval or rejection request.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DecisionRequest {
+    /// The digest of the arguments the reviewer saw. A decision on any
+    /// other payload is refused.
+    pub digest: String,
+    /// A note kept with the decision.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 /// An action of a run, as recorded and served by the API.
@@ -152,6 +202,9 @@ pub struct ActionRecord {
     pub arguments: Value,
     /// Hex SHA-256 of the canonical arguments.
     pub digest: String,
+    /// The approval decision, once made.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision: Option<Decision>,
     /// Dispatch attempts so far.
     pub attempts: u32,
     /// When it was recorded.
@@ -168,10 +221,10 @@ pub struct ActionRecord {
     pub error: Option<String>,
 }
 
-/// A run's actions, as `GET /runs/{run_id}/actions` returns them.
+/// Actions, as `GET /runs/{run_id}/actions` and `GET /actions` return them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActionList {
-    /// The actions, in name order.
+    /// The actions: a run's in name order, or across runs oldest first.
     pub items: Vec<ActionRecord>,
 }
 

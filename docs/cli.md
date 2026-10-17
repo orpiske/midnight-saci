@@ -117,13 +117,34 @@ that finished before the request reached it keeps its outcome, and
 cancelling a finished run exits 2 ("the run already finished"). Repeating a
 cancel request is harmless.
 
+## Outcome actions
+
+`saci report` lists a finished run's [outcome actions](actions.md) after
+the report. Their delivery never changes the run's outcome or exit code.
+The `saci actions` commands work with them directly:
+
+| Command | Does |
+| --- | --- |
+| `saci actions list` | Every action waiting for approval, across runs. |
+| `saci actions list <run-id>` | A run's actions and their states. |
+| `saci actions show <run-id> <name>` | One action: its state, decision, result or error, the exact arguments it sends, and their digest. |
+| `saci actions approve <run-id> <name> [--digest D] [--note N]` | Approves the recorded arguments; the backend then sends them. |
+| `saci actions reject <run-id> <name> [--note N]` | Rejects the action; it is never sent. |
+
+States are shown as *pending approval*, *queued*, *approved, queued*,
+*executing*, *rejected*, *completed* and *error*. `approve` and `reject`
+print the arguments they decide on. To approve only the payload you
+reviewed earlier with `show`, pass its `--digest`: the backend refuses the
+decision for any other payload (exit 2). Deciding on an action that is not
+waiting for approval also exits 2. All commands accept `--json`.
+
 ## Exit codes
 
 | Code | Meaning | What to do |
 | --- | --- | --- |
 | 0 | Success; for `status`, `follow`, `report`, `cancel --wait` and `run --follow`, the run passed. | |
 | 1 | The run finished `failed`: an expected result did not hold. | Read `saci report`. |
-| 2 | Invalid input: plan, configuration, arguments, an unknown environment, policy or run, or a run that already finished. | Fix the input named in the message. |
+| 2 | Invalid input: plan, configuration, arguments, an unknown environment, policy, run or action, a run that already finished, or an action decision the backend refused. | Fix the input named in the message. |
 | 3 | The backend is unreachable, refused the credentials, or failed. | Start the backend, check `--backend`, or set `SACI_TOKEN`; the message says which. |
 | 4 | The outcome of a request that changes state is unknown. | Repeat it as the message says. |
 | 5 | The run finished `blocked` or `inconclusive`, or units were skipped. | Read `saci report` for what was not established. |

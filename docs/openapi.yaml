@@ -229,6 +229,90 @@ paths:
                     items: { $ref: "#/components/schemas/Action" }
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+  /api/v1/runs/{run_id}/actions/{name}/approval:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+      - $ref: "#/components/parameters/ActionName"
+    post:
+      tags: [actions]
+      summary: Approve an action waiting for approval; it is then dispatched.
+      operationId: approveAction
+      security: [{ clientToken: [] }, {}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Decision" }
+      responses:
+        "200":
+          description: Approved and queued.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Action" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409":
+          description: "`digest_mismatch` or `action_not_pending`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorBody" }
+  /api/v1/runs/{run_id}/actions/{name}/rejection:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+      - $ref: "#/components/parameters/ActionName"
+    post:
+      tags: [actions]
+      summary: Reject an action waiting for approval; it is never dispatched.
+      operationId: rejectAction
+      security: [{ clientToken: [] }, {}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Decision" }
+      responses:
+        "200":
+          description: Rejected.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Action" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409":
+          description: "`digest_mismatch` or `action_not_pending`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorBody" }
+  /api/v1/actions:
+    get:
+      tags: [actions]
+      summary: Actions in one state across runs, oldest first.
+      operationId: listActions
+      security: [{ clientToken: [] }, {}]
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [pending_approval, queued, executing, rejected, completed, error]
+            default: pending_approval
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: The actions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Action" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
   /api/v1/worker/runs/{run_id}/specification:
     parameters:
       - $ref: "#/components/parameters/RunId"
@@ -316,6 +400,11 @@ components:
       in: path
       required: true
       schema: { type: string, pattern: "^run-[a-z0-9]+$" }
+    ActionName:
+      name: name
+      in: path
+      required: true
+      schema: { type: string, pattern: "^[A-Za-z0-9_-]+$" }
     Limit:
       name: limit
       in: query
@@ -345,7 +434,7 @@ components:
           properties:
             code:
               type: string
-              enum: [unauthorized, forbidden, not_found, validation_failed, idempotency_conflict, run_finished, sequence_gap, bad_request, internal]
+              enum: [unauthorized, forbidden, not_found, validation_failed, idempotency_conflict, run_finished, sequence_gap, action_not_pending, digest_mismatch, bad_request, internal]
             message: { type: string }
             details:
               type: array
@@ -475,6 +564,12 @@ components:
           items: { $ref: "#/components/schemas/Evidence" }
         last_seq: { type: integer }
       additionalProperties: true
+    Decision:
+      type: object
+      required: [digest]
+      properties:
+        digest: { type: string, description: Digest of the reviewed arguments. }
+        note: { type: string, description: Kept with the decision. }
     Action:
       type: object
       required: [run_id, name, server, tool, approval, state, arguments, digest, attempts, created_at, updated_at]
@@ -486,11 +581,18 @@ components:
         approval: { type: string, enum: [none, required] }
         state:
           type: string
-          enum: [pending_approval, queued, executing, completed, error]
+          enum: [pending_approval, queued, executing, rejected, completed, error]
         arguments:
           type: object
           description: The exact arguments sent, or to be sent, rendered from the final report.
         digest: { type: string, description: Hex SHA-256 of the serialized arguments. }
+        decision:
+          type: object
+          required: [verdict, at]
+          properties:
+            verdict: { type: string, enum: [approved, rejected] }
+            at: { type: string, format: date-time }
+            note: { type: string }
         attempts: { type: integer, minimum: 0 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }

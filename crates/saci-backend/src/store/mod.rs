@@ -41,6 +41,12 @@ pub enum StoreError {
     /// The idempotency key was used for a different request.
     #[error("the idempotency key was already used for a different request")]
     IdempotencyConflict,
+    /// The action is not awaiting approval.
+    #[error("the action is not awaiting approval (it is {0})")]
+    ActionNotPending(saci_core::action::ActionState),
+    /// A decision named a digest other than the recorded arguments'.
+    #[error("the digest does not match the recorded arguments; review them again")]
+    DigestMismatch,
     /// A pagination cursor that this store did not issue.
     #[error("invalid cursor")]
     InvalidCursor,

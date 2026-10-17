@@ -147,6 +147,10 @@ pub enum ErrorCode {
     RunFinished,
     /// Events skipped a sequence number (409).
     SequenceGap,
+    /// The action is not awaiting approval (409).
+    ActionNotPending,
+    /// The decision names a digest other than the recorded arguments' (409).
+    DigestMismatch,
     /// The request is malformed (400).
     BadRequest,
     /// The backend failed (500).
@@ -162,7 +166,11 @@ impl ErrorCode {
             Self::Unauthorized => 401,
             Self::Forbidden => 403,
             Self::NotFound => 404,
-            Self::IdempotencyConflict | Self::RunFinished | Self::SequenceGap => 409,
+            Self::IdempotencyConflict
+            | Self::RunFinished
+            | Self::SequenceGap
+            | Self::ActionNotPending
+            | Self::DigestMismatch => 409,
             Self::ValidationFailed => 422,
             Self::Internal => 500,
         }

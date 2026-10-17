@@ -3,7 +3,7 @@
 
 use std::fmt::Write as _;
 
-use saci_core::action::{ActionRecord, ActionState};
+use saci_core::action::{ActionRecord, ActionState, Verdict};
 use saci_core::api::RunSummary;
 use saci_core::event::{EventKind, RunEvent};
 use saci_core::evidence::{Evidence, EvidenceRecord};
@@ -105,6 +105,41 @@ fn first_line(text: &str) -> String {
     }
 }
 
+/// An action's state as shown to people, including an approval.
+#[must_use]
+pub fn action_state(action: &ActionRecord) -> &'static str {
+    let approved = action
+        .decision
+        .as_ref()
+        .is_some_and(|d| d.verdict == Verdict::Approved);
+    match action.state {
+        ActionState::PendingApproval => "pending approval",
+        ActionState::Queued if approved => "approved, queued",
+        ActionState::Queued => "queued",
+        ActionState::Executing => "executing",
+        ActionState::Rejected => "rejected",
+        ActionState::Completed => "completed",
+        ActionState::Error => "error",
+    }
+}
+
+/// One line for an action: name, state, server and tool, and the first
+/// line of its result or error.
+#[must_use]
+pub fn action_line(action: &ActionRecord) -> String {
+    let mut text = format!(
+        "{}: {} ({}/{})",
+        action.name,
+        action_state(action),
+        action.server,
+        action.tool
+    );
+    if let Some(detail) = action.error.as_deref().or(action.result.as_deref()) {
+        let _ = write!(text, ": {}", first_line(detail));
+    }
+    text
+}
+
 /// A run's outcome actions, one line each, with what delivery returned.
 /// Delivery is reported apart from the run's outcome, which it never changes.
 #[must_use]
@@ -114,23 +149,38 @@ pub fn actions(actions: &[ActionRecord]) -> String {
     }
     let mut text = String::from("\nActions (delivery does not change the outcome):\n");
     for action in actions {
-        let state = match action.state {
-            ActionState::PendingApproval => "pending approval",
-            ActionState::Queued => "queued",
-            ActionState::Executing => "executing",
-            ActionState::Completed => "completed",
-            ActionState::Error => "error",
-        };
+        let _ = writeln!(text, "  {}", action_line(action));
+    }
+    text
+}
+
+/// Everything about one action, with the exact arguments to review.
+#[must_use]
+pub fn action(action: &ActionRecord) -> String {
+    let mut text = format!("{}  run {}\n", action.name, action.run_id);
+    let _ = writeln!(text, "State: {}", action_state(action));
+    let _ = writeln!(text, "Tool: {} of server {}", action.tool, action.server);
+    if let Some(decision) = &action.decision {
         let _ = write!(
             text,
-            "  {}: {state} ({}/{})",
-            action.name, action.server, action.tool
+            "Decision: {} at {}",
+            decision.verdict.as_str(),
+            timestamp(decision.at)
         );
-        if let Some(detail) = action.error.as_deref().or(action.result.as_deref()) {
-            let _ = write!(text, ": {}", first_line(detail));
+        if let Some(note) = &decision.note {
+            let _ = write!(text, ": {note}");
         }
         text.push('\n');
     }
+    let _ = writeln!(text, "Attempts: {}", action.attempts);
+    if let Some(result) = &action.result {
+        let _ = writeln!(text, "Result: {result}");
+    }
+    if let Some(error) = &action.error {
+        let _ = writeln!(text, "Error: {error}");
+    }
+    let arguments = serde_json::to_string_pretty(&action.arguments).unwrap_or_default();
+    let _ = writeln!(text, "Digest: {}\nArguments:\n{arguments}", action.digest);
     text
 }
 

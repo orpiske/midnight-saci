@@ -7,7 +7,9 @@
 use std::collections::BTreeMap;
 
 use rusqlite::{Connection, OptionalExtension, Row, Transaction, params};
-use saci_core::action::{self, ActionDefinition, ActionRecord, ActionState, Approval};
+use saci_core::action::{
+    self, ActionDefinition, ActionRecord, ActionState, Approval, Decision, Verdict,
+};
 use saci_core::ids::RunId;
 use saci_core::run::RunReport;
 use sha2::{Digest, Sha256};
@@ -16,7 +18,7 @@ use time::OffsetDateTime;
 use super::{Store, StoreError, format_time, parse, parse_time};
 
 const COLUMNS: &str = "run_id, name, server, tool, approval, state, arguments, digest, attempts, \
-                       created_at, updated_at, result, error";
+                       created_at, updated_at, result, error, decision, decided_at, decision_note";
 
 /// How a dispatch ended.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,6 +120,9 @@ struct Stored {
     updated_at: String,
     result: Option<String>,
     error: Option<String>,
+    decision: Option<String>,
+    decided_at: Option<String>,
+    decision_note: Option<String>,
 }
 
 fn read(row: &Row<'_>) -> rusqlite::Result<Stored> {
@@ -135,11 +140,34 @@ fn read(row: &Row<'_>) -> rusqlite::Result<Stored> {
         updated_at: row.get(10)?,
         result: row.get(11)?,
         error: row.get(12)?,
+        decision: row.get(13)?,
+        decided_at: row.get(14)?,
+        decision_note: row.get(15)?,
     })
 }
 
+fn unreadable(what: &str) -> StoreError {
+    StoreError::Database(format!("unreadable action {what}"))
+}
+
+fn decision(stored: &Stored) -> Result<Option<Decision>, StoreError> {
+    let (Some(verdict), Some(at)) = (&stored.decision, &stored.decided_at) else {
+        return Ok(None);
+    };
+    let verdict = match verdict.as_str() {
+        "approved" => Verdict::Approved,
+        "rejected" => Verdict::Rejected,
+        _ => return Err(unreadable("decision")),
+    };
+    Ok(Some(Decision {
+        verdict,
+        at: parse_time(at)?,
+        note: stored.decision_note.clone(),
+    }))
+}
+
 fn record(stored: Stored) -> Result<ActionRecord, StoreError> {
-    let unreadable = |what: &str| StoreError::Database(format!("unreadable action {what}"));
+    let decision = decision(&stored)?;
     Ok(ActionRecord {
         run_id: RunId::parse(&stored.run_id).map_err(|_| unreadable("run"))?,
         name: stored.name,
@@ -153,6 +181,7 @@ fn record(stored: Stored) -> Result<ActionRecord, StoreError> {
         state: ActionState::parse(&stored.state).ok_or_else(|| unreadable("state"))?,
         arguments: parse(&stored.arguments)?,
         digest: stored.digest,
+        decision,
         attempts: u32::try_from(stored.attempts).map_err(|_| unreadable("attempts"))?,
         created_at: parse_time(&stored.created_at)?,
         updated_at: parse_time(&stored.updated_at)?,
@@ -172,6 +201,18 @@ fn select(
         .query_map(values, read)?
         .collect::<Result<Vec<_>, _>>()?;
     rows.into_iter().map(record).collect()
+}
+
+/// Refuses a decision unless the action awaits approval and `digest` is
+/// its recorded arguments' digest.
+fn check_pending(current: &ActionRecord, digest: &str) -> Result<(), StoreError> {
+    if current.state != ActionState::PendingApproval {
+        return Err(StoreError::ActionNotPending(current.state));
+    }
+    if current.digest != digest {
+        return Err(StoreError::DigestMismatch);
+    }
+    Ok(())
 }
 
 fn one(connection: &Connection, run: &str, name: &str) -> Result<ActionRecord, StoreError> {
@@ -263,6 +304,70 @@ impl Store {
                 return Err(StoreError::NotFound);
             }
             one(connection, &run, &name)
+        })
+        .await
+    }
+
+    /// Records a decision on an action awaiting approval. `digest` must be
+    /// the recorded arguments' digest: the reviewer decides on exactly
+    /// that payload. Approval queues it for dispatch; rejection is final.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::NotFound`] without such an action,
+    /// [`StoreError::ActionNotPending`] when it is not awaiting approval,
+    /// [`StoreError::DigestMismatch`] for another digest.
+    pub async fn decide_action(
+        &self,
+        run: &RunId,
+        name: &str,
+        verdict: Verdict,
+        request: action::DecisionRequest,
+    ) -> Result<ActionRecord, StoreError> {
+        let (run, name) = (run.as_str().to_owned(), name.to_owned());
+        self.with(move |connection| {
+            let transaction = connection.transaction()?;
+            let current = one(&transaction, &run, &name)?;
+            check_pending(&current, &request.digest)?;
+            let state = match verdict {
+                Verdict::Approved => ActionState::Queued,
+                Verdict::Rejected => ActionState::Rejected,
+            };
+            transaction.execute(
+                "UPDATE actions SET state = ?3, decision = ?4, decided_at = ?5, decision_note = ?6, updated_at = ?5
+                 WHERE run_id = ?1 AND name = ?2 AND state = 'pending_approval'",
+                params![
+                    run,
+                    name,
+                    state.as_str(),
+                    verdict.as_str(),
+                    format_time(OffsetDateTime::now_utc())?,
+                    request.note
+                ],
+            )?;
+            let decided = one(&transaction, &run, &name)?;
+            transaction.commit()?;
+            Ok(decided)
+        })
+        .await
+    }
+
+    /// Actions in `state` across runs, oldest first, at most `limit`.
+    ///
+    /// # Errors
+    ///
+    /// Fails on a database error.
+    pub async fn actions_in_state(
+        &self,
+        state: ActionState,
+        limit: u32,
+    ) -> Result<Vec<ActionRecord>, StoreError> {
+        self.with(move |connection| {
+            select(
+                connection,
+                "WHERE state = ?1 ORDER BY created_at, rowid LIMIT ?2",
+                params![state.as_str(), limit],
+            )
         })
         .await
     }
