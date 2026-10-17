@@ -5904,15 +5904,18 @@ name = "saci-backend"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "clap",
  "rusqlite",
  "saci-core",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "thiserror",
  "time",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]

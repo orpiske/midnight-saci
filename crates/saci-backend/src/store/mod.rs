@@ -14,7 +14,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use saci_core::api::{Page, RunSummary};
 use saci_core::event::{EventKind, RunEvent};
-use saci_core::ids::RunId;
+use saci_core::evidence::Evidence;
+use saci_core::ids::{EvidenceId, RunId};
 use saci_core::redaction::Redactor;
 use saci_core::run::{ContractError, RunReport};
 use saci_core::spec::RunSpec;
@@ -36,6 +37,9 @@ pub enum StoreError {
     /// The idempotency key was used for a different request.
     #[error("the idempotency key was already used for a different request")]
     IdempotencyConflict,
+    /// A pagination cursor that this store did not issue.
+    #[error("invalid cursor")]
+    InvalidCursor,
     /// The events do not fit the run's record.
     #[error(transparent)]
     Contract(#[from] ContractError),
@@ -322,6 +326,33 @@ impl Store {
         .await
     }
 
+    /// One recorded observation of a run.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`StoreError::NotFound`] when the run or the evidence does
+    /// not exist, or a database error.
+    pub async fn evidence(
+        &self,
+        id: &RunId,
+        evidence: &EvidenceId,
+    ) -> Result<Evidence, StoreError> {
+        let id = id.as_str().to_owned();
+        let evidence = evidence.as_str().to_owned();
+        self.with(move |connection| {
+            let body: String = connection
+                .query_row(
+                    "SELECT body FROM evidence WHERE run_id = ?1 AND id = ?2",
+                    [&id, &evidence],
+                    |row| row.get(0),
+                )
+                .optional()?
+                .ok_or(StoreError::NotFound)?;
+            parse(&body)
+        })
+        .await
+    }
+
     /// Changes the report outside the event stream (backend transitions such
     /// as starting or finishing a run whose worker never reported). The
     /// closure sees the current report; a finished report cannot be changed.
@@ -488,7 +519,7 @@ fn list(
     let before = match cursor {
         Some(cursor) => cursor
             .parse::<i64>()
-            .map_err(|_| StoreError::Database("invalid cursor".into()))?,
+            .map_err(|_| StoreError::InvalidCursor)?,
         None => i64::MAX,
     };
     let limit = limit.clamp(1, 200);

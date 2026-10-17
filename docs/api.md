@@ -18,6 +18,9 @@ Rust types in `saci_core::api` by the test suite.
   forbidden`, and it is rejected on client routes.
 - `GET /api/v1/health` never requires a token.
 
+Token comparison is constant-time. A backend whose `backend.auth.token_env`
+names an unset or empty variable refuses to start.
+
 ## Errors
 
 Errors use one body shape and stable codes:
@@ -51,6 +54,10 @@ header. The worker launch happens afterwards, asynchronously; there is no
 approval stage. Invalid input is rejected with `422` before anything is
 stored or launched.
 
+A body that is not valid JSON, or has fields other than `bundle`,
+`environment` and `policy`, is a `400 bad_request`; a well-formed body whose
+plan, environment or policy is invalid is a `422 validation_failed`.
+
 **Retries and idempotency.** A submission is safe to retry only with an
 `Idempotency-Key` header. Repeating the request with the same key and an
 identical body returns the original run with `200 OK` and starts nothing
@@ -69,6 +76,10 @@ tell whether the run was created and should list runs before resubmitting.
   once `lifecycle` is `finished` and remains available after the worker is
   removed.
 - `GET /api/v1/runs/{run_id}/evidence/{evidence_id}` returns one observation.
+
+Query parameters are validated: `limit` must be 1 to 200 (default 50),
+`wait` 0 to 60, and a `cursor` must come from an earlier page; anything else
+is a `400 bad_request`. A malformed run or evidence ID is a `404`.
 
 ## Following progress
 
@@ -115,3 +126,13 @@ token. It then:
 
 Evidence travels inside `observation` events, already redacted, so it stays
 readable from the backend after the worker disconnects or is removed.
+
+## Implementation
+
+`saci_backend::api::router` serves these routes with axum. A submission is
+validated and stored in one step (`api::submit::prepare`, then
+`Store::create_run`); only a newly created run is handed to the
+`Supervisor`, which starts its worker. A cancellation request is recorded
+first and then handed to the supervisor. Long polls wait on a change signal
+that the backend raises whenever it stores events or changes a run, then
+re-read the database, so a reply always reflects persisted state.
