@@ -17,6 +17,7 @@ AI Test Engineer
 - [MCP servers: configuration, credentials and SDK](docs/mcp.md)
 - [Operating the backend: data directory and records](docs/operations.md)
 - [The worker: entry point, image and adding utilities](docs/worker.md)
+- [Launching workers with Podman or Docker: runtime, arguments and networking](docs/launchers.md)
 - [Command line: backend start, run submission, following, reports, cancellation and exit codes](docs/cli.md)
 - [REST API and worker reporting protocol](docs/api.md) ([OpenAPI](docs/openapi.yaml))
 - [Implementation ticket drafts](docs/plans/implementation-tickets.md)

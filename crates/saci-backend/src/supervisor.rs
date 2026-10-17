@@ -7,7 +7,10 @@ use saci_core::status::Outcome;
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
 
-use crate::api::{Backend, Supervisor};
+use std::time::Duration;
+
+use crate::api::{Backend, Supervisor, issue_token};
+use crate::launcher::{self, LaunchError, Launcher};
 
 /// A request from the API.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +51,36 @@ pub type CommandReceiver = mpsc::UnboundedReceiver<Command>;
 pub fn channel() -> (Commands, CommandReceiver) {
     let (sender, receiver) = mpsc::unbounded_channel();
     (Commands(sender), receiver)
+}
+
+/// How long a stopped worker gets to report its end before it is killed.
+pub const STOP_GRACE: Duration = Duration::from_secs(30);
+
+/// Issues the run's worker token and starts its worker.
+///
+/// # Errors
+///
+/// Fails when the run cannot be read, a value it needs is missing, or the
+/// runtime refuses.
+pub async fn launch(
+    backend: &Backend,
+    launcher: &Launcher,
+    run: &RunId,
+) -> Result<(), LaunchError> {
+    let record = backend
+        .store
+        .run(run)
+        .await
+        .map_err(|error| LaunchError::new(format!("cannot read the run: {error}")))?;
+    let token = issue_token(backend, run).await.map_err(|error| {
+        LaunchError::new(format!("cannot issue the worker token: {:?}", error.code()))
+    })?;
+    let assignment = launcher::assignment(&backend.config, &record.spec, &token, |name| {
+        std::env::var(name).ok()
+    })?;
+    launcher.launch(&assignment).await?;
+    tracing::info!(%run, "worker started");
+    Ok(())
 }
 
 /// Finishes an unfinished run from the backend side, for example when its
