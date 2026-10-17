@@ -53,3 +53,36 @@ session as the old one.
 
 A command that permanently redirects the shell's own output (`exec >file`)
 hides the end of every later command, which then times out.
+
+## HTTP
+
+The HTTP tool sends one request to the target environment and records the
+exchange. Arguments are `method`, an absolute `http` or `https` `url`,
+optional `headers` and an optional text `body`; anything else is rejected
+before a request is sent, as are invalid methods, URLs and header names.
+
+`${NAME}` in the URL, header values or body is replaced by the value of an
+environment parameter or secret just before sending, so the model never
+handles secret values (see [credentials](security.md)). Other `${…}` text
+is sent as written.
+
+The evidence records the method, URL, request headers and body, and either
+a `response` (status, all headers, body) or a `transport_error`. Any HTTP
+status, including 401 or 500, is a response and may be the expected result
+of a negative test. Only a request that got no response (connection
+refused, DNS or TLS failure, deadline, cancellation) has a
+`transport_error`. Credential headers and secret values are redacted. The
+response body keeps at most `limits.output_limit_bytes`; reading stops
+there, `truncated` is set, and `total_bytes` is the `Content-Length` when
+the server sent one, otherwise the bytes read before stopping.
+
+### Redirects and credentials
+
+Redirects are **not** followed. A 3xx response is returned as evidence with
+its `Location` header, and the model sends a new request if it decides to.
+The new request carries only the headers the model writes for it, so a
+credential meant for one host is never forwarded to another implicitly.
+
+The tool uses the worker's proxy settings (`HTTPS_PROXY`, `HTTP_PROXY`,
+`NO_PROXY`). Each request has the operation deadline; connecting has a
+30-second limit within it.
