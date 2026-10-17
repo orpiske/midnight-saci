@@ -107,6 +107,27 @@ saci backend start --config saci.yaml &
 export SACI_BACKEND_URL=http://127.0.0.1:18080
 ```
 
+On macOS, edit the copied `saci.yaml` before starting the backend, so
+that workers reach your Mac through the runtime's host alias. With Podman
+use `host.containers.internal`; with Docker, `host.docker.internal`:
+
+```yaml
+backend:
+  worker_url: http://host.containers.internal:18080   # was 127.0.0.1
+worker:
+  # delete the line `network: host`
+llm:
+  base_url: http://host.containers.internal:11435/v1  # was 127.0.0.1
+environments:
+  local:
+    parameters:
+      SERVICE_URL: http://host.containers.internal:18081   # was 127.0.0.1
+```
+
+Keep `listen: 127.0.0.1:18080`, the fixtures' `--listen` addresses and
+`SACI_BACKEND_URL` as they are: they are used on your Mac, not inside the
+worker.
+
 The backend logs which runtime it found. If the runtime is missing, it
 says so, and runs end `error` with that reason (see
 [launchers](launchers.md#choosing-the-runtime)).
