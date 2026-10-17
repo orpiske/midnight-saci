@@ -3,3 +3,4 @@
 
 pub mod credentials;
 pub mod llm;
+pub mod shell;
