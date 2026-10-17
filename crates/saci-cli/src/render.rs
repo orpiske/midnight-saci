@@ -72,14 +72,7 @@ pub fn observation(evidence: &Evidence) -> String {
                 .map_or_else(|| name(&shell.termination), |code| format!("exited {code}"));
             format!("shell `{}` {ending}", first_line(&shell.command))
         }
-        EvidenceRecord::Http(http) => {
-            let result = match (&http.response, &http.transport_error) {
-                (Some(response), _) => format!("answered {}", response.status),
-                (None, Some(error)) => format!("failed: {error}"),
-                (None, None) => "got no response".to_owned(),
-            };
-            format!("http {} {} {result}", http.method, http.url)
-        }
+        EvidenceRecord::Http(http) => http_line(http),
         EvidenceRecord::Mcp(mcp) => {
             let result = match (&mcp.protocol_error, mcp.is_error) {
                 (Some(error), _) => format!("got no result: {error}"),
@@ -93,6 +86,18 @@ pub fn observation(evidence: &Evidence) -> String {
         }
     };
     format!("{} {what} ({} ms)", evidence.id, evidence.duration_ms)
+}
+
+fn http_line(http: &saci_core::evidence::HttpEvidence) -> String {
+    let result = match (&http.response, &http.transport_error) {
+        (Some(response), _) => match &response.body_error {
+            Some(error) => format!("answered {}, body incomplete: {error}", response.status),
+            None => format!("answered {}", response.status),
+        },
+        (None, Some(error)) => format!("failed: {error}"),
+        (None, None) => "got no response".to_owned(),
+    };
+    format!("http {} {} {result}", http.method, http.url)
 }
 
 fn first_line(text: &str) -> String {

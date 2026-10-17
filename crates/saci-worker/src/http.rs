@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
 use rig::rig_reqwest::reqwest::{self, Method, Url, redirect};
-use saci_core::evidence::{HttpEvidence, HttpResponseEvidence};
+use saci_core::evidence::{CapturedText, HttpEvidence, HttpResponseEvidence};
 use saci_core::redaction::{OutputCapture, Redactor, capture_text};
 use saci_core::run::{ErrorKind, ExecutionError};
 use serde::Deserialize;
@@ -108,14 +108,14 @@ impl HttpTool {
         let mut evidence = self.request_evidence(&prepared);
         let started = Instant::now();
         let builder = self.builder(&prepared).timeout(deadline);
-        let outcome = tokio::select! {
-            outcome = self.exchange(builder) => outcome,
-            () = cancel.cancelled() => Err("the request was cancelled".to_owned()),
-        };
+        let outcome = self.exchange(builder, cancel).await;
         let redactor = self.credentials.redactor();
         match outcome {
             Ok(mut response) => {
                 redactor.redact_headers(&mut response.headers);
+                if let Some(error) = &mut response.body_error {
+                    *error = redactor.redact(error).into_owned();
+                }
                 evidence.response = Some(response);
             }
             Err(error) => evidence.transport_error = Some(redactor.redact(&error).into_owned()),
@@ -185,26 +185,54 @@ impl HttpTool {
         builder
     }
 
+    /// Sends the request and reads the response. Once the status and
+    /// headers have arrived the response is kept, with what was read of the
+    /// body, even when reading the rest fails, times out or is cancelled.
     async fn exchange(
         &self,
         builder: reqwest::RequestBuilder,
+        cancel: &CancellationToken,
     ) -> Result<HttpResponseEvidence, String> {
-        let mut response = builder.send().await.map_err(|error| describe(&error))?;
+        let mut response = tokio::select! {
+            sent = builder.send() => sent.map_err(|error| describe(&error))?,
+            () = cancel.cancelled() => return Err("the request was cancelled".to_owned()),
+        };
         let status = response.status().as_u16();
         let headers = header_map(response.headers());
+        let (body, body_error) = self.read_body(&mut response, cancel).await;
+        Ok(HttpResponseEvidence {
+            status,
+            headers,
+            body,
+            body_error,
+        })
+    }
+}
+
+impl HttpTool {
+    /// Reads at most the output limit of `response`'s body; also returns
+    /// why it is incomplete when reading failed or was cancelled.
+    async fn read_body(
+        &self,
+        response: &mut reqwest::Response,
+        cancel: &CancellationToken,
+    ) -> (CapturedText, Option<String>) {
         let length = response.content_length();
         let redactor: &Redactor = self.credentials.redactor();
         let mut capture = OutputCapture::new(self.output_limit, redactor);
         let keep = self.output_limit.saturating_add(redactor.longest() as u64);
+        let mut body_error = None;
         while capture.total() <= keep {
-            match response.chunk().await {
+            let chunk = tokio::select! {
+                chunk = response.chunk() => chunk.map_err(Some),
+                () = cancel.cancelled() => Err(None),
+            };
+            match chunk {
                 Ok(Some(chunk)) => capture.push(&chunk),
                 Ok(None) => break,
                 Err(error) => {
-                    return Err(format!(
-                        "reading the response body failed: {}",
-                        describe(&error)
-                    ));
+                    body_error = Some(body_failure(error.as_ref()));
+                    break;
                 }
             }
         }
@@ -212,11 +240,7 @@ impl HttpTool {
         if let Some(length) = length {
             body.total_bytes = body.total_bytes.max(length);
         }
-        Ok(HttpResponseEvidence {
-            status,
-            headers,
-            body,
-        })
+        (body, body_error)
     }
 }
 
@@ -239,6 +263,14 @@ fn header_map(headers: &reqwest::header::HeaderMap) -> BTreeMap<String, String> 
             .or_insert(value);
     }
     map
+}
+
+/// Why a body is incomplete: a read failure, or cancellation (`None`).
+fn body_failure(error: Option<&reqwest::Error>) -> String {
+    error.map_or_else(
+        || "the request was cancelled while the body was read".to_owned(),
+        |error| format!("reading the response body failed: {}", describe(error)),
+    )
 }
 
 fn describe(error: &reqwest::Error) -> String {

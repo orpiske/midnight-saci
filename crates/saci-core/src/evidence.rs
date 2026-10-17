@@ -231,6 +231,10 @@ pub struct HttpResponseEvidence {
     pub headers: BTreeMap<String, String>,
     /// Response body.
     pub body: CapturedText,
+    /// Why the body is incomplete, when reading it failed, timed out or was
+    /// cancelled after the status and headers arrived.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_error: Option<String>,
 }
 
 /// Evidence for one MCP tool invocation.

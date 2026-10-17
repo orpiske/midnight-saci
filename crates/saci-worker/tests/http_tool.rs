@@ -214,3 +214,72 @@ async fn invalid_arguments_are_rejected_before_sending() {
         serde_json::from_str(r#"{"method":"GET","url":"http://h","extra":1}"#);
     assert!(parsed.is_err(), "unknown arguments are rejected");
 }
+
+/// A server that sends a status, headers and part of a 100-byte body for
+/// `/{SECRET}`, then closes the connection (`close`) or stalls.
+async fn partial(close: bool) -> String {
+    use tokio::io::AsyncWriteExt as _;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let head = "HTTP/1.1 503 Service Unavailable\r\ncontent-length: 100\r\nretry-after: 7\r\n\r\n";
+                let _ = socket
+                    .write_all(format!("{head}partial {SECRET}").as_bytes())
+                    .await;
+                if !close {
+                    tokio::time::sleep(Duration::from_secs(30)).await;
+                }
+            });
+        }
+    });
+    format!("http://{address}")
+}
+
+#[tokio::test]
+async fn a_response_whose_body_fails_keeps_its_status_and_headers() {
+    for close in [true, false] {
+        let base = partial(close).await;
+        let tool = tool(&base, 1024);
+        let evidence = send(
+            &tool,
+            &request("GET", "${BASE}/"),
+            Duration::from_millis(500),
+        )
+        .await;
+        assert!(evidence.transport_error.is_none(), "{evidence:?}");
+        let response = evidence.response.unwrap();
+        assert_eq!(response.status, 503);
+        assert_eq!(response.headers["retry-after"], "7");
+        assert_eq!(response.body.text, "partial [REDACTED:TOKEN]");
+        assert_eq!(response.body.total_bytes, 100);
+        let error = response.body_error.unwrap();
+        assert!(
+            error.starts_with("reading the response body failed"),
+            "{error}"
+        );
+        if !close {
+            assert!(error.contains("timed out"), "{error}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn cancelling_while_the_body_is_read_keeps_the_response() {
+    let tool = tool(&partial(false).await, 1024);
+    let cancel = CancellationToken::new();
+    let trigger = cancel.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        trigger.cancel();
+    });
+    let get = request("GET", "${BASE}/");
+    let evidence = tool.send(&get, LONG, &cancel).await.unwrap().evidence;
+    let response = evidence.response.unwrap();
+    assert_eq!(response.status, 503);
+    assert_eq!(
+        response.body_error.as_deref(),
+        Some("the request was cancelled while the body was read")
+    );
+}
