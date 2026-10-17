@@ -403,6 +403,27 @@ impl Store {
         .await
     }
 
+    /// The run whose worker token has this hash, if any.
+    ///
+    /// # Errors
+    ///
+    /// Fails on a database error.
+    pub async fn run_for_token_hash(&self, hash: &str) -> Result<Option<RunId>, StoreError> {
+        let hash = hash.to_owned();
+        self.with(move |connection| {
+            let id: Option<String> = connection
+                .query_row(
+                    "SELECT id FROM runs WHERE worker_token_hash = ?1",
+                    [&hash],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            id.map(|id| RunId::parse(&id).map_err(|e| StoreError::Database(e.to_string())))
+                .transpose()
+        })
+        .await
+    }
+
     /// Stores the hash of a newly issued worker token.
     ///
     /// # Errors

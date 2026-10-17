@@ -136,3 +136,26 @@ validated and stored in one step (`api::submit::prepare`, then
 first and then handed to the supervisor. Long polls wait on a change signal
 that the backend raises whenever it stores events or changes a run, then
 re-read the database, so a reply always reflects persisted state.
+
+### Worker credentials and the worker client
+
+`saci_backend::api::issue_token` creates a worker token (256 random bits as
+hex) when a worker is launched and stores only its SHA-256 hash. Worker
+routes look the hash up: an unknown or missing token is `401`, a token for
+another run is `403`. The client token never matches a worker hash, so it
+cannot use worker routes either.
+
+Before storing a batch, the backend also redacts the secret values it can
+read itself (environment secrets with an `env` reference, the LLM key), on
+top of the worker's own redaction. Long-polling clients are woken as soon as
+the batch is committed.
+
+`saci_worker::report` is the worker side: `fetch_specification` retries
+while the backend is unreachable; `deliver` reads the run's event channel,
+sends batches of up to 100 events, drops what the backend acknowledges,
+resends the rest (from the acknowledged sequence on a `sequence_gap`), and
+returns once the channel is closed and every event is acknowledged;
+`watch_cancellation` polls `control` and cancels the run's token. Delivery
+retries an unreachable or failing (5xx) backend with backoff for up to five
+minutes, then the worker reports itself lost; a refusal (401, 403, 409
+`run_finished`, 422) ends delivery at once.

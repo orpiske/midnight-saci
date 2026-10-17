@@ -7,4 +7,5 @@ pub mod events;
 pub mod http;
 pub mod llm;
 pub mod mcp;
+pub mod report;
 pub mod shell;

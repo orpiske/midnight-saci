@@ -3,6 +3,7 @@
 mod error;
 mod runs;
 mod submit;
+mod worker;
 
 use std::sync::Arc;
 
@@ -18,6 +19,7 @@ use saci_core::ids::RunId;
 use tokio::sync::watch;
 
 pub use error::Failure;
+pub use worker::issue_token;
 
 use crate::store::Store;
 
@@ -131,7 +133,7 @@ impl Backend {
     }
 }
 
-/// The client-facing routes and the health check.
+/// The client and worker routes and the health check.
 pub fn router(backend: Backend, auth: ClientAuth) -> Router {
     let runs = Router::new()
         .route("/runs", post(runs::submit).get(runs::list))
@@ -141,9 +143,21 @@ pub fn router(backend: Backend, auth: ClientAuth) -> Router {
         .route("/runs/{run_id}/evidence/{evidence_id}", get(runs::evidence))
         .route("/runs/{run_id}/cancellation", post(runs::cancel))
         .route_layer(middleware::from_fn_with_state(Arc::new(auth), authorize));
+    let workers = Router::new()
+        .route(
+            "/worker/runs/{run_id}/specification",
+            get(worker::specification),
+        )
+        .route("/worker/runs/{run_id}/events", post(worker::events))
+        .route("/worker/runs/{run_id}/control", get(worker::control))
+        .route_layer(middleware::from_fn_with_state(
+            backend.clone(),
+            worker::authorize,
+        ));
     let api = Router::new()
         .route("/health", get(runs::health))
         .merge(runs)
+        .merge(workers)
         .with_state(backend);
     Router::new().nest(API_BASE, api)
 }
