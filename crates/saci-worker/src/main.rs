@@ -166,8 +166,15 @@ async fn local(
             return REJECTED;
         }
     };
+    let writer = match open_events(output).await {
+        Ok(writer) => writer,
+        Err(error) => {
+            eprintln!("error: {}", error.message);
+            return UNDELIVERED;
+        }
+    };
     let output = output.to_owned();
-    let deliver = |events| async move { write_events(&output, events).await };
+    let deliver = |events| async move { write_events(&output, writer, events).await };
     let cancel = CancellationToken::new();
     let assignment = Assignment {
         expected: None,
@@ -184,18 +191,33 @@ fn read_spec(path: &Path) -> Result<RunSpec, String> {
         .map_err(|error| format!("{} is not a run specification: {error}", path.display()))
 }
 
-async fn write_events(output: &Path, mut events: EventReceiver) -> Result<u64, ExecutionError> {
-    let failed = |error: std::io::Error| {
-        ExecutionError::new(
-            saci_core::run::ErrorKind::WorkerLost,
-            format!("cannot write events to {}: {error}", output.display()),
-        )
-    };
-    let mut writer: Box<dyn tokio::io::AsyncWrite + Unpin + Send> = if output == Path::new("-") {
-        Box::new(tokio::io::stdout())
-    } else {
-        Box::new(tokio::fs::File::create(output).await.map_err(failed)?)
-    };
+type EventWriter = Box<dyn tokio::io::AsyncWrite + Unpin + Send>;
+
+fn write_failure(output: &Path, error: &std::io::Error) -> ExecutionError {
+    ExecutionError::new(
+        saci_core::run::ErrorKind::WorkerLost,
+        format!("cannot write events to {}: {error}", output.display()),
+    )
+}
+
+/// Opens the events destination before the run starts, so a run never
+/// acts on the target while its evidence has nowhere to go.
+async fn open_events(output: &Path) -> Result<EventWriter, ExecutionError> {
+    if output == Path::new("-") {
+        return Ok(Box::new(tokio::io::stdout()));
+    }
+    let file = tokio::fs::File::create(output)
+        .await
+        .map_err(|error| write_failure(output, &error))?;
+    Ok(Box::new(file))
+}
+
+async fn write_events(
+    output: &Path,
+    mut writer: EventWriter,
+    mut events: EventReceiver,
+) -> Result<u64, ExecutionError> {
+    let failed = |error: std::io::Error| write_failure(output, &error);
     let mut last = 0;
     while let Some(event) = events.recv().await {
         last = event.seq;
@@ -247,22 +269,36 @@ where
             return if code.is_ok() { REJECTED } else { UNDELIVERED };
         }
     };
-    let delivery = tokio::spawn(deliver(events));
+    let delivery = tokio::spawn(stop_on_failure(deliver(events), cancel.clone()));
     let signals = tokio::spawn(cancel_on_signal(cancel.clone()));
     let ending = Box::pin(bootstrap::execute(running, cancel)).await;
     signals.abort();
     eprintln!("run {run_id} ended {}: {}", ending.outcome, ending.reason);
     match delivery.await {
         Ok(Ok(_)) => DELIVERED,
-        Ok(Err(error)) => {
-            eprintln!("error: {}", error.message);
-            UNDELIVERED
-        }
+        Ok(Err(_)) => UNDELIVERED,
         Err(error) => {
             eprintln!("error: event delivery stopped: {error}");
             UNDELIVERED
         }
     }
+}
+
+/// Evidence that cannot be delivered must not keep the run acting on the
+/// target: a failed delivery cancels it.
+async fn stop_on_failure<F>(delivering: F, cancel: CancellationToken) -> Result<u64, ExecutionError>
+where
+    F: Future<Output = Result<u64, ExecutionError>>,
+{
+    let delivered = delivering.await;
+    if let Err(error) = &delivered {
+        eprintln!(
+            "error: event delivery failed; stopping the run: {}",
+            error.message
+        );
+        cancel.cancel();
+    }
+    delivered
 }
 
 /// Stopping the container cancels the run, so it still reports its end.

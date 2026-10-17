@@ -324,3 +324,77 @@ async fn the_image_runs_a_fixture_backed_plan() {
         "{events:?}"
     );
 }
+
+/// The script, with the first model reply held back by `delay`.
+fn delayed_script(delay: std::time::Duration) -> Vec<Reply> {
+    let mut replies = script();
+    replies[0] = replies[0].clone().delayed(delay);
+    replies
+}
+
+#[tokio::test]
+async fn an_unwritable_events_file_stops_the_run_before_it_acts() {
+    let model = FakeModel::start(script()).await.unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("run.json");
+    let spec = spec(RunId::generate(), model.base_url());
+    std::fs::write(&path, serde_json::to_string(&spec).unwrap()).unwrap();
+    let missing = dir.path().join("missing/events.jsonl");
+    let args = [
+        "--spec",
+        path.to_str().unwrap(),
+        "--events",
+        missing.to_str().unwrap(),
+    ];
+    let output = worker(&args, workspace.path(), &[]).await;
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    assert!(stderr(&output).contains("cannot write events"));
+    assert!(!workspace.path().join("made-by-saci").exists());
+    assert!(model.requests().is_empty(), "the model was never asked");
+}
+
+/// A backend that assigns `spec` but refuses every event batch.
+async fn refusing_backend(spec: RunSpec) -> String {
+    use axum::routing::{get, post};
+    let app = axum::Router::new()
+        .route(
+            "/api/v1/worker/runs/{run}/specification",
+            get(move || async move { axum::Json(spec.clone()) }),
+        )
+        .route(
+            "/api/v1/worker/runs/{run}/events",
+            post(|| async { axum::http::StatusCode::FORBIDDEN }),
+        )
+        .route(
+            "/api/v1/worker/runs/{run}/control",
+            get(|| async { axum::Json(json!({"cancel_requested": false})) }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await });
+    url
+}
+
+#[tokio::test]
+async fn refused_events_cancel_the_run_before_its_next_action() {
+    let model = FakeModel::start(delayed_script(std::time::Duration::from_secs(3)))
+        .await
+        .unwrap();
+    let run = RunId::generate();
+    let url = refusing_backend(spec(run.clone(), model.base_url())).await;
+    let workspace = tempfile::tempdir().unwrap();
+    let vars = [
+        ("SACI_BACKEND_URL", url.as_str()),
+        ("SACI_RUN_ID", run.as_str()),
+        ("SACI_WORKER_TOKEN", "token"),
+    ];
+    let output = worker(&[], workspace.path(), &vars).await;
+    assert_eq!(output.status.code(), Some(3), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("event delivery failed; stopping the run"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(!workspace.path().join("made-by-saci").exists());
+}
