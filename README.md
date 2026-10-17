@@ -9,5 +9,6 @@ AI Test Engineer
 - [Development: build, layout and quality gates](docs/development.md)
 - [Run contracts: identities, statuses, events and reports](docs/contracts.md)
 - [Configuration reference](docs/configuration.md)
+- [Agent library decision (Rig 0.44)](docs/agent-library.md)
 - [Implementation ticket drafts](docs/plans/implementation-tickets.md)
 - [Created issues and task breakdown](docs/plans/issue-index.md)

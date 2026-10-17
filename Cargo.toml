@@ -5,6 +5,7 @@ members = [
     "crates/saci-worker",
     "crates/saci-backend",
     "crates/saci-cli",
+    "crates/saci-testkit",
 ]
 
 [workspace.package]
@@ -16,7 +17,10 @@ repository = "https://github.com/orpiske/midnight-saci"
 
 [workspace.dependencies]
 anyhow = "1"
+axum = "0.8"
 clap = { version = "4.6", features = ["derive"] }
+# Agent library; see docs/agent-library.md. Pinned exactly: its API moves quickly.
+rig = { version = "=0.44.0", default-features = false, features = ["agent", "reqwest", "rustls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde_yaml = { package = "yaml_serde", version = "0.10.4" }
@@ -30,6 +34,7 @@ uuid = { version = "1.28", features = ["v4", "serde"] }
 saci-core = { version = "0.1.0", path = "crates/saci-core" }
 saci-worker = { version = "0.1.0", path = "crates/saci-worker" }
 saci-backend = { version = "0.1.0", path = "crates/saci-backend" }
+saci-testkit = { version = "0.1.0", path = "crates/saci-testkit" }
 
 # Lint enablement adopted from the Wanaku Rust project. Every crate opts in
 # with `[lints] workspace = true`. CI runs Clippy with `-D warnings`, so each
