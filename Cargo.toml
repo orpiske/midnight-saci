@@ -20,6 +20,7 @@ anyhow = "1"
 axum = "0.8"
 bytes = "1.12"
 http = "1.4"
+rusqlite = { version = "0.40", features = ["bundled"] }
 nix = { version = "0.31", default-features = false, features = ["signal", "process"] }
 clap = { version = "4.6", features = ["derive"] }
 # Agent library; see docs/agent-library.md. Pinned exactly: its API moves quickly.
