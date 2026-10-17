@@ -277,3 +277,44 @@ async fn step_call_limits_become_limit_errors() {
     let classified = connection.classify(&error);
     assert_eq!(classified.kind, ErrorKind::LimitExceeded);
 }
+
+/// Captures what the worker logs while a test runs.
+#[derive(Clone, Default)]
+struct Captured(Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for Captured {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn retry_warnings_never_log_the_provider_body() {
+    let echo = r#"{"error":{"message":"upstream failed using key sk-review-dummy-secret"}}"#;
+    let model = FakeModel::start(vec![Reply::raw(503, echo), Reply::ok(&text_reply("ok"))])
+        .await
+        .unwrap();
+    // The request may run on any runtime thread, so the capture is global;
+    // the key below is used by this test only.
+    let logs = Captured::default();
+    let writer = logs.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(move || writer.clone())
+        .with_ansi(false)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+    let keyed = settings(&model.base_url(), Some("KEY"));
+    let limits = ExecutionLimits::default();
+    let reply = ask(&connect(&keyed, &limits, Some("sk-review-dummy-secret"))).await;
+    assert_eq!(reply.unwrap(), "ok");
+    let text = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+    assert!(text.contains("retrying model request"), "{text}");
+    assert!(text.contains("the provider answered HTTP 503"), "{text}");
+    assert!(!text.contains("sk-review-dummy-secret"), "{text}");
+    assert!(!text.contains("upstream failed"), "{text}");
+}
