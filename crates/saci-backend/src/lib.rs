@@ -2,4 +2,6 @@
 //! The Saci backend accepts runs, stores their records and supervises workers.
 
 pub mod api;
+pub mod server;
 pub mod store;
+pub mod supervisor;
