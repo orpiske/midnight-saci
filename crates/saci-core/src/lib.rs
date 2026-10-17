@@ -6,6 +6,7 @@
 
 pub mod api;
 pub mod assessment;
+pub mod bundle;
 pub mod config;
 pub mod event;
 pub mod evidence;

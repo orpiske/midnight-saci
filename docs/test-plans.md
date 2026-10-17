@@ -113,7 +113,15 @@ Follow [common/setup.md](common/setup.md).
 
 Submit the entry document together with its referenced procedure files as a plan bundle. Resolve procedure paths relative to the document containing the link. Package and retain those documents with the run so later changes cannot alter what the run used.
 
-Ordinary hyperlinks are references. Only an explicit instruction to follow a procedure invokes it. Procedure content executes at that point; it does not run again merely because it was linked elsewhere. Invoked procedures must be present inside the bundle; missing files, paths outside the bundle, or recursive inclusion are validation errors. External hyperlinks remain references rather than automatically fetched executable procedures.
+Ordinary hyperlinks are references. Only an explicit instruction to follow a procedure invokes it.
+
+The invocation syntax is exact: a paragraph inside a unit's action that consists of the word `Follow` followed by a link to a relative Markdown path, such as `Follow [common/setup.md](common/setup.md).` Any other sentence containing a link, for example `See [notes](notes.md) first.`, is a reference. A unit may invoke several procedures, in order.
+
+A procedure document has the same structure as a plan, titled `# Procedure: <title>` instead of `# Test Plan: <title>`, with phases and units that each have an expected result. Procedures may invoke other procedures.
+
+When a unit invokes a procedure, the procedure's units run first, in order, and the invoking unit is then executed and evaluated against its own expected result. Each procedure unit gets a run-unique key made of the invoking unit's key, the procedure path and the procedure unit's ID, for example `1.1>common/setup.md#1`. Invoking the same procedure from units `1.1` and `1.2` therefore produces two distinct units, `1.1>common/setup.md#1` and `1.2>common/setup.md#1`, each with its own attempts and evidence.
+
+`saci run` packages the entry document and every invoked procedure, read relative to the entry document's directory, into the submitted bundle. The backend stores that bundle with the run, so the run neither needs nor sees the original checkout afterwards. Procedure content executes at that point; it does not run again merely because it was linked elsewhere. Invoked procedures must be present inside the bundle; missing files, paths outside the bundle, or recursive inclusion are validation errors. External hyperlinks remain references rather than automatically fetched executable procedures.
 
 ## Validation and authoring guidance
 
