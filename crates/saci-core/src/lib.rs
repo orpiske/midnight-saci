@@ -9,6 +9,7 @@ pub mod config;
 pub mod event;
 pub mod evidence;
 pub mod ids;
+pub mod parser;
 pub mod plan;
 pub mod run;
 pub mod spec;
