@@ -2,6 +2,7 @@
 
 AI Test Engineer
 
+- [Architecture: how the CLI, backend and workers fit together](docs/architecture.md)
 - [System plan](docs/plans/plan.md)
 - [Writing test plans and planned CLI scaffolding](docs/test-plans.md)
 - [Test plan starter template](docs/templates/test-plan.md)
