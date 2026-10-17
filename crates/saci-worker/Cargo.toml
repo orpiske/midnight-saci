@@ -16,6 +16,8 @@ workspace = true
 
 [dependencies]
 anyhow.workspace = true
+bytes.workspace = true
+http.workspace = true
 clap.workspace = true
 saci-core.workspace = true
 tokio.workspace = true
