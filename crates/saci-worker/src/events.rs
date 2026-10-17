@@ -1,6 +1,6 @@
 //! Ordered progress events and the shared evidence recorder of a run.
 
-use std::collections::BTreeSet;
+use saci_core::assessment::Recorded;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -69,7 +69,7 @@ impl EventSink {
 pub struct Recorder {
     events: Arc<EventSink>,
     redactor: Redactor,
-    recorded: Arc<Mutex<BTreeSet<EvidenceId>>>,
+    recorded: Arc<Mutex<Recorded>>,
 }
 
 impl Recorder {
@@ -107,7 +107,7 @@ impl Recorder {
         let id = {
             let mut recorded = self.recorded.lock().unwrap_or_else(PoisonError::into_inner);
             let id = EvidenceId::from_index(recorded.len() as u64 + 1);
-            recorded.insert(id.clone());
+            recorded.insert(id.clone(), record.unanswered());
             id
         };
         let evidence = Evidence {
@@ -125,9 +125,10 @@ impl Recorder {
         evidence
     }
 
-    /// Identifiers of every observation recorded in the run so far.
+    /// Every observation recorded in the run so far, with why it holds no
+    /// answer from the target when it holds none.
     #[must_use]
-    pub fn recorded(&self) -> BTreeSet<EvidenceId> {
+    pub fn recorded(&self) -> Recorded {
         self.recorded
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

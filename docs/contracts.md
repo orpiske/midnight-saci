@@ -52,6 +52,13 @@ every problem so it can resubmit, when:
 - a criterion is missing, assessed twice or does not exist;
 - it cites evidence not recorded in this run, or a `satisfied` or
   `contradicted` result cites none;
+- a `satisfied` result with basis `mechanical` cites only evidence that
+  holds no answer from the target: an HTTP request with no response (for
+  example, connection refused), a shell command that did not finish, an
+  MCP call with no result, or a rejected call. A refused connection does
+  not show a service is healthy. When the expected result is that the
+  call fails, for example a port that must be closed, the model uses
+  basis `model_judgment`, and the report shows it as a judgment;
 - `passed` has any criterion that is not satisfied; `failed` has none
   contradicted; `blocked` or `inconclusive` has one contradicted or none
   undetermined;

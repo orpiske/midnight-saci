@@ -41,6 +41,34 @@ pub enum EvidenceRecord {
     Rejected(RejectedCall),
 }
 
+impl EvidenceRecord {
+    /// Why this observation holds no answer from the target, when it holds
+    /// none: the request got no response, the command did not finish, the
+    /// MCP call got no result, or the call was rejected before it ran.
+    #[must_use]
+    pub fn unanswered(&self) -> Option<String> {
+        match self {
+            Self::Http(http) if http.response.is_none() => Some(format!(
+                "the request got no response ({})",
+                http.transport_error.as_deref().unwrap_or("no answer")
+            )),
+            Self::Shell(shell) if shell.exit_code.is_none() => Some(format!(
+                "the command did not finish ({})",
+                shell.termination.as_str()
+            )),
+            Self::Mcp(mcp) => mcp
+                .protocol_error
+                .as_ref()
+                .map(|error| format!("the MCP call got no result ({error})")),
+            Self::Rejected(call) => Some(format!(
+                "the call was rejected before it ran ({})",
+                call.reason
+            )),
+            _ => None,
+        }
+    }
+}
+
 /// Text captured from a tool, with any truncation made explicit.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct CapturedText {
@@ -97,6 +125,20 @@ pub enum Termination {
     SessionEnded,
     /// The shell session was lost; its context cannot be recovered.
     SessionLost,
+}
+
+impl Termination {
+    /// The wire name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Exited => "exited",
+            Self::TimedOut => "timed_out",
+            Self::Cancelled => "cancelled",
+            Self::SessionEnded => "session_ended",
+            Self::SessionLost => "session_lost",
+        }
+    }
 }
 
 /// Evidence for one shell command.
