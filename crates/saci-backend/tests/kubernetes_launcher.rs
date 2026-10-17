@@ -246,14 +246,19 @@ async fn cancellation_stops_the_pod_and_ends_the_run_cancelled() {
     assert_eq!(outcome, Outcome::Cancelled);
     assert!(reason.contains("stopped before reporting"), "{reason}");
     let requests = harness.cluster.requests();
-    let deletion = requests
-        .iter()
-        .find(|line| line.starts_with("DELETE /api/v1/namespaces/tests/pods/"));
-    assert!(
-        deletion.unwrap().contains("\"gracePeriodSeconds\":7"),
-        "{requests:?}"
-    );
+    let position = |prefix: &str| requests.iter().position(|line| line.starts_with(prefix));
+    let suspended = position(&format!(
+        "PATCH /apis/batch/v1/namespaces/tests/jobs/saci-{run}"
+    ));
+    let deleted = position("DELETE /api/v1/namespaces/tests/pods/").unwrap();
+    assert!(suspended.unwrap() < deleted, "{requests:?}");
+    assert!(requests[deleted].contains("\"gracePeriodSeconds\":7"));
     harness.job(&run, false).await;
+    let created = requests
+        .iter()
+        .filter(|line| line.starts_with("POST /apis/batch"))
+        .count();
+    assert_eq!(created, 1, "{requests:?}");
 }
 
 #[tokio::test]

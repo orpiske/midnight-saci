@@ -1,7 +1,8 @@
 //! An in-memory Kubernetes API for one namespace, covering what the Job
 //! launcher uses: Jobs, their pods, Secrets with owner references, pod
-//! logs, label selectors and background deletion. Tests move pods through
-//! their phases with [`FakeKubernetes::set_pod`].
+//! logs, label selectors, background deletion and suspension. Like the Job
+//! controller, it replaces a deleted pod unless the Job is suspended. Tests
+//! move pods through their phases with [`FakeKubernetes::set_pod`].
 
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
@@ -212,6 +213,7 @@ fn route(
             "worker: starting\nworker: cannot reach the model\n",
         )
             .into_response(),
+        ("PATCH", "jobs", name) => patch_job(cluster, name, &body),
         ("DELETE", "jobs", name) => delete_job(cluster, name),
         ("DELETE", "pods", name) => delete_pod(cluster, name),
         _ => status(StatusCode::NOT_FOUND, "not found"),
@@ -283,16 +285,40 @@ fn delete_job(cluster: &mut Cluster, name: &str) -> Response {
     reply(StatusCode::OK, &job)
 }
 
-/// Deleting a Job's pod fails the Job, as `backoffLimit: 0` does.
+/// A merge patch; only `spec.suspend` is applied.
+fn patch_job(cluster: &mut Cluster, name: &str, patch: &Value) -> Response {
+    let Some(job) = cluster.jobs.get_mut(name) else {
+        return status(StatusCode::NOT_FOUND, "not found");
+    };
+    if let Some(suspend) = patch["spec"]["suspend"].as_bool() {
+        job["spec"]["suspend"] = json!(suspend);
+        if suspend {
+            job["status"]["conditions"] = json!([{"type": "Suspended", "status": "True"}]);
+        }
+    }
+    reply(StatusCode::OK, job)
+}
+
+/// A pod deleted before it failed does not count against `backoffLimit`,
+/// so the controller of a Job that is not suspended starts another.
 fn delete_pod(cluster: &mut Cluster, name: &str) -> Response {
     let Some(pod) = cluster.pods.remove(name) else {
         return status(StatusCode::NOT_FOUND, "not found");
     };
-    if let Some(job) = pod["metadata"]["labels"]["job-name"]
+    let job = pod["metadata"]["labels"]["job-name"]
         .as_str()
-        .and_then(|job| cluster.jobs.get_mut(job))
+        .unwrap_or_default();
+    if cluster
+        .jobs
+        .get(job)
+        .is_some_and(|spec| spec["spec"]["suspend"] != true)
     {
-        job["status"] = json!({"failed": 1, "conditions": [{"type": "Failed", "status": "True"}]});
+        cluster.uids += 1;
+        let mut replacement = pod.clone();
+        let replaced = format!("{job}-{}", cluster.uids);
+        replacement["metadata"]["name"] = json!(replaced);
+        replacement["status"] = json!({"phase": "Pending"});
+        cluster.pods.insert(replaced, replacement);
     }
     reply(StatusCode::OK, &pod)
 }

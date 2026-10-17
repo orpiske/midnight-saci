@@ -74,7 +74,7 @@ metadata:
 rules:
   - apiGroups: ["batch"]
     resources: ["jobs"]
-    verbs: ["create", "get", "list", "delete"]
+    verbs: ["create", "get", "list", "patch", "delete"]
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "delete"]
@@ -143,7 +143,7 @@ For run `run-1a2b…` the backend creates a Job and a Secret, both named
 | --- | --- |
 | The pod is pending or running | The run is watched. A pod that cannot start (an image pull failure, for example) is ended by the run deadline, and its waiting reason is added to the recorded reason. |
 | The worker reports the run's end | The backend deletes the Job with background propagation. Kubernetes then removes the pod and the run's Secret. |
-| Cancellation or the backend's deadline | The backend deletes the pod with `gracePeriodSeconds: 30`: SIGTERM, then SIGKILL. On SIGTERM the worker cancels and reports. The Job is then removed. |
+| Cancellation or the backend's deadline | The backend suspends the Job (`patch`), so its controller starts no replacement pod, then deletes the pod with `gracePeriodSeconds: 30`: SIGTERM, then SIGKILL. On SIGTERM the worker cancels and reports. The Job is then removed. |
 | The worker exits without reporting | The run ends `error` with the exit code and the last 40 lines of the pod's log, redacted. |
 | The Job disappears | The run ends `error` (`the worker disappeared`). |
 | The backend restarts | Jobs of unfinished runs are watched again. Runs never handed to a worker are launched. Other unfinished runs end `error` and are not repeated. Jobs of runs that had finished are deleted. Jobs of runs this backend does not know are left alone. |
