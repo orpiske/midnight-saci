@@ -11,6 +11,9 @@ repository.workspace = true
 name = "saci-worker"
 path = "src/main.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
