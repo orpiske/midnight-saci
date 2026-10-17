@@ -5,6 +5,12 @@
 //! It holds the only connections to action servers and the only copies of
 //! `actions.secrets`. It sees an action's recorded arguments and nothing
 //! else of the run. An action's delivery never changes the run's report.
+//!
+//! A call is never retried blindly. When the call was sent but no answer
+//! was received (a timeout, a broken connection, or a backend restart),
+//! the delivery is unknown. An action with an idempotency key is then
+//! replayed with the same key, up to [`MAX_ATTEMPTS`] attempts; any other
+//! action stays `unknown` until a person reconciles or redispatches it.
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -23,6 +29,9 @@ use crate::store::Delivery;
 const RESULT_LIMIT: usize = 64 * 1024;
 /// How often queued actions are looked for without a change notification.
 const POLL: Duration = Duration::from_secs(5);
+/// Attempts after which a keyed action whose answers keep getting lost is
+/// left `unknown`.
+pub const MAX_ATTEMPTS: u32 = 3;
 
 /// What action servers receive: `PATH` for stdio servers, and the values of
 /// `actions.secrets` for `${NAME}`.
@@ -109,7 +118,8 @@ pub async fn run_with(backend: Backend, lookup: Lookup) {
 }
 
 /// Actions a stopped backend left `executing` may or may not have reached
-/// their server. They are not called again automatically.
+/// their server: their delivery is unknown, and only keyed ones are
+/// replayed.
 async fn recover(backend: &Backend) {
     let interrupted = match backend.store.executing_actions().await {
         Ok(actions) => actions,
@@ -119,16 +129,8 @@ async fn recover(backend: &Backend) {
         }
     };
     for action in interrupted {
-        let delivery = Delivery {
-            state: ActionState::Error,
-            result: None,
-            error: Some(
-                "the backend stopped while dispatching this action; whether the server \
-                 received it is unknown, so it was not dispatched again"
-                    .to_owned(),
-            ),
-        };
-        record(backend, &action, delivery).await;
+        let delivery = uncertain("the backend stopped while dispatching this action");
+        record(backend, &action, settle(&action, delivery)).await;
     }
 }
 
@@ -138,7 +140,61 @@ async fn dispatch_and_record(backend: &Backend, action: ActionRecord, lookup: &L
         lookup(name)
     }))
     .await;
-    record(backend, &action, delivery).await;
+    record(
+        backend,
+        &action,
+        settle(&action, earlier(&action, delivery)),
+    )
+    .await;
+}
+
+/// A later attempt that failed before sending anything does not settle the
+/// action: an earlier attempt may have reached the server.
+fn earlier(action: &ActionRecord, delivery: Delivery) -> Delivery {
+    let unsent = delivery.state == ActionState::Error && delivery.result.is_none();
+    if !unsent || action.attempts <= 1 {
+        return delivery;
+    }
+    let reason = delivery.error.unwrap_or_default();
+    uncertain(&format!(
+        "attempt {} was not sent ({reason}), and an earlier attempt may have reached the server",
+        action.attempts
+    ))
+}
+
+/// A delivery whose call may have reached the server.
+fn uncertain(reason: &str) -> Delivery {
+    Delivery {
+        state: ActionState::Unknown,
+        result: None,
+        error: Some(format!(
+            "{reason}; whether the server acted on the call is unknown"
+        )),
+    }
+}
+
+/// Decides what an unknown delivery leads to: a replay with the action's
+/// idempotency key while attempts remain, otherwise `unknown`, waiting for
+/// a person.
+fn settle(action: &ActionRecord, mut delivery: Delivery) -> Delivery {
+    if delivery.state != ActionState::Unknown {
+        return delivery;
+    }
+    let reason = delivery.error.take().unwrap_or_default();
+    delivery.error = Some(match &action.idempotency_key {
+        Some(_) if action.attempts < MAX_ATTEMPTS => {
+            delivery.state = ActionState::Queued;
+            format!("{reason}; replaying it with its idempotency key")
+        }
+        Some(_) => format!(
+            "{reason}; {} attempts were made with its idempotency key; reconcile or redispatch it",
+            action.attempts
+        ),
+        None => format!(
+            "{reason}; it has no idempotency key, so it is not sent again: reconcile or redispatch it"
+        ),
+    });
+    delivery
 }
 
 async fn record(backend: &Backend, action: &ActionRecord, delivery: Delivery) {
@@ -225,11 +281,8 @@ async fn call(
     let redact = |text: &str| bounded(&redactor.redact(text));
     match tokio::time::timeout(timeout, Box::pin(server.peer().call_tool(request))).await {
         Ok(Ok(result)) => answered(redact(&saci_mcp::result_text(&result)), &result),
-        Ok(Err(error)) => failed(redact(&format!("the call failed: {error}"))),
-        Err(_) => failed(format!(
-            "no answer within {}s; the server may still have acted on the call",
-            timeout.as_secs()
-        )),
+        Ok(Err(error)) => uncertain(&redact(&format!("the call failed: {error}"))),
+        Err(_) => uncertain(&format!("no answer within {}s", timeout.as_secs())),
     }
 }
 

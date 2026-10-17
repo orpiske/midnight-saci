@@ -47,6 +47,9 @@ pub enum StoreError {
     /// A decision named a digest other than the recorded arguments'.
     #[error("the digest does not match the recorded arguments; review them again")]
     DigestMismatch,
+    /// The action's delivery cannot be redispatched or reconciled.
+    #[error("the action's delivery is {0}; {1}")]
+    ActionNotResolvable(saci_core::action::ActionState, &'static str),
     /// A pagination cursor that this store did not issue.
     #[error("invalid cursor")]
     InvalidCursor,

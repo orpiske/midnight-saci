@@ -4,7 +4,7 @@
 use rusqlite::Connection;
 
 /// Each entry upgrades the schema by one version.
-const MIGRATIONS: [&str; 3] = [
+const MIGRATIONS: [&str; 4] = [
     r"
 CREATE TABLE runs (
     id                  TEXT PRIMARY KEY,
@@ -60,10 +60,26 @@ ALTER TABLE actions ADD COLUMN decision TEXT;
 ALTER TABLE actions ADD COLUMN decided_at TEXT;
 ALTER TABLE actions ADD COLUMN decision_note TEXT;
 ",
+    // Idempotency keys and the history of each action's delivery.
+    r"
+ALTER TABLE actions ADD COLUMN idempotency_key TEXT;
+CREATE TABLE action_history (
+    run_id  TEXT NOT NULL,
+    name    TEXT NOT NULL,
+    seq     INTEGER NOT NULL,
+    at      TEXT NOT NULL,
+    event   TEXT NOT NULL,
+    state   TEXT NOT NULL,
+    attempt INTEGER NOT NULL,
+    detail  TEXT,
+    PRIMARY KEY (run_id, name, seq),
+    FOREIGN KEY (run_id, name) REFERENCES actions (run_id, name)
+);
+",
 ];
 
 /// The schema version this build writes.
-pub const CURRENT: u32 = 3;
+pub const CURRENT: u32 = 4;
 
 const _: () = assert!(MIGRATIONS.len() == CURRENT as usize);
 

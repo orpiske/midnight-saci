@@ -1,6 +1,7 @@
 //! `saci actions` against a backend with a dispatcher: listing pending
 //! approvals, showing the reviewed payload, approving it by digest,
-//! rejecting, and the actions section of `saci report`.
+//! rejecting, resolving unknown deliveries, and the actions section of
+//! `saci report`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -56,14 +57,23 @@ impl Supervisor for Idle {
     fn cancel_requested(&self, _: RunId) {}
 }
 
-fn config(dir: &std::path::Path) -> String {
+/// An action needing approval.
+const ESCALATE: &str = "    escalate:\n      server: tickets\n      tool: record\n      on: [failed]\n\
+     \x20     approval: required\n      arguments:\n        title: 'Escalate {{run.id}}'\n";
+
+/// An action whose answer is lost: the server records the call, then
+/// pauses past the 1 s operation timeout.
+const SLOW: &str = "    slow:\n      server: tickets\n      tool: record\n      on: [failed]\n\
+     \x20     arguments:\n        title: Slow\n        pause: 3\n";
+
+fn config(dir: &std::path::Path, (name, definition): (&str, &str)) -> String {
     let server = saci_testkit::fake_mcp::binary().unwrap();
     format!(
-        "llm:\n  base_url: http://m/v1\n  model: m\nenvironments:\n  local: {{}}\n\
+        "llm:\n  base_url: http://m/v1\n  model: m\nlimits:\n  operation_timeout_secs: 1\n\
+         environments:\n  local: {{}}\n\
          actions:\n  servers:\n    tickets:\n      command: {}\n      env:\n        FAKE_MCP_RECORD: {}\n\
-         \x20 definitions:\n    escalate:\n      server: tickets\n      tool: record\n      on: [failed]\n\
-         \x20     approval: required\n      arguments:\n        title: 'Escalate {{{{run.id}}}}'\n\
-         policies:\n  default:\n    actions: [escalate]\n",
+         \x20 definitions:\n{definition}\
+         policies:\n  default:\n    actions: [{name}]\n",
         server.display(),
         dir.join("record.jsonl").display()
     )
@@ -76,9 +86,13 @@ struct Setup {
 }
 
 async fn serve() -> Setup {
+    serve_with(("escalate", ESCALATE)).await
+}
+
+async fn serve_with(action: (&str, &str)) -> Setup {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).await.unwrap();
-    let config = Config::from_yaml(&config(dir.path()), "saci.yaml").unwrap();
+    let config = Config::from_yaml(&config(dir.path(), action), "saci.yaml").unwrap();
     let backend = Backend::new(store, config, Arc::new(Idle));
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
@@ -152,15 +166,23 @@ fn digest(shown: &str) -> String {
 
 /// Polls `saci report` until it contains `expected`.
 async fn report_shows(setup: &Setup, run: &RunId, expected: &str) {
-    let mut report = String::new();
-    for _ in 0..100 {
-        report = text(&setup.saci(&["report", run.as_str()]).await);
-        if report.contains(expected) {
+    eventually(setup, &["report", run.as_str()], expected).await;
+}
+
+/// Runs `saci <args>` until its output contains `expected`.
+async fn eventually(setup: &Setup, args: &[&str], expected: &str) {
+    let mut output = String::new();
+    for _ in 0..200 {
+        output = text(&setup.saci(args).await);
+        if output.contains(expected) {
             return;
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
-    panic!("the report does not show `{expected}`:\n{report}");
+    panic!(
+        "`saci {}` does not show `{expected}`:\n{output}",
+        args.join(" ")
+    );
 }
 
 #[tokio::test]
@@ -210,4 +232,38 @@ async fn rejected_actions_show_as_rejected() {
     );
     let listed = text(&setup.saci(&["actions", "list"]).await);
     assert!(listed.contains("No actions."), "{listed}");
+}
+
+#[tokio::test]
+async fn unknown_deliveries_are_reconciled_or_redispatched() {
+    let setup = serve_with(("slow", SLOW)).await;
+    let run = setup.failed_run().await;
+    report_shows(&setup, &run, "slow: unknown, needs reconciliation").await;
+    let show = ["actions", "show", run.as_str(), "slow"];
+    let shown = text(&setup.saci(&show).await);
+    assert!(
+        shown.contains("claimed -> executing (attempt 1)"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("uncertain -> unknown (attempt 1)"),
+        "{shown}"
+    );
+    let redispatch = ["actions", "redispatch", run.as_str(), "slow"];
+    let queued = setup.saci(&redispatch).await;
+    assert_eq!(queued.status.code(), Some(0), "{}", text(&queued));
+    eventually(&setup, &show, "uncertain -> unknown (attempt 2)").await;
+    let reconcile = [
+        "actions",
+        "reconcile",
+        run.as_str(),
+        "slow",
+        "--as",
+        "completed",
+    ];
+    let reconciled = setup.saci(&reconcile).await;
+    assert_eq!(reconciled.status.code(), Some(0), "{}", text(&reconciled));
+    assert!(text(&reconciled).contains("slow: completed"));
+    let again = setup.saci(&reconcile).await;
+    assert_eq!(again.status.code(), Some(2), "{}", text(&again));
 }

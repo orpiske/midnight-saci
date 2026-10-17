@@ -1,0 +1,33 @@
+# Outcome actions on saci-fake-mcp for tests/action_recovery.rs: one with
+# an idempotency key the fake server deduplicates on, and one without.
+# @SERVER@ and @RECORD@ are replaced by the test.
+llm:
+  base_url: http://model:11434/v1
+  model: test-model
+environments:
+  local:
+    parameters:
+      URL: http://service
+actions:
+  servers:
+    tickets:
+      command: @SERVER@
+      env:
+        FAKE_MCP_RECORD: @RECORD@
+  definitions:
+    keyed:
+      server: tickets
+      tool: record
+      on: [failed]
+      idempotency_key: key
+      arguments:
+        title: 'Keyed {{run.id}}'
+    plain:
+      server: tickets
+      tool: record
+      on: [failed]
+      arguments:
+        title: 'Plain {{run.id}}'
+policies:
+  default:
+    actions: [keyed, plain]

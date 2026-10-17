@@ -275,7 +275,8 @@ fn explain(error: ApiError) -> CliError {
         | ErrorCode::NotFound
         | ErrorCode::RunFinished
         | ErrorCode::ActionNotPending
-        | ErrorCode::DigestMismatch => exit::INVALID,
+        | ErrorCode::DigestMismatch
+        | ErrorCode::ActionNotResolvable => exit::INVALID,
         _ => exit::BACKEND,
     };
     CliError::new(code, message)

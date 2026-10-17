@@ -50,8 +50,15 @@ Delete the test items.
 ";
 
 /// The configuration in `fixtures/actions.yaml`.
-pub fn config(server: &Path, record: &Path) -> String {
-    include_str!("../fixtures/actions.yaml")
+pub const ACTIONS: &str = include_str!("../fixtures/actions.yaml");
+/// The configuration in `fixtures/recovery.yaml`.
+pub const RECOVERY: &str = include_str!("../fixtures/recovery.yaml");
+/// The configuration in `fixtures/lost-responses.yaml`.
+pub const LOST_RESPONSES: &str = include_str!("../fixtures/lost-responses.yaml");
+
+/// `template` with the fake server and its record file filled in.
+pub fn config(template: &str, server: &Path, record: &Path) -> String {
+    template
         .replace("@SERVER@", &server.display().to_string())
         .replace("@RECORD@", &record.display().to_string())
 }
@@ -59,7 +66,7 @@ pub fn config(server: &Path, record: &Path) -> String {
 pub struct Fixture {
     pub api: TestBackend,
     pub record: PathBuf,
-    dispatcher: JoinHandle<()>,
+    dispatcher: Option<JoinHandle<()>>,
     _dir: tempfile::TempDir,
 }
 
@@ -67,10 +74,12 @@ impl Fixture {
     /// Stops the backend and its dispatcher, and starts them again on the
     /// same database and configuration.
     pub async fn restart(self) -> Self {
-        self.dispatcher.abort();
-        let _ = self.dispatcher.await;
+        if let Some(dispatcher) = self.dispatcher {
+            dispatcher.abort();
+            let _ = dispatcher.await;
+        }
         let api = self.api.restart().await;
-        let dispatcher = dispatch(&api);
+        let dispatcher = Some(dispatch(&api));
         Self {
             api,
             record: self.record,
@@ -80,21 +89,36 @@ impl Fixture {
     }
 }
 
-fn dispatch(api: &TestBackend) -> JoinHandle<()> {
-    let lookup = Arc::new(|name: &str| match name {
+/// The backend variables the dispatcher reads.
+pub fn lookup() -> saci_backend::actions::Lookup {
+    Arc::new(|name: &str| match name {
         "SACI_TICKETS_TOKEN" => Some(TICKETS_TOKEN.to_owned()),
         "PATH" => std::env::var("PATH").ok(),
         _ => None,
-    });
-    tokio::spawn(saci_backend::actions::run_with(api.backend.clone(), lookup))
+    })
 }
 
+/// Starts a dispatcher for `api`'s backend.
+pub fn dispatch(api: &TestBackend) -> JoinHandle<()> {
+    tokio::spawn(saci_backend::actions::run_with(
+        api.backend.clone(),
+        lookup(),
+    ))
+}
+
+/// A backend with `fixtures/actions.yaml` and its dispatcher.
 pub async fn start() -> Fixture {
+    start_from(ACTIONS, true).await
+}
+
+/// A backend with the configuration `template`, and a dispatcher when
+/// `dispatching`.
+pub async fn start_from(template: &str, dispatching: bool) -> Fixture {
     let dir = tempfile::tempdir().unwrap();
     let record = dir.path().join("record.jsonl");
     let server = saci_testkit::fake_mcp::binary().unwrap();
-    let api = TestBackend::start_with(ClientAuth::Open, &config(&server, &record)).await;
-    let dispatcher = dispatch(&api);
+    let api = TestBackend::start_with(ClientAuth::Open, &config(template, &server, &record)).await;
+    let dispatcher = dispatching.then(|| dispatch(&api));
     Fixture {
         api,
         record,
@@ -125,21 +149,25 @@ pub fn fixture_events(name: &str, run: &RunId) -> Vec<RunEvent> {
 /// Replays the run fixture `name` as the worker of a new run.
 pub async fn finish(api: &TestBackend, name: &str) -> RunId {
     let run = api.submit_plan(PLAN).await;
-    let events = fixture_events(name, &run);
-    let token = issue_token(&api.backend, &run).await.unwrap();
+    let answer = report_events(api, &run, name).await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.body);
+    run
+}
+
+/// Sends the events of the run fixture `name` as `run`'s worker.
+pub async fn report_events(api: &TestBackend, run: &RunId, name: &str) -> super::Answer {
+    let events = fixture_events(name, run);
+    let token = issue_token(&api.backend, run).await.unwrap();
     let bearer = format!("Bearer {token}");
     let uri = format!("/api/v1/worker/runs/{run}/events");
     let body = json!({ "events": events });
-    let answer = api
-        .call(
-            Method::POST,
-            &uri,
-            Some(&body),
-            &[("authorization", &bearer)],
-        )
-        .await;
-    assert_eq!(answer.status, StatusCode::OK, "{}", answer.body);
-    run
+    api.call(
+        Method::POST,
+        &uri,
+        Some(&body),
+        &[("authorization", &bearer)],
+    )
+    .await
 }
 
 pub async fn actions(api: &TestBackend, run: &RunId) -> Value {

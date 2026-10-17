@@ -151,6 +151,9 @@ pub enum ErrorCode {
     ActionNotPending,
     /// The decision names a digest other than the recorded arguments' (409).
     DigestMismatch,
+    /// The action's delivery is not unknown or failed, so it cannot be
+    /// redispatched or reconciled (409).
+    ActionNotResolvable,
     /// The request is malformed (400).
     BadRequest,
     /// The backend failed (500).
@@ -170,7 +173,8 @@ impl ErrorCode {
             | Self::RunFinished
             | Self::SequenceGap
             | Self::ActionNotPending
-            | Self::DigestMismatch => 409,
+            | Self::DigestMismatch
+            | Self::ActionNotResolvable => 409,
             Self::ValidationFailed => 422,
             Self::Internal => 500,
         }

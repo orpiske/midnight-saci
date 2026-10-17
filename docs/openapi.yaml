@@ -229,6 +229,89 @@ paths:
                     items: { $ref: "#/components/schemas/Action" }
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+  /api/v1/runs/{run_id}/actions/{name}:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+      - $ref: "#/components/parameters/ActionName"
+    get:
+      tags: [actions]
+      summary: One action with its history.
+      operationId: getAction
+      security: [{ clientToken: [] }, {}]
+      responses:
+        "200":
+          description: The action, with `history`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Action" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/runs/{run_id}/actions/{name}/redispatch:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+      - $ref: "#/components/parameters/ActionName"
+    post:
+      tags: [actions]
+      summary: Queue an unknown or failed action again with its recorded arguments.
+      description: |
+        Without an idempotency key, a tool that already acted on an earlier call acts again.
+        Check the remote system first, or reconcile instead.
+      operationId: redispatchAction
+      security: [{ clientToken: [] }, {}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Decision" }
+      responses:
+        "200":
+          description: Queued.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Action" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409":
+          description: "`digest_mismatch` or `action_not_resolvable`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorBody" }
+  /api/v1/runs/{run_id}/actions/{name}/reconciliation:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+      - $ref: "#/components/parameters/ActionName"
+    post:
+      tags: [actions]
+      summary: Record what a person found for an unknown delivery; nothing is sent.
+      operationId: reconcileAction
+      security: [{ clientToken: [] }, {}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              additionalProperties: false
+              properties:
+                state: { type: string, enum: [completed, error] }
+                note: { type: string, description: What was checked. }
+      responses:
+        "200":
+          description: Reconciled.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Action" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409":
+          description: "`action_not_resolvable`: the action is not unknown."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorBody" }
   /api/v1/runs/{run_id}/actions/{name}/approval:
     parameters:
       - $ref: "#/components/parameters/RunId"
@@ -296,7 +379,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [pending_approval, queued, executing, rejected, completed, error]
+            enum: [pending_approval, queued, executing, rejected, completed, error, unknown]
             default: pending_approval
         - $ref: "#/components/parameters/Limit"
       responses:
@@ -434,7 +517,7 @@ components:
           properties:
             code:
               type: string
-              enum: [unauthorized, forbidden, not_found, validation_failed, idempotency_conflict, run_finished, sequence_gap, action_not_pending, digest_mismatch, bad_request, internal]
+              enum: [unauthorized, forbidden, not_found, validation_failed, idempotency_conflict, run_finished, sequence_gap, action_not_pending, digest_mismatch, action_not_resolvable, bad_request, internal]
             message: { type: string }
             details:
               type: array
@@ -581,11 +664,14 @@ components:
         approval: { type: string, enum: [none, required] }
         state:
           type: string
-          enum: [pending_approval, queued, executing, rejected, completed, error]
+          enum: [pending_approval, queued, executing, rejected, completed, error, unknown]
         arguments:
           type: object
           description: The exact arguments sent, or to be sent, rendered from the final report.
         digest: { type: string, description: Hex SHA-256 of the serialized arguments. }
+        idempotency_key:
+          type: string
+          description: The key placed in the arguments under the configured `idempotency_key` argument.
         decision:
           type: object
           required: [verdict, at]
@@ -597,7 +683,23 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         result: { type: string, description: The tool's result text, once it answered. }
-        error: { type: string, description: Why delivery failed. }
+        error: { type: string, description: Why delivery failed or is unknown. }
+        history:
+          type: array
+          description: Served for a single action only.
+          items:
+            type: object
+            required: [at, event, state, attempt]
+            properties:
+              at: { type: string, format: date-time }
+              event:
+                type: string
+                enum: [recorded, approved, rejected, claimed, answered, failed, uncertain, replayed, redispatched, reconciled]
+              state:
+                type: string
+                enum: [pending_approval, queued, executing, rejected, completed, error, unknown]
+              attempt: { type: integer, minimum: 0 }
+              detail: { type: string, description: The error or note. }
     RunSpec:
       type: object
       description: The immutable run specification (see crates/saci-core/src/spec.rs).

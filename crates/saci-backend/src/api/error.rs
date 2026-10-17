@@ -68,17 +68,25 @@ impl IntoResponse for Failure {
     }
 }
 
+impl Failure {
+    /// A conflict with the record's state, explained by `error`.
+    fn conflict(code: ErrorCode, error: &StoreError) -> Self {
+        Self::new(code, error.to_string())
+    }
+}
+
 impl From<StoreError> for Failure {
     fn from(error: StoreError) -> Self {
         match error {
             StoreError::NotFound => Self::run_not_found(),
             StoreError::InvalidCursor => Self::bad_request("invalid cursor"),
-            StoreError::ActionNotPending(_) => {
-                Self::new(ErrorCode::ActionNotPending, error.to_string())
+            StoreError::ActionNotPending(_) => Self::conflict(ErrorCode::ActionNotPending, &error),
+            StoreError::DigestMismatch => Self::conflict(ErrorCode::DigestMismatch, &error),
+            StoreError::ActionNotResolvable(..) => {
+                Self::conflict(ErrorCode::ActionNotResolvable, &error)
             }
-            StoreError::DigestMismatch => Self::new(ErrorCode::DigestMismatch, error.to_string()),
             StoreError::IdempotencyConflict => {
-                Self::new(ErrorCode::IdempotencyConflict, error.to_string())
+                Self::conflict(ErrorCode::IdempotencyConflict, &error)
             }
             StoreError::Contract(ContractError::Finished) => {
                 Self::new(ErrorCode::RunFinished, "the run already finished")

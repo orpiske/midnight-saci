@@ -138,6 +138,7 @@ impl Backend {
 fn action_routes() -> Router<Backend> {
     Router::new()
         .route("/runs/{run_id}/actions", get(actions::list))
+        .route("/runs/{run_id}/actions/{name}", get(actions::show))
         .route(
             "/runs/{run_id}/actions/{name}/approval",
             post(actions::approve),
@@ -145,6 +146,14 @@ fn action_routes() -> Router<Backend> {
         .route(
             "/runs/{run_id}/actions/{name}/rejection",
             post(actions::reject),
+        )
+        .route(
+            "/runs/{run_id}/actions/{name}/redispatch",
+            post(actions::redispatch),
+        )
+        .route(
+            "/runs/{run_id}/actions/{name}/reconciliation",
+            post(actions::reconcile),
         )
         .route("/actions", get(actions::by_state))
 }

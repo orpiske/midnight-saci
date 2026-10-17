@@ -3,7 +3,7 @@
 
 use std::fmt::Write as _;
 
-use saci_core::action::{ActionRecord, ActionState, Verdict};
+use saci_core::action::{ActionRecord, ActionState, HistoryEntry, Verdict};
 use saci_core::api::RunSummary;
 use saci_core::event::{EventKind, RunEvent};
 use saci_core::evidence::{Evidence, EvidenceRecord};
@@ -120,6 +120,7 @@ pub fn action_state(action: &ActionRecord) -> &'static str {
         ActionState::Rejected => "rejected",
         ActionState::Completed => "completed",
         ActionState::Error => "error",
+        ActionState::Unknown => "unknown, needs reconciliation",
     }
 }
 
@@ -173,6 +174,9 @@ pub fn action(action: &ActionRecord) -> String {
         text.push('\n');
     }
     let _ = writeln!(text, "Attempts: {}", action.attempts);
+    if let Some(key) = &action.idempotency_key {
+        let _ = writeln!(text, "Idempotency key: {key}");
+    }
     if let Some(result) = &action.result {
         let _ = writeln!(text, "Result: {result}");
     }
@@ -181,6 +185,30 @@ pub fn action(action: &ActionRecord) -> String {
     }
     let arguments = serde_json::to_string_pretty(&action.arguments).unwrap_or_default();
     let _ = writeln!(text, "Digest: {}\nArguments:\n{arguments}", action.digest);
+    text.push_str(&history(&action.history));
+    text
+}
+
+/// An action's history, one line per entry.
+fn history(entries: &[HistoryEntry]) -> String {
+    let mut text = String::new();
+    if !entries.is_empty() {
+        text.push_str("History:\n");
+    }
+    for entry in entries {
+        let _ = write!(
+            text,
+            "  {}  {} -> {} (attempt {})",
+            timestamp(entry.at),
+            entry.event.as_str(),
+            entry.state,
+            entry.attempt
+        );
+        if let Some(detail) = &entry.detail {
+            let _ = write!(text, ": {}", first_line(detail));
+        }
+        text.push('\n');
+    }
     text
 }
 

@@ -127,16 +127,20 @@ The `saci actions` commands work with them directly:
 | --- | --- |
 | `saci actions list` | Every action waiting for approval, across runs. |
 | `saci actions list <run-id>` | A run's actions and their states. |
-| `saci actions show <run-id> <name>` | One action: its state, decision, result or error, the exact arguments it sends, and their digest. |
+| `saci actions show <run-id> <name>` | One action: its state, decision, result or error, idempotency key, the exact arguments it sends, their digest, and its history. |
 | `saci actions approve <run-id> <name> [--digest D] [--note N]` | Approves the recorded arguments; the backend then sends them. |
 | `saci actions reject <run-id> <name> [--note N]` | Rejects the action; it is never sent. |
+| `saci actions redispatch <run-id> <name> [--digest D] [--note N]` | Sends an `unknown` or `error` action again with the same arguments. |
+| `saci actions reconcile <run-id> <name> --as completed\|error [--note N]` | Records what the remote system shows for an `unknown` action; nothing is sent. |
 
 States are shown as *pending approval*, *queued*, *approved, queued*,
-*executing*, *rejected*, *completed* and *error*. `approve` and `reject`
-print the arguments they decide on. To approve only the payload you
+*executing*, *rejected*, *completed*, *error* and *unknown, needs
+reconciliation* ([retries and restarts](actions.md#retries-and-restarts)).
+`approve`, `reject` and `redispatch` print the arguments they act on. To approve only the payload you
 reviewed earlier with `show`, pass its `--digest`: the backend refuses the
 decision for any other payload (exit 2). Deciding on an action that is not
-waiting for approval also exits 2. All commands accept `--json`.
+waiting for approval, or redispatching or reconciling one in another
+state, also exits 2. All commands accept `--json`.
 
 ## Exit codes
 
@@ -144,7 +148,7 @@ waiting for approval also exits 2. All commands accept `--json`.
 | --- | --- | --- |
 | 0 | Success; for `status`, `follow`, `report`, `cancel --wait` and `run --follow`, the run passed. | |
 | 1 | The run finished `failed`: an expected result did not hold. | Read `saci report`. |
-| 2 | Invalid input: plan, configuration, arguments, an unknown environment, policy, run or action, a run that already finished, or an action decision the backend refused. | Fix the input named in the message. |
+| 2 | Invalid input: plan, configuration, arguments, an unknown environment, policy, run or action, a run that already finished, or an action decision, redispatch or reconciliation the backend refused. | Fix the input named in the message. |
 | 3 | The backend is unreachable, refused the credentials, or failed. | Start the backend, check `--backend`, or set `SACI_TOKEN`; the message says which. |
 | 4 | The outcome of a request that changes state is unknown. | Repeat it as the message says. |
 | 5 | The run finished `blocked` or `inconclusive`, or units were skipped. | Read `saci report` for what was not established. |
