@@ -8,6 +8,7 @@ use anyhow::Context as _;
 use saci_core::config::Config;
 use tokio::net::TcpListener;
 
+use crate::actions;
 use crate::api::{Backend, ClientAuth, router};
 use crate::launcher::{LaunchError, Launcher};
 use crate::store::Store;
@@ -58,6 +59,7 @@ pub async fn serve(
         receiver,
         timing,
     )));
+    tokio::spawn(Box::pin(actions::run(backend.clone())));
     let address = listener.local_addr()?;
     tracing::info!(%address, data_dir = %data_dir.display(), "Saci backend listening");
     println!(

@@ -21,6 +21,7 @@ http.workspace = true
 nix.workspace = true
 clap = { workspace = true, features = ["env"] }
 saci-core.workspace = true
+saci-mcp.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tempfile.workspace = true

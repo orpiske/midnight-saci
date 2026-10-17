@@ -76,7 +76,7 @@ async fn stdio_servers_resolve_through_path_and_get_only_tool_credentials() {
         .await
         .unwrap();
     let names: Vec<_> = server.tools().iter().map(|t| t.name.to_string()).collect();
-    assert_eq!(names, ["echo", "fail", "sleep", "env"]);
+    assert_eq!(names, ["echo", "fail", "sleep", "env", "record"]);
     let token = Box::pin(call_text(
         &server,
         "env",

@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::action::{self, ActionDefinition};
 use crate::spec::{
     EnvironmentSpec, ExecutionLimits, FailureAction, LlmSettings, McpServerSpec, McpTransport,
     RetryPolicy, RunPolicy, SecretRef, WorkerResources,
@@ -40,6 +41,26 @@ pub struct Config {
     /// MCP servers by name; environments enable them under `mcp`.
     #[serde(default)]
     pub mcp_servers: BTreeMap<String, McpTransport>,
+    /// Outcome actions, called by the backend after a run finishes.
+    #[serde(default)]
+    pub actions: ActionsConfig,
+}
+
+/// Outcome actions and what the backend needs to call them
+/// (`docs/actions.md`). These servers and secrets are the backend's own:
+/// they are never given to workers, and steps cannot call them.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActionsConfig {
+    /// MCP servers reachable from the backend.
+    #[serde(default)]
+    pub servers: BTreeMap<String, McpTransport>,
+    /// Values `${NAME}` expands to in `servers`, read by the backend.
+    #[serde(default)]
+    pub secrets: BTreeMap<String, SecretRef>,
+    /// Actions by name; policies select them under `actions`.
+    #[serde(default)]
+    pub definitions: BTreeMap<String, ActionDefinition>,
 }
 
 /// Backend service settings.
@@ -250,6 +271,10 @@ pub struct PolicyConfig {
     /// Retry behavior; a single attempt by default.
     #[serde(default)]
     pub retry: RetryPolicy,
+    /// Outcome actions (names under `actions.definitions`) considered when a
+    /// run under this policy finishes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub actions: Vec<String>,
 }
 
 /// The configuration could not be read or is invalid.
@@ -365,11 +390,19 @@ impl Config {
             self.validate_environment(name, environment, &mut issues);
         }
         for (name, policy) in &self.policies {
-            validate_policy(&format!("policies.{name}"), policy, &mut issues);
+            let path = format!("policies.{name}");
+            validate_policy(&path, policy, &mut issues);
+            for action in &policy.actions {
+                if !self.actions.definitions.contains_key(action) {
+                    let message = format!("`{action}` is not defined under actions.definitions");
+                    issues.push(&format!("{path}.actions"), &message);
+                }
+            }
         }
         for (name, server) in &self.mcp_servers {
             validate_mcp_server(&format!("mcp_servers.{name}"), name, server, &mut issues);
         }
+        validate_actions(&self.actions, &mut issues);
         if self.worker.image.trim().is_empty() {
             issues.push("worker.image", "must not be empty");
         }
@@ -475,6 +508,30 @@ impl Config {
                 Some((name.clone(), McpServerSpec { transport, tools }))
             })
             .collect()
+    }
+
+    /// The outcome actions of the policy called `name`, by action name, as
+    /// recorded with a run when it is accepted.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::Unknown`] when no such policy exists.
+    pub fn policy_actions(
+        &self,
+        name: &str,
+    ) -> Result<BTreeMap<String, ActionDefinition>, ConfigError> {
+        let names = match self.policies.get(name) {
+            Some(policy) => policy.actions.clone(),
+            None if name == DEFAULT_POLICY => Vec::new(),
+            None => return Err(unknown("policy", name, self.policies.keys())),
+        };
+        Ok(names
+            .into_iter()
+            .filter_map(|action| {
+                let definition = self.actions.definitions.get(&action)?.clone();
+                Some((action, definition))
+            })
+            .collect())
     }
 
     /// The policy called `name`. `default` exists even when not configured.
@@ -652,6 +709,82 @@ fn validate_mcp_server(path: &str, name: &str, server: &McpTransport, issues: &m
     }
 }
 
+fn validate_actions(actions: &ActionsConfig, issues: &mut Issues) {
+    for (name, server) in &actions.servers {
+        let path = format!("actions.servers.{name}");
+        validate_mcp_server(&path, name, server, issues);
+    }
+    for (name, secret) in &actions.secrets {
+        let path = format!("actions.secrets.{name}");
+        if !is_variable_name(name) {
+            issues.push(&path, "must be a variable name");
+        }
+        if matches!(secret, SecretRef::Kubernetes { .. }) {
+            issues.push(
+                &path,
+                "the backend does not read Kubernetes Secrets; map the Secret to a backend \
+                 variable (backend.extraEnv in the Helm chart) and use { env: VAR }",
+            );
+        }
+        validate_secret(&path, secret, issues);
+    }
+    for (name, definition) in &actions.definitions {
+        validate_action(
+            &format!("actions.definitions.{name}"),
+            name,
+            definition,
+            actions,
+            issues,
+        );
+    }
+}
+
+fn validate_action(
+    path: &str,
+    name: &str,
+    definition: &ActionDefinition,
+    actions: &ActionsConfig,
+    issues: &mut Issues,
+) {
+    if !is_name(name) {
+        issues.push(path, "names use letters, digits, `-` and `_`");
+    }
+    if !actions.servers.contains_key(&definition.server) {
+        issues.push(
+            &format!("{path}.server"),
+            "is not defined under actions.servers",
+        );
+    }
+    if definition.tool.trim().is_empty() {
+        issues.push(&format!("{path}.tool"), "must not be empty");
+    }
+    if definition.on.is_empty() {
+        issues.push(
+            &format!("{path}.on"),
+            "list the run outcomes that trigger the action",
+        );
+    }
+    validate_arguments(path, &definition.arguments, issues);
+}
+
+fn validate_arguments(path: &str, arguments: &serde_json::Value, issues: &mut Issues) {
+    if !arguments.is_object() {
+        issues.push(
+            &format!("{path}.arguments"),
+            "must be a mapping of argument names",
+        );
+    }
+    for variable in action::variables(arguments) {
+        if !action::VARIABLES.contains(&variable.as_str()) {
+            let message = format!(
+                "unknown variable `{{{{{variable}}}}}`; available: {}",
+                action::VARIABLES.join(", ")
+            );
+            issues.push(&format!("{path}.arguments"), &message);
+        }
+    }
+}
+
 fn is_http_url(value: &str) -> bool {
     let rest = value
         .strip_prefix("http://")
@@ -679,6 +812,7 @@ fn is_name(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::status::Outcome;
 
     const MINIMAL: &str = "llm:\n  base_url: http://ollama:11434/v1\n  model: qwen3\n";
 
@@ -815,6 +949,43 @@ mod tests {
             json["mcp"]["remote"]["transport"]["url"],
             "http://mcp:9090/mcp"
         );
+    }
+
+    const ACTIONS: &str = "actions:\n  servers:\n    tickets:\n      url: http://tickets:9090/mcp\n      headers:\n        Authorization: Bearer ${TICKETS_TOKEN}\n  secrets:\n    TICKETS_TOKEN: { env: SACI_TICKETS_TOKEN }\n  definitions:\n    open-ticket:\n      server: tickets\n      tool: create_issue\n      on: [failed, error]\n      approval: required\n      arguments:\n        title: '{{plan.title}}: {{run.outcome}}'\npolicies:\n  nightly:\n    actions: [open-ticket]\n";
+
+    #[test]
+    fn policies_select_outcome_actions() {
+        let config = Config::from_yaml(&format!("{MINIMAL}{ACTIONS}"), "test.yaml").unwrap();
+        let actions = config.policy_actions("nightly").unwrap();
+        let ticket = &actions["open-ticket"];
+        assert!(ticket.triggered_by(Outcome::Error));
+        assert!(!ticket.triggered_by(Outcome::Passed));
+        assert_eq!(ticket.approval, crate::action::Approval::Required);
+        assert!(config.policy_actions(DEFAULT_POLICY).unwrap().is_empty());
+        assert!(config.policy_actions("missing").is_err());
+        let policy = serde_json::to_value(config.policy("nightly").unwrap()).unwrap();
+        assert!(policy.get("actions").is_none(), "workers never see actions");
+    }
+
+    #[test]
+    fn outcome_actions_are_validated() {
+        let bad = format!(
+            "{MINIMAL}actions:\n  secrets:\n    TOKEN: {{ secret: tickets, key: token }}\n  definitions:\n    ticket:\n      server: missing\n      tool: ''\n      on: []\n      arguments:\n        title: '{{{{run.secret}}}}'\npolicies:\n  p:\n    actions: [ticket, ghost]\n"
+        );
+        let found = issues(&bad);
+        for expected in [
+            "actions.secrets.TOKEN: the backend does not read Kubernetes Secrets",
+            "actions.definitions.ticket.server: is not defined",
+            "actions.definitions.ticket.tool: must not be empty",
+            "actions.definitions.ticket.on: list the run outcomes",
+            "actions.definitions.ticket.arguments: unknown variable `{{run.secret}}`",
+            "policies.p.actions: `ghost` is not defined",
+        ] {
+            assert!(
+                found.iter().any(|i| i.starts_with(expected)),
+                "{expected}: {found:?}"
+            );
+        }
     }
 
     #[test]

@@ -4,7 +4,8 @@
 use rusqlite::Connection;
 
 /// Each entry upgrades the schema by one version.
-const MIGRATIONS: [&str; 1] = [r"
+const MIGRATIONS: [&str; 2] = [
+    r"
 CREATE TABLE runs (
     id                  TEXT PRIMARY KEY,
     created_at          TEXT NOT NULL,
@@ -30,10 +31,33 @@ CREATE TABLE evidence (
     PRIMARY KEY (run_id, id)
 );
 CREATE INDEX runs_unfinished ON runs (finished);
-"];
+",
+    // Outcome actions (docs/actions.md): the definitions selected when the
+    // run was accepted, and one row per triggered action.
+    r"
+ALTER TABLE runs ADD COLUMN actions TEXT NOT NULL DEFAULT '{}';
+CREATE TABLE actions (
+    run_id     TEXT NOT NULL REFERENCES runs (id),
+    name       TEXT NOT NULL,
+    server     TEXT NOT NULL,
+    tool       TEXT NOT NULL,
+    approval   TEXT NOT NULL,
+    state      TEXT NOT NULL,
+    arguments  TEXT NOT NULL,
+    digest     TEXT NOT NULL,
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    result     TEXT,
+    error      TEXT,
+    PRIMARY KEY (run_id, name)
+);
+CREATE INDEX actions_state ON actions (state);
+",
+];
 
 /// The schema version this build writes.
-pub const CURRENT: u32 = 1;
+pub const CURRENT: u32 = 2;
 
 const _: () = assert!(MIGRATIONS.len() == CURRENT as usize);
 

@@ -41,6 +41,7 @@ pub fn prepare(
     let (environment, limits) = config.environment(&request.environment).map_err(invalid)?;
     let policy_name = request.policy.as_deref().unwrap_or(DEFAULT_POLICY);
     let policy = config.policy(policy_name).map_err(invalid)?;
+    let actions = config.policy_actions(policy_name).map_err(invalid)?;
     let spec = RunSpec {
         schema_version: SCHEMA_VERSION,
         run_id: RunId::generate(),
@@ -52,16 +53,13 @@ pub fn prepare(
         llm: config.llm.clone(),
     };
     let header = header(&spec, &expanded.plan.title);
-    let units = expanded
-        .units
-        .into_iter()
-        .map(|unit| unit.identity)
-        .collect();
+    let units = expanded.units.into_iter().map(|u| u.identity).collect();
     let idempotency = idempotency_key.map(|key| (key, request_hash(request)));
     Ok(NewRun {
         report: RunReport::new(header, units),
         spec,
         idempotency,
+        actions,
     })
 }
 

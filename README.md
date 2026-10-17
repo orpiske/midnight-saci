@@ -15,6 +15,7 @@ AI Test Engineer
 - [Worker tools: shell, HTTP and step assessment](docs/tools.md)
 - [Run sequencing, retries, stopping and cleanup](docs/sequencing.md)
 - [MCP servers: configuration, credentials and SDK](docs/mcp.md)
+- [Outcome actions: MCP calls after a run finishes, approvals and delivery](docs/actions.md)
 - [Operating the backend: data directory and records](docs/operations.md)
 - [The worker: entry point, image and adding utilities](docs/worker.md)
 - [Launching workers with Podman or Docker: runtime, arguments and networking](docs/launchers.md)

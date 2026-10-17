@@ -49,6 +49,7 @@ fn new_run(fixture: &Fixture, run_id: RunId) -> NewRun {
         spec,
         report: RunReport::new(header, fixture.units.clone()),
         idempotency: None,
+        actions: BTreeMap::new(),
     }
 }
 

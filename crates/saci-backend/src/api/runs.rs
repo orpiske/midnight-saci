@@ -34,7 +34,7 @@ pub async fn health() -> Json<Value> {
     Json(json!({"status": "ok"}))
 }
 
-fn run_id(raw: &str) -> Reply<RunId> {
+pub(super) fn run_id(raw: &str) -> Reply<RunId> {
     RunId::parse(raw).map_err(|_| Failure::run_not_found())
 }
 

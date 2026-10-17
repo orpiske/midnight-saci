@@ -57,7 +57,7 @@ app.kubernetes.io/component: backend
 {{- $_ := set $llm "api_key_secret" (dict "name" .Values.llm.apiKey.existingSecret "key" .Values.llm.apiKey.key) -}}
 {{- end -}}
 {{- $config := dict "backend" $backend "worker" $worker "llm" $llm "environments" .Values.config.environments -}}
-{{- range $key := list "limits" "policies" "mcp_servers" -}}
+{{- range $key := list "limits" "policies" "mcp_servers" "actions" -}}
 {{- with index $.Values.config $key -}}
 {{- $_ := set $config $key . -}}
 {{- end -}}
