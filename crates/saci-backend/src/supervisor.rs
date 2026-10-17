@@ -95,12 +95,19 @@ pub async fn run(
     mut commands: CommandReceiver,
     timing: Timing,
 ) {
-    match &launcher {
+    let mut recovered = match &launcher {
         Ok(launcher) => Box::pin(recover(&backend, launcher, timing)).await,
-        Err(error) => fail_unfinished(&backend, error).await,
-    }
+        Err(error) => {
+            fail_unfinished(&backend, error).await;
+            Vec::new()
+        }
+    };
     while let Some(command) = commands.recv().await {
         match (command, &launcher) {
+            // Submitted while recovery ran, and already launched by it.
+            (Command::Launch(run), Ok(_)) if recovered.contains(&run) => {
+                recovered.retain(|launched| *launched != run);
+            }
             (Command::Launch(run), Ok(launcher)) => supervise(&backend, launcher, run, timing),
             (Command::Launch(run), Err(error)) => launch_failed(&backend, &run, error).await,
             // A watcher sees the request in the run record and stops the worker.
@@ -391,26 +398,32 @@ async fn clean_up(launcher: &Launcher, run: &RunId, timing: Timing) {
 ///   it ends `error` with the reason.
 ///
 /// Workers left over from runs that had already finished are removed.
-async fn recover(backend: &Backend, launcher: &Launcher, timing: Timing) {
+///
+/// Returns the runs it launched.
+async fn recover(backend: &Backend, launcher: &Launcher, timing: Timing) -> Vec<RunId> {
     let records = match backend.store.unfinished().await {
         Ok(records) => records,
         Err(error) => {
             tracing::error!(%error, "cannot list unfinished runs; none recovered");
-            return;
+            return Vec::new();
         }
     };
     let existing = launcher.workers().await.unwrap_or_else(|error| {
         tracing::warn!(%error, "cannot list workers; treating them as gone");
         Vec::new()
     });
+    let mut launched = Vec::new();
     for record in &records {
         let exists = existing.contains(&record.spec.run_id);
-        recover_run(backend, launcher, record, exists, timing).await;
+        if recover_run(backend, launcher, record, exists, timing).await {
+            launched.push(record.spec.run_id.clone());
+        }
     }
     let unfinished: Vec<&RunId> = records.iter().map(|record| &record.spec.run_id).collect();
     for run in existing.iter().filter(|run| !unfinished.contains(run)) {
         remove_leftover(backend, launcher, run, timing).await;
     }
+    launched
 }
 
 /// Removes the worker of a finished run whose cleanup an earlier backend
@@ -433,7 +446,7 @@ async fn recover_run(
     record: &RunRecord,
     worker_exists: bool,
     timing: Timing,
-) {
+) -> bool {
     let run = record.spec.run_id.clone();
     if worker_exists {
         tracing::info!(%run, "watching a worker started before the restart");
@@ -441,13 +454,16 @@ async fn recover_run(
         tokio::spawn(Box::pin(async move {
             watch(&backend, &launcher, &run, timing).await;
         }));
+        false
     } else if never_started(record) {
         tracing::info!(%run, "launching a run accepted before the restart");
         supervise(backend, launcher, run, timing);
+        true
     } else {
         let reason = "the backend restarted and the run's worker is gone; the run is not \
                       repeated because its actions may already have run";
         finish(backend, &run, Outcome::Error, reason.to_owned()).await;
+        false
     }
 }
 
