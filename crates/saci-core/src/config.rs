@@ -353,16 +353,30 @@ impl Config {
         issues.0
     }
 
+    fn validate_variable_names(&self, path: &str, env: &EnvironmentConfig, issues: &mut Issues) {
+        for key in env.parameters.keys().chain(env.secrets.keys()) {
+            if !is_variable_name(key) {
+                issues.push(&format!("{path}.{key}"), "must be a shell variable name");
+            } else if key.starts_with("SACI_") {
+                issues.push(
+                    &format!("{path}.{key}"),
+                    "names starting with SACI_ are reserved",
+                );
+            } else if self.llm.api_key_env.as_deref() == Some(key.as_str()) {
+                issues.push(
+                    &format!("{path}.{key}"),
+                    "is llm.api_key_env; the LLM credential is never exported to tools",
+                );
+            }
+        }
+    }
+
     fn validate_environment(&self, name: &str, env: &EnvironmentConfig, issues: &mut Issues) {
         let path = format!("environments.{name}");
         if !is_name(name) {
             issues.push(&path, "names use letters, digits, `-` and `_`");
         }
-        for key in env.parameters.keys().chain(env.secrets.keys()) {
-            if !is_variable_name(key) {
-                issues.push(&format!("{path}.{key}"), "must be a shell variable name");
-            }
-        }
+        self.validate_variable_names(&path, env, issues);
         for key in env
             .secrets
             .keys()
@@ -682,6 +696,23 @@ mod tests {
             found
                 .iter()
                 .any(|i| i.contains("also defined as a parameter"))
+        );
+    }
+
+    #[test]
+    fn tool_variables_cannot_shadow_worker_credentials() {
+        let yaml = format!(
+            "{MINIMAL}environments:\n  local:\n    parameters:\n      SACI_WORKER_TOKEN: x\n    secrets:\n      LLM_KEY:\n        env: K\n"
+        )
+        .replace("model: qwen3\n", "model: qwen3\n  api_key_env: LLM_KEY\n");
+        let found = issues(&yaml);
+        assert!(
+            found.iter().any(|i| i.contains("SACI_ are reserved")),
+            "{found:?}"
+        );
+        assert!(
+            found.iter().any(|i| i.contains("is llm.api_key_env")),
+            "{found:?}"
         );
     }
 }

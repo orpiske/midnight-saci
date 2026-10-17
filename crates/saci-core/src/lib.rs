@@ -13,6 +13,7 @@ pub mod evidence;
 pub mod ids;
 pub mod parser;
 pub mod plan;
+pub mod redaction;
 pub mod run;
 pub mod spec;
 pub mod status;

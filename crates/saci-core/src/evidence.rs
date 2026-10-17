@@ -65,6 +65,22 @@ impl CapturedText {
             total_bytes,
         }
     }
+
+    /// The text as shown to the model and in reports, with a visible note
+    /// when output was dropped.
+    #[must_use]
+    pub fn rendered(&self) -> String {
+        if self.truncated {
+            format!(
+                "{}\n[output truncated: showing {} of {} bytes]",
+                self.text,
+                self.text.len(),
+                self.total_bytes
+            )
+        } else {
+            self.text.clone()
+        }
+    }
 }
 
 /// How a shell command ended, when it did not simply exit.
