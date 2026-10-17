@@ -113,6 +113,13 @@ pub struct ShellEvidence {
     pub exit_code: Option<i32>,
     /// How the command ended.
     pub termination: Termination,
+    /// The command ran in a new shell session because the previous one was
+    /// lost or ended; earlier variables, functions and directory are gone.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub restarted: bool,
+    /// The shell session did not survive this command.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub session_lost: bool,
 }
 
 /// Evidence for one HTTP request.

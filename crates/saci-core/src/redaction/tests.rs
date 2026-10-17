@@ -59,6 +59,8 @@ fn shell_evidence_is_redacted() {
         stderr: CapturedText::complete("ok"),
         exit_code: Some(0),
         termination: Termination::Exited,
+        restarted: false,
+        session_lost: false,
     });
     redactor().redact_evidence(&mut shell);
     let text = serde_json::to_string(&shell).unwrap();
