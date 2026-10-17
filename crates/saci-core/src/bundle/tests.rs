@@ -171,3 +171,16 @@ fn loading_rejects_escaping_symlinks() {
         "{error}"
     );
 }
+
+#[test]
+fn a_procedure_followed_twice_by_one_unit_gets_a_key_per_occurrence() {
+    let entry = "# Test Plan: Twice\n\n## Phase 1: Main\n\n### Step 1.1: Log in twice\n\nFollow [login](login.md).\n\nRun `check`.\n\nFollow [login](login.md).\n\n**Expected result:**\n\n- Logged in.\n";
+    let login = unit_plan("Login", "Procedure", "Run `login`.");
+    let expanded = expand(&bundle(&[("plan.md", entry), ("login.md", &login)])).unwrap();
+    let keys: Vec<_> = expanded
+        .units
+        .iter()
+        .map(|u| u.identity.key.as_str().to_owned())
+        .collect();
+    assert_eq!(keys, ["1.1>login.md#1", "1.1>login.md@2#1", "1.1"]);
+}
