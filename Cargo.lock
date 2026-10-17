@@ -5926,13 +5926,16 @@ name = "saci-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "clap",
  "reqwest 0.13.5",
  "saci-backend",
  "saci-core",
+ "saci-worker",
  "serde",
  "serde_json",
  "tempfile",
+ "time",
  "tokio",
  "tracing-subscriber",
  "uuid",
