@@ -1,0 +1,38 @@
+# Saci configuration for a backend running in a Kubernetes or OpenShift
+# namespace. The Helm chart in deploy/helm/saci renders an equivalent file.
+# Reference: docs/configuration.md
+
+backend:
+  listen: 0.0.0.0:8080
+  data_dir: /var/lib/saci
+  worker_url: http://saci:8080
+  auth:
+    token_env: SACI_API_TOKEN
+
+worker:
+  runtime: kubernetes
+  image: ghcr.io/orpiske/saci-worker:0.1.0
+  kubernetes:
+    service_account: saci-worker
+    image_pull_policy: IfNotPresent
+
+llm:
+  base_url: https://openrouter.ai/api/v1
+  model: your-tool-capable-model
+  api_key_env: SACI_LLM_API_KEY
+  # Supplies SACI_LLM_API_KEY to worker Jobs.
+  api_key_secret:
+    name: saci-llm
+    key: api-key
+
+environments:
+  same-namespace:
+    parameters:
+      SERVICE_URL: http://demo-service:8080
+    secrets:
+      SERVICE_TOKEN:
+        secret: demo-service
+        key: token
+    worker:
+      cpu: 500m
+      memory: 512Mi
