@@ -130,3 +130,30 @@ fn rendered_text_states_truncation() {
     );
     assert_eq!(CapturedText::complete("x").rendered(), "x");
 }
+
+#[test]
+fn every_free_text_event_field_is_redacted() {
+    use crate::event::EventKind;
+    use crate::run::{ErrorKind, ExecutionError};
+    use crate::status::Outcome;
+    let redactor = redactor();
+    let mut kinds = vec![
+        EventKind::AttemptFinished {
+            outcome: Outcome::Error,
+            assessment: None,
+            error: Some(ExecutionError::new(ErrorKind::Provider, "bad s3cr3t")),
+        },
+        EventKind::UnitSkipped {
+            reason: "s3cr3t".into(),
+        },
+        EventKind::RunFinished {
+            outcome: Outcome::Error,
+            reason: "s3cr3t".into(),
+        },
+    ];
+    for kind in &mut kinds {
+        redactor.redact_event(kind);
+    }
+    let text = serde_json::to_string(&kinds).unwrap();
+    assert!(!text.contains("s3cr3t"), "{text}");
+}

@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 
 use serde_json::Value;
 
+use crate::event::EventKind;
 use crate::evidence::{CapturedText, EvidenceRecord, HttpEvidence};
 
 /// Replacement for a masked value whose secret is not known by name.
@@ -134,6 +135,35 @@ impl Redactor {
     /// and original size.
     pub fn redact_captured(&self, captured: &mut CapturedText) {
         self.redact_string(&mut captured.text);
+    }
+
+    /// Redacts every free-text field of an event: observations, assessment
+    /// and criterion explanations, error messages and the reasons a unit was
+    /// skipped or a run ended.
+    pub fn redact_event(&self, kind: &mut EventKind) {
+        match kind {
+            EventKind::Observation { evidence } => self.redact_evidence(&mut evidence.record),
+            EventKind::AttemptFinished {
+                assessment, error, ..
+            } => {
+                if let Some(assessment) = assessment {
+                    self.redact_string(&mut assessment.explanation);
+                    for criterion in &mut assessment.criteria {
+                        self.redact_string(&mut criterion.explanation);
+                    }
+                }
+                if let Some(error) = error {
+                    self.redact_string(&mut error.message);
+                }
+            }
+            EventKind::UnitSkipped { reason } | EventKind::RunFinished { reason, .. } => {
+                self.redact_string(reason);
+            }
+            EventKind::RunStarted { .. }
+            | EventKind::AttemptStarted
+            | EventKind::UnitFinished { .. }
+            | EventKind::CancellationRequested => {}
+        }
     }
 
     /// Redacts every field of an observation that can carry a secret.

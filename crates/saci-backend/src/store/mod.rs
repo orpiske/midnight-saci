@@ -271,7 +271,7 @@ impl Store {
 
     /// Persists consecutive worker events and folds them into the report,
     /// atomically. Events at or below the acknowledged sequence are ignored.
-    /// Observations are redacted with `redactor` before they are stored.
+    /// Every free-text field is redacted with `redactor` before it is stored.
     /// Returns the highest persisted sequence number.
     ///
     /// # Errors
@@ -292,9 +292,7 @@ impl Store {
                 if event.seq <= record.report.last_seq {
                     continue;
                 }
-                if let EventKind::Observation { evidence } = &mut event.kind {
-                    redactor.redact_evidence(&mut evidence.record);
-                }
+                redactor.redact_event(&mut event.kind);
                 record.report.apply(&event)?;
                 store_event(&transaction, &id, &event)?;
             }

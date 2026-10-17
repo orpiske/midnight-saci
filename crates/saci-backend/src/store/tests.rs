@@ -251,3 +251,52 @@ async fn newer_schemas_are_refused() {
     let error = Store::open(dir.path()).await.unwrap_err();
     assert!(error.to_string().contains("upgrade Saci"), "{error}");
 }
+
+/// Appends `secret` to every explanation, reason and message in `value`.
+fn leak(value: &mut serde_json::Value, secret: &str) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, item) in map.iter_mut() {
+                match item {
+                    serde_json::Value::String(text)
+                        if ["explanation", "reason", "message"].contains(&key.as_str()) =>
+                    {
+                        text.push_str(&format!(" via {secret}"));
+                    }
+                    other => leak(other, secret),
+                }
+            }
+        }
+        serde_json::Value::Array(items) => items.iter_mut().for_each(|item| leak(item, secret)),
+        _ => {}
+    }
+}
+
+#[tokio::test]
+async fn free_text_in_events_is_redacted_before_storage() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../saci-core/tests/fixtures/runs/failure.json"
+    );
+    let mut raw: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    leak(&mut raw["events"], "sk-leaked");
+    let fixture: Fixture = serde_json::from_value(raw).unwrap();
+    let id = fixture.header.run_id.clone();
+    let store = Store::open(dir.path()).await.unwrap();
+    created(&store, new_run(&fixture, id.clone())).await;
+    let mut redactor = Redactor::new();
+    redactor.add("KEY", "sk-leaked");
+    store
+        .append_events(&id, fixture.events.clone(), redactor)
+        .await
+        .unwrap();
+    let report = serde_json::to_string(&store.run(&id).await.unwrap().report).unwrap();
+    let (events, _) = store.events(&id, 0, 100).await.unwrap();
+    let events = serde_json::to_string(&events).unwrap();
+    for text in [report, events] {
+        assert!(!text.contains("sk-leaked"), "{text}");
+        assert!(text.contains("via [REDACTED:KEY]"), "{text}");
+    }
+}
