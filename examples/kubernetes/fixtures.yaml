@@ -1,0 +1,72 @@
+# The namespace example's model and target (docs/namespace-workflows.md).
+# Both run in the same namespace as Saci, so worker pods reach them by
+# Service name. Replace `model` with a real provider and `orders` with the
+# service you test.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+  labels: { app: orders }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: orders } }
+  template:
+    metadata:
+      labels: { app: orders }
+    spec:
+      containers:
+        - name: orders
+          image: localhost/saci-fixtures:latest
+          imagePullPolicy: IfNotPresent
+          command: ["saci-fake-target", "--listen", "0.0.0.0:8081"]
+          ports: [{ containerPort: 8081 }]
+          readinessProbe:
+            httpGet: { path: /health, port: 8081 }
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders
+spec:
+  selector: { app: orders }
+  ports: [{ port: 8081, targetPort: 8081 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model
+  labels: { app: model }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: model } }
+  template:
+    metadata:
+      labels: { app: model }
+    spec:
+      containers:
+        - name: model
+          image: localhost/saci-fixtures:latest
+          imagePullPolicy: IfNotPresent
+          command: ["saci-fake-model", "--listen", "0.0.0.0:11435",
+                    "--playbook", "/etc/saci-fixtures/playbook.json"]
+          ports: [{ containerPort: 11435 }]
+          readinessProbe:
+            tcpSocket: { port: 11435 }
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: model
+spec:
+  selector: { app: model }
+  ports: [{ port: 11435, targetPort: 11435 }]
