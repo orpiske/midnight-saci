@@ -5,6 +5,7 @@
 //! on. It performs no network or container work.
 
 pub mod assessment;
+pub mod config;
 pub mod event;
 pub mod evidence;
 pub mod ids;

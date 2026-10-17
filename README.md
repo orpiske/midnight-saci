@@ -8,5 +8,6 @@ AI Test Engineer
 - [Worker execution and LLM configuration](docs/execution.md)
 - [Development: build, layout and quality gates](docs/development.md)
 - [Run contracts: identities, statuses, events and reports](docs/contracts.md)
+- [Configuration reference](docs/configuration.md)
 - [Implementation ticket drafts](docs/plans/implementation-tickets.md)
 - [Created issues and task breakdown](docs/plans/issue-index.md)
