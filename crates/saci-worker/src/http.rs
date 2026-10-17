@@ -83,10 +83,7 @@ impl HttpTool {
             .connect_timeout(Duration::from_secs(30))
             .build()
             .map_err(|error| {
-                ExecutionError::new(
-                    ErrorKind::Tool,
-                    format!("cannot build the HTTP client: {error}"),
-                )
+                ExecutionError::new(ErrorKind::Tool, crate::llm::client_build_error(&error))
             })?;
         Ok(Self {
             client,

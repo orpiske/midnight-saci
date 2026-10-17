@@ -2,6 +2,7 @@
 //! The Saci worker executes one run specification with the agent and its tools.
 
 pub mod agent;
+pub mod bootstrap;
 pub mod credentials;
 pub mod events;
 pub mod http;

@@ -27,7 +27,7 @@ Complete examples:
 | Setting | Default | Meaning |
 |---------|---------|---------|
 | `runtime` | `auto` | `podman`, `docker`, `kubernetes`, or `auto` (`podman` if it is in the backend's `PATH`, otherwise `docker`). |
-| `image` | `localhost/saci-worker:latest` | Worker image reference. |
+| `image` | `localhost/saci-worker:latest` | Worker image reference; see [the worker image](worker.md#the-image). |
 | `network` | none | Local runtimes: container network passed as `--network`. |
 | `add_hosts` | `[]` | Local runtimes: `name:address` entries passed as `--add-host`. |
 | `kubernetes.namespace` | backend namespace | Namespace for worker Jobs. |

@@ -109,7 +109,7 @@ impl LlmConnection {
             .timeout(Duration::from_secs(limits.model_request_timeout_secs))
             .connect_timeout(Duration::from_secs(10))
             .build()
-            .map_err(|error| invalid(format!("cannot build the HTTP client: {error}")))?;
+            .map_err(|error| invalid(client_build_error(&error)))?;
         let transport = RetryingClient {
             inner: ReqwestClient::from(http),
             retries: limits.model_request_retries,
@@ -157,6 +157,19 @@ impl LlmConnection {
         }
         classified
     }
+}
+
+/// Why an HTTP client could not be built, with every cause (for example a
+/// missing CA certificate store), since reqwest's own message is only
+/// "builder error".
+pub(crate) fn client_build_error(error: &rig::rig_reqwest::reqwest::Error) -> String {
+    let mut message = format!("cannot build the HTTP client: {error}");
+    let mut source = std::error::Error::source(error);
+    while let Some(cause) = source {
+        message.push_str(&format!(": {cause}"));
+        source = cause.source();
+    }
+    message
 }
 
 fn invalid(message: String) -> ExecutionError {

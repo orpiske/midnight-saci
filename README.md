@@ -16,6 +16,7 @@ AI Test Engineer
 - [Run sequencing, retries, stopping and cleanup](docs/sequencing.md)
 - [MCP servers: configuration, credentials and SDK](docs/mcp.md)
 - [Operating the backend: data directory and records](docs/operations.md)
+- [The worker: entry point, image and adding utilities](docs/worker.md)
 - [Command line: backend start, run submission and exit codes](docs/cli.md)
 - [REST API and worker reporting protocol](docs/api.md) ([OpenAPI](docs/openapi.yaml))
 - [Implementation ticket drafts](docs/plans/implementation-tickets.md)
