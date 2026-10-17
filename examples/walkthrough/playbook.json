@@ -1,48 +1,174 @@
 {
   "units": {
     "Check service health": [
-      {"tool": "http", "arguments": {"method": "GET", "url": "${SERVICE_URL}/health"}},
-      {"tool": "assess", "arguments": {
-        "outcome": "passed",
-        "criteria": [
-          {"criterion": 0, "status": "satisfied", "basis": "mechanical", "evidence": ["$last"],
-           "explanation": "GET /health answered 200 with {\"status\":\"ok\"}"}
-        ],
-        "explanation": "The service is reachable and reports healthy."
-      }}
+      {
+        "tool": "shell",
+        "arguments": {
+          "command": "curl -sS -w '\\nstatus %{http_code}\\n' \"$SERVICE_URL/health\""
+        }
+      },
+      {
+        "tool": "assess",
+        "expect": "status 200",
+        "arguments": {
+          "outcome": "passed",
+          "criteria": [
+            {
+              "criterion": 0,
+              "status": "satisfied",
+              "basis": "mechanical",
+              "evidence": [
+                "$last"
+              ],
+              "explanation": "the output ends with status 200 after {\"status\":\"ok\"}"
+            }
+          ],
+          "explanation": "The service is reachable and reports healthy."
+        },
+        "otherwise": {
+          "outcome": "failed",
+          "criteria": [
+            {
+              "criterion": 0,
+              "status": "contradicted",
+              "basis": "mechanical",
+              "evidence": [
+                "$last"
+              ],
+              "explanation": "the output does not show the expected status"
+            }
+          ],
+          "explanation": "The health check did not answer 200; see the command's output."
+        }
+      }
     ],
     "Read an existing order": [
-      {"tool": "http", "arguments": {"method": "GET", "url": "${SERVICE_URL}/orders/1"}},
-      {"tool": "assess", "arguments": {
-        "outcome": "passed",
-        "criteria": [
-          {"criterion": 0, "status": "satisfied", "basis": "mechanical", "evidence": ["$last"],
-           "explanation": "GET /orders/1 answered 200"},
-          {"criterion": 1, "status": "satisfied", "basis": "mechanical", "evidence": ["$last"],
-           "explanation": "the body has \"status\": \"shipped\""}
-        ],
-        "explanation": "Order 1 is readable and shipped."
-      }}
+      {
+        "tool": "shell",
+        "arguments": {
+          "command": "curl -sS -w '\\nstatus %{http_code}\\n' \"$SERVICE_URL/orders/1\""
+        }
+      },
+      {
+        "tool": "assess",
+        "expect": "status 200",
+        "arguments": {
+          "outcome": "passed",
+          "criteria": [
+            {
+              "criterion": 0,
+              "status": "satisfied",
+              "basis": "mechanical",
+              "evidence": [
+                "$last"
+              ],
+              "explanation": "the output ends with status 200"
+            },
+            {
+              "criterion": 1,
+              "status": "satisfied",
+              "basis": "mechanical",
+              "evidence": [
+                "$last"
+              ],
+              "explanation": "the body has \"status\": \"shipped\""
+            }
+          ],
+          "explanation": "Order 1 is readable and shipped."
+        },
+        "otherwise": {
+          "outcome": "failed",
+          "criteria": [
+            {
+              "criterion": 0,
+              "status": "contradicted",
+              "basis": "mechanical",
+              "evidence": [
+                "$last"
+              ],
+              "explanation": "the output does not show the expected status"
+            },
+            {
+              "criterion": 1,
+              "status": "contradicted",
+              "basis": "mechanical",
+              "evidence": [
+                "$last"
+              ],
+              "explanation": "the output does not show the expected status"
+            }
+          ],
+          "explanation": "Reading order 1 did not answer 200; see the command's output."
+        }
+      }
     ],
     "Create an order": [
-      {"tool": "http", "arguments": {
-        "method": "POST", "url": "${SERVICE_URL}/orders",
-        "headers": {"Content-Type": "application/json"},
-        "body": "{\"item\": \"mouse\", \"quantity\": 1}"
-      }},
-      {"tool": "assess", "arguments": {
-        "outcome": "failed",
-        "criteria": [
-          {"criterion": 0, "status": "contradicted", "basis": "mechanical", "evidence": ["$last"],
-           "explanation": "POST /orders answered 500, not 201"},
-          {"criterion": 1, "status": "contradicted", "basis": "mechanical", "evidence": ["$last"],
-           "explanation": "the body is {\"error\":\"orders database is read-only\"} and has no id"}
-        ],
-        "explanation": "Creating an order fails: the service reports that its database is read-only."
-      }}
+      {
+        "tool": "shell",
+        "arguments": {
+          "command": "curl -sS -w '\\nstatus %{http_code}\\n' -X POST \"$SERVICE_URL/orders\" \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"item\": \"mouse\", \"quantity\": 1}'"
+        }
+      },
+      {
+        "tool": "assess",
+        "expect": "status 500",
+        "arguments": {
+          "outcome": "failed",
+          "criteria": [
+            {
+              "criterion": 0,
+              "status": "contradicted",
+              "basis": "mechanical",
+              "evidence": [
+                "$last"
+              ],
+              "explanation": "the output ends with status 500, not 201"
+            },
+            {
+              "criterion": 1,
+              "status": "contradicted",
+              "basis": "mechanical",
+              "evidence": [
+                "$last"
+              ],
+              "explanation": "the body is {\"error\":\"orders database is read-only\"} and has no id"
+            }
+          ],
+          "explanation": "Creating an order fails: the service reports that its database is read-only."
+        },
+        "otherwise": {
+          "outcome": "failed",
+          "criteria": [
+            {
+              "criterion": 0,
+              "status": "contradicted",
+              "basis": "mechanical",
+              "evidence": [
+                "$last"
+              ],
+              "explanation": "the output does not show the expected status"
+            },
+            {
+              "criterion": 1,
+              "status": "contradicted",
+              "basis": "mechanical",
+              "evidence": [
+                "$last"
+              ],
+              "explanation": "the output does not show the expected status"
+            }
+          ],
+          "explanation": "Creating an order did not answer 201; see the command's output."
+        }
+      }
     ],
     "Run the nightly export": [
-      {"tool": "shell", "arguments": {"command": "sleep 300 && echo exported"}}
+      {
+        "tool": "shell",
+        "arguments": {
+          "command": "sleep 300 && echo exported"
+        }
+      }
     ]
   }
 }

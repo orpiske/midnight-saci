@@ -12,20 +12,28 @@ Check that existing orders can be read and new orders can be created.
 
 ### Test 1.1: Read an existing order
 
-Use the HTTP tool to send a GET request to `SERVICE_URL` followed by `/orders/1`.
+Read order 1 and print the response status:
+
+```bash
+curl -sS -w '\nstatus %{http_code}\n' "$SERVICE_URL/orders/1"
+```
 
 **Expected result:**
 
-- The response status is 200.
+- The output ends with `status 200`.
 - The order's `status` is `shipped`.
 
 ### Test 1.2: Create an order
 
-Use the HTTP tool to send a POST request to `SERVICE_URL` followed by `/orders`
-with the JSON body `{"item": "mouse", "quantity": 1}` and the header
-`Content-Type: application/json`.
+Create an order and print the response status:
+
+```bash
+curl -sS -w '\nstatus %{http_code}\n' -X POST "$SERVICE_URL/orders" \
+  -H 'Content-Type: application/json' \
+  -d '{"item": "mouse", "quantity": 1}'
+```
 
 **Expected result:**
 
-- The response status is 201.
+- The output ends with `status 201`.
 - The response contains the new order's `id`.

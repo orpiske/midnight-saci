@@ -16,11 +16,13 @@ keeps state between steps in the shell, and cleans up after itself.
 
 ### Test 1.1: The service reports healthy
 
-Use the HTTP tool to send a GET request to `SERVICE_URL` followed by `/health`.
+```bash
+curl -sS -w '\nstatus %{http_code}\n' "${SERVICE_URL}/health"
+```
 
 **Expected result:**
 
-- The response status is 200.
+- The output ends with `status 200`.
 - The body contains `"status": "up"`.
 
 ## Phase 2: Notes
@@ -43,12 +45,15 @@ echo "created ${NOTE_ID}"
 
 ### Test 2.2: Anonymous requests are rejected
 
-Use the HTTP tool to send a GET request to `SERVICE_URL` followed by
-`/notes/` and the ID created in step 2.1, without any credentials.
+Read the note created in step 2.1 without credentials:
+
+```bash
+curl -sS -o /dev/null -w 'status %{http_code}\n' "${SERVICE_URL}/notes/${NOTE_ID}"
+```
 
 **Expected result:**
 
-- The response status is 401.
+- The output is `status 401`.
 
 ### Test 2.3: The note can be read back
 

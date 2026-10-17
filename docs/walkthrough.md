@@ -138,8 +138,9 @@ says so, and runs end `error` with that reason (see
 saci new test-plan plans/service-health.md
 ```
 
-This writes the starter plan "Service health". Its one test sends
-`GET ${SERVICE_URL}/health` and expects status 200. See
+This writes the starter plan "Service health". Its one test runs
+`curl -sS -w '\nstatus %{http_code}\n' "$SERVICE_URL/health"` and
+expects the output to end with `status 200`. See
 [test plans](test-plans.md) for the conventions.
 
 ### 2. A passing run
@@ -151,13 +152,15 @@ saci run plans/service-health.md --environment local --follow
 ```text
 [1] run started with model walkthrough-playbook
 [2] 1.1 attempt 1 started
-[3] 1.1 attempt 1   ev-1 http GET http://127.0.0.1:18081/health answered 200 (2 ms)
+[3] 1.1 attempt 1   ev-1 shell `curl -sS -w '\nstatus %{http_code}\n' "$SERVICE_URL/health"` exited 0 (12 ms)
 [4] 1.1 attempt 1 passed: The service is reachable and reports healthy.
 [5] 1.1 passed
 [6] run finished passed: all 1 units ran; the summary outcome is passed
 ```
 
-The command exits 0.
+The command exits 0. If the orders service is not running, curl prints
+`status 000`, and the run fails (exit 1): a step passes only on what the
+service actually answered.
 
 ### 3. A failing run
 
@@ -166,9 +169,9 @@ saci run plans/orders.md --environment local --follow
 ```
 
 ```text
-[3] 1.1 attempt 1   ev-1 http GET http://127.0.0.1:18081/orders/1 answered 200 (2 ms)
+[3] 1.1 attempt 1   ev-1 shell `curl -sS -w '\nstatus %{http_code}\n' "$SERVICE_URL/orders/1"` exited 0 (11 ms)
 [4] 1.1 attempt 1 passed: Order 1 is readable and shipped.
-[7] 1.2 attempt 1   ev-2 http POST http://127.0.0.1:18081/orders answered 500 (5 ms)
+[7] 1.2 attempt 1   ev-2 shell `curl -sS -w '\nstatus %{http_code}\n' -X POST "$SERVICE_URL/orders" \` exited 0 (14 ms)
 [8] 1.2 attempt 1 failed: Creating an order fails: the service reports that its database is read-only.
 [10] run finished failed: stopped after 1.2 ended failed (policy `default` stops on failure)
 ```
@@ -183,9 +186,9 @@ saci report <run id>
 ```text
 1.2 Create an order [test]: failed
   attempt 1: failed: Creating an order fails: the service reports that its database is read-only.
-    expected result 1: contradicted (mechanical; ev-2): POST /orders answered 500, not 201
+    expected result 1: contradicted (mechanical; ev-2): the output ends with status 500, not 201
     expected result 2: contradicted (mechanical; ev-2): the body is {"error":"orders database is read-only"} and has no id
-    ev-2 http POST http://127.0.0.1:18081/orders answered 500 (1 ms)
+    ev-2 shell `curl -sS -w '\nstatus %{http_code}\n' -X POST "$SERVICE_URL/orders" \` exited 0 (14 ms)
 ```
 
 ### 4. Cancelling a run

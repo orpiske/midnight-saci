@@ -18,6 +18,11 @@
 //! conversation; the position by the number of tool calls the assistant has
 //! already made. The string `"$last"` anywhere in the arguments becomes the
 //! ID of the latest evidence the conversation shows.
+//!
+//! A call with `"expect": "<text>"` is made with its `arguments` only when
+//! the latest tool result contains that text, and with its `otherwise`
+//! arguments when it does not. An assessment can so follow what the target
+//! actually answered, for example failing when the service is down.
 
 use serde_json::{Map, Value};
 
@@ -44,13 +49,17 @@ impl Playbook {
             .ok_or("a playbook needs a `units` object mapping unit titles to tool calls")?;
         for (title, calls) in units {
             let valid = calls.as_array().is_some_and(|calls| {
-                calls
-                    .iter()
-                    .all(|call| call["tool"].is_string() && call["arguments"].is_object())
+                calls.iter().all(|call| {
+                    call["tool"].is_string()
+                        && call["arguments"].is_object()
+                        && (call.get("expect").is_none()
+                            || (call["expect"].is_string() && call["otherwise"].is_object()))
+                })
             });
             if !valid {
                 return Err(format!(
-                    "unit `{title}` needs a list of {{\"tool\": ..., \"arguments\": {{...}}}}"
+                    "unit `{title}` needs a list of {{\"tool\": ..., \"arguments\": {{...}}}}, \
+                     with `otherwise` arguments for each `expect`"
                 ));
             }
         }
@@ -82,7 +91,12 @@ impl Playbook {
         let Some(call) = calls.get(made) else {
             return Ok(text_reply("The playbook for this unit is complete."));
         };
-        let mut arguments = call["arguments"].clone();
+        let answered =
+            |expected: &str| last_result(&messages).is_some_and(|t| t.contains(expected));
+        let mut arguments = match call["expect"].as_str() {
+            Some(expected) if !answered(expected) => call["otherwise"].clone(),
+            _ => call["arguments"].clone(),
+        };
         if let Some(evidence) = last_evidence(&messages) {
             substitute(&mut arguments, &evidence);
         }
@@ -106,6 +120,15 @@ fn current_unit(messages: &[Value]) -> Option<String> {
         })
         .last()
         .and_then(|line| line.split('"').nth(1).map(str::to_owned))
+}
+
+/// The text of the latest tool result.
+fn last_result(messages: &[Value]) -> Option<String> {
+    messages
+        .iter()
+        .filter(|message| message["role"] == "tool")
+        .filter_map(content)
+        .next_back()
 }
 
 /// The ID in the latest `Evidence ev-N (` tool result.
@@ -189,5 +212,39 @@ mod tests {
         assert!(book.reply(&request).unwrap_err().contains("`Other`"));
         let error = Playbook::from_json(r#"{"units": {"X": [{"tool": "shell"}]}}"#).unwrap_err();
         assert!(error.contains("unit `X`"), "{error}");
+    }
+
+    #[test]
+    fn expectations_choose_the_arguments_from_the_last_answer() {
+        let book = Playbook::from_json(
+            r#"{"units": {"Health": [
+                {"tool": "assess", "expect": "status 200",
+                 "arguments": {"outcome": "passed"}, "otherwise": {"outcome": "failed"}}
+            ]}}"#,
+        )
+        .unwrap();
+        let prompt = "Current unit: Test 1.1 \"Health\" (phase \"P\", plan.md:5), attempt 1.";
+        let outcome = |result: &str| {
+            let messages = json!([
+                {"role": "user", "content": prompt},
+                {"role": "tool", "content": result}
+            ]);
+            let reply = book.reply(&json!({ "messages": messages })).unwrap();
+            call(&reply).1["outcome"].as_str().unwrap().to_owned()
+        };
+        assert_eq!(
+            outcome("Evidence ev-1 (shell). stdout:\nok\nstatus 200"),
+            "passed"
+        );
+        assert_eq!(
+            outcome("Evidence ev-1 (shell). exit code: 7\nstatus 000"),
+            "failed"
+        );
+        let missing = r#"{"units": {"X": [{"tool": "a", "arguments": {}, "expect": "y"}]}}"#;
+        assert!(
+            Playbook::from_json(missing)
+                .unwrap_err()
+                .contains("`otherwise`")
+        );
     }
 }
