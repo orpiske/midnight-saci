@@ -80,7 +80,7 @@ impl BackendClient {
             .map_err(|error| {
                 ExecutionError::new(
                     ErrorKind::WorkerLost,
-                    format!("cannot build the HTTP client: {error}"),
+                    crate::llm::client_build_error(&error),
                 )
             })?;
         Ok(Self {

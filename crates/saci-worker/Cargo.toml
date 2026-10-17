@@ -19,7 +19,7 @@ anyhow.workspace = true
 bytes.workspace = true
 http.workspace = true
 nix.workspace = true
-clap.workspace = true
+clap = { workspace = true, features = ["env"] }
 saci-core.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true

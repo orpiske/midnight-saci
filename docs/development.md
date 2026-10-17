@@ -20,6 +20,10 @@ cargo run -p saci-backend -- --help
 cargo run -p saci-worker -- --help
 ```
 
+Build the worker image and run a fixture-backed plan in it with
+`make image-check` ([the worker](worker.md#the-image)); CI does the same in
+its `worker-image` job.
+
 `Cargo.lock` is committed so a fresh checkout resolves the same dependency
 versions. Use `cargo build --locked` to verify that.
 

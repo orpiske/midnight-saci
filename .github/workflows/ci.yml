@@ -43,3 +43,17 @@ jobs:
         run: cargo build --locked --workspace
       - name: Test
         run: cargo test --locked --workspace
+
+  worker-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+      - name: Build the worker image
+        run: docker build -f Containerfile -t localhost/saci-worker:ci .
+      - name: Run a fixture-backed plan in the image
+        env:
+          SACI_WORKER_IMAGE: localhost/saci-worker:ci
+        run: cargo test --locked --package saci-worker --test worker_bootstrap
