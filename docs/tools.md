@@ -42,7 +42,8 @@ status (`$?` of its last command) and how it ended:
 | `session_lost` | The shell died or closed its output. | Lost. |
 
 On a deadline or cancellation the worker kills every process descended from
-the shell. A process that detaches completely (double-forks and is
+the shell, found through `/proc` on Linux and through `ps` where there is
+no `/proc`, such as macOS with `saci-worker --spec`. A process that detaches completely (double-forks and is
 re-parented) escapes this; the worker container's removal at the end of the
 run stops it.
 
