@@ -11,13 +11,24 @@
 #               (default: target/debug)
 #   IMAGE       worker image (default: localhost/saci-worker:latest)
 #   RUNTIME     podman or docker (default: podman if found, else docker)
+#   NETWORK     host or bridge (default: host on Linux, bridge elsewhere)
 #   WORK        working directory, kept afterwards (default: a new temporary one)
+#
+# On Linux, workers share the host's network and reach everything on
+# 127.0.0.1. On macOS and Windows the runtime runs containers in a VM, so
+# 127.0.0.1 inside a worker is the VM, not your machine. There the workers
+# use the runtime's bridge and reach your machine through its host alias:
+# host.containers.internal (Podman) or host.docker.internal (Docker).
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 bin=$(cd "${SACI_BIN:-target/debug}" && pwd)
 image=${IMAGE:-localhost/saci-worker:latest}
 runtime=${RUNTIME:-$(command -v podman >/dev/null 2>&1 && echo podman || echo docker)}
+case "$(uname -s)" in
+  Linux) network=${NETWORK:-host} ;;
+  *) network=${NETWORK:-bridge} ;;
+esac
 work=${WORK:-$(mktemp -d -t saci-walkthrough.XXXXXX)}
 mkdir -p "$work"
 export SACI_BACKEND_URL=http://127.0.0.1:18080
@@ -28,7 +39,7 @@ fail() { printf '\nwalkthrough failed: %s\n' "$*" >&2; exit 1; }
 saci() { "$bin/saci" "$@"; }
 
 cleanup() {
-  for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done
+  for pid in ${pids[@]+"${pids[@]}"}; do kill "$pid" 2>/dev/null || true; done
   wait 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -67,7 +78,18 @@ for program in curl jq; do
 done
 "$runtime" image inspect "$image" >/dev/null 2>&1 || fail "image $image is missing; run: make image"
 echo "binaries: $bin"
+case "$network" in
+  host) worker_host=127.0.0.1 ;;
+  bridge)
+    [ "$(uname -s)" != Linux ] || fail "NETWORK=bridge on Linux needs the backend on a non-loopback address; see docs/launchers.md#networking"
+    case "$runtime" in
+      podman) worker_host=host.containers.internal ;;
+      *) worker_host=host.docker.internal ;;
+    esac ;;
+  *) fail "NETWORK must be host or bridge, not $network" ;;
+esac
 echo "runtime:  $runtime, image $image"
+echo "network:  $network (workers reach this machine as $worker_host)"
 echo "work dir: $work"
 
 say "Preparing the working directory"
@@ -75,6 +97,13 @@ cp "$here/playbook.json" "$work/"
 cp -r "$here/plans" "$work/"
 sed -e "s#image: localhost/saci-worker:latest#image: $image#" \
     -e "s#runtime: auto #runtime: $runtime #" "$here/saci.yaml" >"$work/saci.yaml"
+if [ "$network" = bridge ]; then
+  # Workers on the bridge: drop host networking and point the backend, model
+  # and service URLs at the host alias.
+  sed -e '/^  network: host$/d' \
+      -e "s#http://127.0.0.1:#http://$worker_host:#" "$work/saci.yaml" >"$work/saci.bridge.yaml"
+  mv "$work/saci.bridge.yaml" "$work/saci.yaml"
+fi
 
 say "Starting the orders service and the scripted model"
 "$bin/saci-fake-target" --listen 127.0.0.1:18081 >>"$work/target.log" 2>&1 &

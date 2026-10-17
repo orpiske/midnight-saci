@@ -20,7 +20,7 @@ by hand.
 
 | Requirement | Why | Check |
 | --- | --- | --- |
-| Linux, x86_64 or arm64 | Workers share the host's network (`worker.network: host`) | |
+| Linux, or macOS with Podman machine or Docker Desktop; x86_64 or arm64 | Linux workers share the host's network; on macOS they reach it through the runtime's host alias | |
 | Rust toolchain (see `rust-toolchain.toml`) | Builds `saci`, the worker and the fixtures | `cargo --version` |
 | Podman (rootless works) or Docker Engine | Runs the worker containers | `podman version` or `docker version` |
 | `curl`, `jq` | The script uses them to wait and to read run IDs | `curl --version`, `jq --version` |
@@ -31,11 +31,16 @@ the scripted model needs no API key. The worker image already includes the
 utilities the plans use (`sleep`, a POSIX shell). See
 [adding utilities](worker.md#adding-utilities) for your own plans.
 
-On macOS or Windows (Docker Desktop, Podman machine), host networking is
-limited. Use the bridge setup in [launchers](launchers.md#networking)
-instead, with `host.docker.internal` or `host.containers.internal` in
-`worker_url`, `llm.base_url` and `SERVICE_URL`. The walkthrough script
-assumes Linux.
+On macOS (Podman machine or Docker Desktop), containers run in a virtual
+machine, so `127.0.0.1` inside a worker is that machine, not your Mac. The
+script detects this (`NETWORK=bridge`, the default outside Linux). It drops
+`worker.network: host` and points `worker_url`, `llm.base_url` and
+`SERVICE_URL` at the runtime's host alias: `host.containers.internal` for
+Podman, `host.docker.internal` for Docker. Both runtimes forward the alias
+to your Mac's loopback, so the backend, model and orders service stay on
+`127.0.0.1`. CI runs the walkthrough on Linux only; the macOS setup is not
+tested there. To configure bridged workers by hand, see
+[launchers](launchers.md#networking).
 
 ## Build
 
@@ -236,6 +241,6 @@ to your account, and their spending is managed there.
 | Symptom | Cause |
 | --- | --- |
 | `the worker could not be launched: no usable container runtime` | Podman or Docker is not on the backend's `PATH`, or the Docker daemon is not running |
-| Run ends `error` with a connection error to `127.0.0.1:18080` | The worker is not on the host network; check `worker.network: host` |
+| Run ends `error` with a connection error to `127.0.0.1:18080`, or the worker log repeats `backend unreachable; retrying` | The worker cannot reach the backend. On Linux, check `worker.network: host`. On macOS, use the host alias in `worker_url` (the script does this unless `NETWORK=host`) |
 | Run ends `error` with `the playbook has no entry for unit ...` | You changed a unit title; add it to `playbook.json` |
 | `address already in use` | Another process uses port 18080, 18081 or 11435; change the ports in `saci.yaml` and on the command lines |
