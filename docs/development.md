@@ -30,6 +30,7 @@ versions. Use `cargo build --locked` to verify that.
 | `saci-core` | library | Contracts shared by every process: plan model, parser and bundles, YAML configuration, run/step/attempt/evidence/event/report types, outcome aggregation, redaction. No network, process or database access. |
 | `saci-worker` | library + `saci-worker` binary | Per-run execution: the agent-library integration, shell, HTTP and MCP tools, sequential plan execution, and reporting events to the backend. |
 | `saci-backend` | library + `saci-backend` binary | The REST API, SQLite run records, worker launchers (Podman/Docker and Kubernetes Jobs), supervision and outcome actions. |
+| `saci-testkit` | library (test only) | Controlled fixtures: a scripted OpenAI-compatible model server. |
 | `saci-cli` | `saci` binary | Offline authoring (`saci new test-plan`), backend startup, and run submission, progress, report and cancellation commands. |
 
 Dependencies only point "down": `saci-cli` → `saci-backend`/`saci-core`,

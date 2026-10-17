@@ -1,0 +1,58 @@
+# Agent library decision
+
+**Decision:** Saci uses [Rig](https://rig.rs/) `rig = "=0.44.0"` (the facade
+crate over `rig-core`, `rig-agent`, `rig-reqwest` and `rig-rmcp`) for model
+interaction, conversation state and tool-call orchestration. Rig was the
+first candidate in the plan and satisfies the execution contract with the
+small adapters listed below, so no alternative was needed.
+
+The version is pinned exactly because Rig's API changes substantially
+between minor releases (0.44 is a redesign; older documentation and examples
+do not apply). Upgrades must keep
+`crates/saci-worker/tests/rig_compatibility.rs` passing.
+
+Enabled features: `agent`, `reqwest`, `rustls` (and `rmcp` once MCP tools
+are added). Default features, derive macros, vector stores and websocket
+support are off. Rig's MSRV is 1.95, below Saci's 1.96.
+
+## Contract checks
+
+`crates/saci-worker/tests/rig_compatibility.rs` runs Rig against
+`saci-testkit`'s scripted OpenAI-compatible server and verifies:
+
+| Requirement | How Rig meets it |
+|-------------|------------------|
+| Custom OpenAI-compatible base URL | `OpenAIConfig::with_base_url`. The request URL is the base with trailing `/` removed plus `/chat/completions`; Rig never inserts `/v1`, so prefixes such as `/v1` and `/api/v1` come from configuration. |
+| Explicit Chat Completions | `client.chat(model)` always targets `/chat/completions`. (`client.completion(model)` with the default OpenAI dialect targets the Responses API, so Saci never uses it.) Saci uses a `Dialect::gateway`, whose default route is Chat Completions as well. |
+| Optional authentication | `Auth::OptionalBearer` with an empty key sends no `Authorization` header; a key sends `Bearer <key>`. |
+| Tool exchange | Runtime-defined `DynamicTool`s with JSON-schema parameters. Assistant `tool_calls` and the `role: tool` results carry matching `tool_call_id`s. |
+| Observation hooks | `AgentHook::on_dispatch` sees every model request and tool call (name, call ID, raw arguments); `on_outcome` sees every model response and tool result; `on_invalid_tool_call` sees unknown tools and malformed arguments. |
+| Sequential tools | Tool concurrency defaults to 1: calls in one assistant message run one at a time, in order. Saci never raises it. |
+| Limits | `max_turns(n)` bounds model calls per run (`PromptError::MaxTurns`). Hooks enforce tool-call limits by returning `DispatchAction::stop`, which ends the run (`PromptError::Cancelled`) without another model request. |
+| Cancellation | Dropping the run future cancels the in-flight request and tool; Saci selects on its own cancellation token. |
+| Deadlines | The `reqwest` client timeout bounds each model request; `tokio::time::timeout` bounds attempts and runs. |
+| No hidden retries | Rig does not retry provider requests: a 429, 500, timeout or malformed body produces exactly one request. Provider status, body and a `retryable` hint are available on the error. |
+| Fixture-based testing | `saci-testkit::FakeModel` checks the real wire format without a paid API. |
+| MCP | `rig-rmcp` turns `rmcp` client tools into Rig tools and depends on `rmcp` 2.x (2.2). Saci therefore uses `rmcp` 2.x through Rig's re-export rather than the newer 3.x line, so there is a single SDK version. |
+
+## Thin adapters
+
+These are the only places Saci adds behavior Rig does not provide:
+
+1. **Default turn limit.** Rig's default `max_turns` is 1, which fails any
+   run that calls a tool. Saci always sets it from `model_calls_per_step`.
+2. **Cancellation token.** Rig has no token API; Saci races the run future
+   against its own token with `tokio::select!`, and hooks stop runs from the
+   inside.
+3. **Bounded transport retries.** Rig has none. Saci retries only model
+   requests that failed before a response was received, a bounded number of
+   times, and never replays tool calls (see the LLM connection code).
+4. **Unknown tool names.** By default Rig fails the run on an unknown tool.
+   Saci's hook converts that into a rejected-call observation and feedback
+   to the model, counted against the tool-call limit. Rig then also skips
+   the valid sibling calls of that assistant message and tells the model so;
+   Saci accepts that, because the model is asked to retry anyway.
+5. **System prompt shape.** Rig sends the system message as an array of
+   content parts, as the OpenAI API allows. This has not been checked
+   against every OpenAI-compatible server; one that only accepts string
+   content will reject Saci's requests with a provider error.
