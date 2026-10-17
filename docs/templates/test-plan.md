@@ -9,19 +9,25 @@ Adapt this plan to describe the behavior you want to test.
 
 - The environment provides `SERVICE_URL`, the base URL of the service.
 - The service exposes a `/health` endpoint.
-- Required credentials are supplied through the environment.
+- `curl` is available to the worker (it is in the worker image).
 
 ## Phase 1: Service availability
 
 ### Test 1.1: Check service health
 
-Use the HTTP tool to send a GET request to `SERVICE_URL` followed by `/health`.
-Use the authentication configured for that service, if required.
+Request the health endpoint and print the response status:
+
+```bash
+curl -sS -w '\nstatus %{http_code}\n' "$SERVICE_URL/health"
+```
 
 **Expected result:**
 
-- The response status is 200.
+- The output ends with `status 200`.
 
 **Verification:**
 
-Record the response status and relevant response content, with secrets redacted.
+Record the command's output and exit code. If the service needs
+credentials, configure them as environment secrets: the shell sees each as
+`$NAME`, for example `-H "Authorization: Bearer $SERVICE_TOKEN"`, and
+evidence shows it redacted.

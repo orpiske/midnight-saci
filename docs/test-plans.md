@@ -58,7 +58,7 @@ The parser (`saci_core::parser`) applies these rules exactly:
 
 ## Actions and expected results
 
-Write actions in prose, fenced commands, or both. Prose can direct the worker to use its HTTP tool or an enabled MCP tool. Use a fenced block with a shell language such as `bash` when specifying commands. Explicit author-supplied commands are authoritative; the agent must not silently replace a failing command with a different test.
+Prefer the exact command, the way you would run it by hand: a fenced `curl` reproduces the step outside Saci, and its output is the evidence. Write actions in prose, fenced commands, or both. Prose can direct the worker to use its HTTP tool or an enabled MCP tool. Use a fenced block with a shell language such as `bash` when specifying commands. Explicit author-supplied commands are authoritative; the agent must not silently replace a failing command with a different test.
 
 For example, inside a test:
 
