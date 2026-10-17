@@ -31,8 +31,9 @@ Complete examples:
 | `network` | none | Local runtimes: container network passed as `--network`; see [networking](launchers.md#networking). |
 | `add_hosts` | `[]` | Local runtimes: `name:address` entries passed as `--add-host`. |
 | `kubernetes.namespace` | backend namespace | Namespace for worker Jobs. |
-| `kubernetes.service_account` | namespace default | Service account of worker Jobs (separate from the backend's). |
+| `kubernetes.service_account` | none | Service account of worker Jobs, separate from the backend's. Without it, workers run as the namespace's `default` account with no API token mounted. |
 | `kubernetes.image_pull_policy` | cluster default | Image pull policy of worker Jobs. |
+| `kubernetes.api_url` | none | API URL for a backend outside the cluster, such as `kubectl proxy`; inside a pod the backend uses its service account. See [Kubernetes Jobs](kubernetes.md#connecting-to-the-api). |
 
 ## `llm`
 

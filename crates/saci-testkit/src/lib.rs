@@ -8,6 +8,7 @@
 //! [`fake_target`] are the walkthrough's model and system under test, built
 //! as `saci-fake-model` and `saci-fake-target`.
 
+pub mod fake_kubernetes;
 pub mod fake_mcp;
 mod fake_model;
 pub mod fake_target;
