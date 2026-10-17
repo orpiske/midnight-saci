@@ -1,5 +1,6 @@
 //! The REST API under `/api/v1` (see `docs/api.md` and `docs/openapi.yaml`).
 
+mod actions;
 mod error;
 mod runs;
 mod submit;
@@ -142,6 +143,7 @@ pub fn router(backend: Backend, auth: ClientAuth) -> Router {
         .route("/runs/{run_id}/report", get(runs::report))
         .route("/runs/{run_id}/evidence/{evidence_id}", get(runs::evidence))
         .route("/runs/{run_id}/cancellation", post(runs::cancel))
+        .route("/runs/{run_id}/actions", get(actions::list))
         .route_layer(middleware::from_fn_with_state(Arc::new(auth), authorize));
     let workers = Router::new()
         .route(

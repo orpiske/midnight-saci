@@ -174,3 +174,20 @@ fn values_reach_the_configuration() {
         "existing Secrets are used"
     );
 }
+
+#[test]
+fn outcome_actions_reach_the_configuration() {
+    let actions = r#"config.actions={"servers":{"tickets":{"url":"http://tickets:9090/mcp"}},"definitions":{"open-ticket":{"server":"tickets","tool":"create_issue","on":["failed"]}}}"#;
+    let args = [
+        "--set-json",
+        actions,
+        "--set-json",
+        r#"config.policies={"nightly":{"actions":["open-ticket"]}}"#,
+    ];
+    let Some(documents) = render(&args) else {
+        return;
+    };
+    let config = config(&documents);
+    let selected = config.policy_actions("nightly").unwrap();
+    assert_eq!(selected["open-ticket"].tool, "create_issue");
+}

@@ -1,0 +1,61 @@
+# Outcome actions on saci-fake-mcp for tests/outcome_actions.rs: a ticket
+# on failure, one needing approval, one whose tool fails, one whose
+# arguments do not fit the schema, and one on success. @SERVER@ and
+# @RECORD@ are replaced by the test.
+llm:
+  base_url: http://model:11434/v1
+  model: test-model
+environments:
+  local:
+    parameters:
+      URL: http://service
+    secrets:
+      TARGET_TOKEN:
+        env: TARGET_TOKEN_SOURCE
+actions:
+  servers:
+    tickets:
+      command: @SERVER@
+      env:
+        FAKE_MCP_RECORD: @RECORD@
+        TICKET_TOKEN: ${TICKETS_TOKEN}
+  secrets:
+    TICKETS_TOKEN: { env: SACI_TICKETS_TOKEN }
+  definitions:
+    open-ticket:
+      server: tickets
+      tool: record
+      on: [failed, error]
+      arguments:
+        title: '{{plan.title}}: {{run.outcome}}'
+        body: |
+          Run {{run.id}} in {{environment}}: {{run.counts}}
+          {{failures}}
+          {{evidence}}
+    escalate:
+      server: tickets
+      tool: record
+      on: [failed]
+      approval: required
+      arguments:
+        title: 'Escalate {{run.id}}'
+    broken-tool:
+      server: tickets
+      tool: fail
+      on: [failed]
+    wrong-arguments:
+      server: tickets
+      tool: record
+      on: [failed]
+      arguments:
+        body: no title
+    on-pass:
+      server: tickets
+      tool: record
+      on: [passed]
+      arguments:
+        title: passed
+policies:
+  default:
+    actions: [open-ticket, escalate, broken-tool, wrong-arguments, on-pass]
+  quiet: {}

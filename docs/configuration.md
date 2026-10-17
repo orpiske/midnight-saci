@@ -97,3 +97,10 @@ when not configured.
 | `on_failure` | `stop` | After a `failed`, `blocked`, `inconclusive` or `error` unit: `stop` (remaining units are skipped) or `continue`. |
 | `retry.max_attempts` | `1` | Attempts per unit including the first. |
 | `retry.on` | `[]` | Outcomes that permit another attempt (`failed`, `blocked`, `inconclusive`, `error`). Required when `max_attempts` is above 1. A retry is a new attempt, not a rollback. |
+| `actions` | `[]` | Names under `actions.definitions` considered when a run under this policy finishes. See [outcome actions](actions.md). |
+
+## `actions`
+
+Outcome actions: MCP tool calls the backend makes after a run's report is
+final, with `servers`, `secrets` and `definitions`. Workers never receive
+them. See [outcome actions](actions.md).

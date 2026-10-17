@@ -7,6 +7,7 @@
 use std::time::Duration;
 
 use reqwest::Method;
+use saci_core::action::ActionList;
 use saci_core::api::{EventPage, Page, RunSummary};
 use saci_core::ids::RunId;
 use saci_core::run::RunReport;
@@ -102,7 +103,12 @@ pub async fn report(client: &Client, args: &RunArg) -> Result<u8, CliError> {
     if args.json {
         print_json(&report)?;
     } else {
-        print!("{}", render::report(&report));
+        let actions: ActionList = client.get(&format!("/runs/{}/actions", args.run)).await?;
+        print!(
+            "{}{}",
+            render::report(&report),
+            render::actions(&actions.items)
+        );
     }
     Ok(match report.outcome {
         Some(outcome) if report.lifecycle == Lifecycle::Finished => exit::for_outcome(outcome),

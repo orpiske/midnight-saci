@@ -3,6 +3,7 @@
 
 use std::fmt::Write as _;
 
+use saci_core::action::{ActionRecord, ActionState};
 use saci_core::api::RunSummary;
 use saci_core::event::{EventKind, RunEvent};
 use saci_core::evidence::{Evidence, EvidenceRecord};
@@ -102,6 +103,35 @@ fn first_line(text: &str) -> String {
     } else {
         first.to_owned()
     }
+}
+
+/// A run's outcome actions, one line each, with what delivery returned.
+/// Delivery is reported apart from the run's outcome, which it never changes.
+#[must_use]
+pub fn actions(actions: &[ActionRecord]) -> String {
+    if actions.is_empty() {
+        return String::new();
+    }
+    let mut text = String::from("\nActions (delivery does not change the outcome):\n");
+    for action in actions {
+        let state = match action.state {
+            ActionState::PendingApproval => "pending approval",
+            ActionState::Queued => "queued",
+            ActionState::Executing => "executing",
+            ActionState::Completed => "completed",
+            ActionState::Error => "error",
+        };
+        let _ = write!(
+            text,
+            "  {}: {state} ({}/{})",
+            action.name, action.server, action.tool
+        );
+        if let Some(detail) = action.error.as_deref().or(action.result.as_deref()) {
+            let _ = write!(text, ": {}", first_line(detail));
+        }
+        text.push('\n');
+    }
+    text
 }
 
 /// A run's state in a few lines.

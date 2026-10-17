@@ -99,6 +99,15 @@ lifecycle reaches `finished`; the outcome is then `cancelled` unless the run
 had already ended for another reason. Cancelling a finished run returns
 `409 run_finished`.
 
+## Outcome actions
+
+`GET /api/v1/runs/{run_id}/actions` lists the run's outcome actions with
+their state (`pending_approval`, `queued`, `executing`, `completed`,
+`error`), the exact arguments, their digest, the attempts, and the result
+or error. The list is empty until the run finishes, and when no action was
+triggered. Delivery never changes the run's outcome. See
+[outcome actions](actions.md).
+
 ## Worker reporting protocol
 
 A worker is started with the backend URL, its run ID and its run-scoped

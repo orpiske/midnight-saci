@@ -8,13 +8,12 @@
 //! protocol failure is recorded separately, as a protocol error.
 
 use std::collections::BTreeSet;
-use std::fmt::Write as _;
 use std::sync::Arc;
 use std::time::Instant;
 
 use rig::message::ToolName;
 use rig::tool::{DynamicTool, ToolExecutionError, ToolOutput};
-use rmcp::model::{CallToolRequestParams, CallToolResult, ContentBlock, Tool};
+use rmcp::model::{CallToolRequestParams, CallToolResult, Tool};
 use rmcp::{Peer, RoleClient};
 use saci_core::evidence::{CapturedText, EvidenceRecord, McpEvidence};
 use saci_core::redaction::{Redactor, capture_text};
@@ -162,7 +161,7 @@ async fn call(
         Ok(result) => {
             evidence.is_error = result.is_error.unwrap_or(false);
             let limit = state.limits.output_limit_bytes;
-            evidence.result = capture_text(&result_text(&result), limit, redactor);
+            evidence.result = capture_text(&saci_mcp::result_text(&result), limit, redactor);
         }
         Err(error) => evidence.protocol_error = Some(error),
     }
@@ -207,31 +206,6 @@ async fn request(
         )),
         () = state.cancel.cancelled() => Err("the call was cancelled".to_owned()),
     }
-}
-
-/// The result's content as text: text blocks as written, other blocks
-/// described, and structured content as JSON.
-fn result_text(result: &CallToolResult) -> String {
-    let mut text = String::new();
-    for block in &result.content {
-        if !text.is_empty() {
-            text.push('\n');
-        }
-        match block {
-            ContentBlock::Text(content) => text.push_str(&content.text),
-            other => {
-                let kind = serde_json::to_value(other)
-                    .ok()
-                    .and_then(|value| value["type"].as_str().map(str::to_owned))
-                    .unwrap_or_else(|| "non-text".to_owned());
-                let _ = write!(text, "[{kind} content, not shown]");
-            }
-        }
-    }
-    if let Some(structured) = &result.structured_content {
-        let _ = write!(text, "\nstructured content: {structured}");
-    }
-    text
 }
 
 #[cfg(test)]

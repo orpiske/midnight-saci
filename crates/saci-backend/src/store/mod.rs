@@ -6,12 +6,15 @@
 //! the acknowledgment always agree. Every database call runs on a blocking
 //! thread, off the async runtime.
 
+mod actions;
 mod schema;
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use saci_core::action::ActionDefinition;
 use saci_core::api::{Page, RunSummary};
 use saci_core::event::{EventKind, RunEvent};
 use saci_core::evidence::Evidence;
@@ -23,6 +26,7 @@ use saci_core::status::Lifecycle;
 use serde::de::DeserializeOwned;
 use time::OffsetDateTime;
 
+pub use actions::{Delivery, digest};
 pub use schema::CURRENT as SCHEMA_VERSION;
 
 /// Database file name inside the data directory.
@@ -111,6 +115,8 @@ pub struct NewRun {
     pub report: RunReport,
     /// Client idempotency key and a hash of the request it came with.
     pub idempotency: Option<(String, String)>,
+    /// The policy's outcome actions, by name, as configured at acceptance.
+    pub actions: BTreeMap<String, ActionDefinition>,
 }
 
 /// Result of [`Store::create_run`].
@@ -457,8 +463,8 @@ async fn blocking<T: Send + 'static>(
 fn insert(transaction: &Transaction<'_>, run: &NewRun) -> Result<(), StoreError> {
     let (key, hash) = run.idempotency.clone().unzip();
     transaction.execute(
-        "INSERT INTO runs (id, created_at, idempotency_key, request_hash, spec, report, finished, last_seq)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO runs (id, created_at, idempotency_key, request_hash, spec, report, finished, last_seq, actions)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             run.spec.run_id.as_str(),
             format_time(run.spec.created_at)?,
@@ -468,6 +474,7 @@ fn insert(transaction: &Transaction<'_>, run: &NewRun) -> Result<(), StoreError>
             serde_json::to_string(&run.report)?,
             run.report.lifecycle == Lifecycle::Finished,
             int(run.report.last_seq),
+            serde_json::to_string(&run.actions)?,
         ],
     )?;
     Ok(())
@@ -495,6 +502,9 @@ fn store_event(
     Ok(())
 }
 
+/// Saves the report. When it is final, the triggered outcome actions are
+/// recorded in the same transaction, so an action exists only once the
+/// report it reports on is durable, and only once per run and action.
 fn save_report(
     transaction: &Transaction<'_>,
     id: &str,
@@ -509,6 +519,9 @@ fn save_report(
             int(report.last_seq)
         ],
     )?;
+    if report.lifecycle == Lifecycle::Finished {
+        actions::enqueue(transaction, id, report)?;
+    }
     Ok(())
 }
 

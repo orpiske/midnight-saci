@@ -108,7 +108,7 @@ the backend, add your own Ingress or Route to the `saci` Service on port
 | `llm.apiKey.existingSecret`, `.key` | none, `api-key` | Secret with the provider key, read by worker pods only. |
 | `worker.image` | `image` | Worker image, for example a derived image with more utilities. |
 | `worker.serviceAccount.create`, `.name` | `true`, `<release>-worker` | The workers' identity; it has no permissions unless you bind some. |
-| `config.environments`, `.limits`, `.policies`, `.mcp_servers` | `default: {}` | Passed to `saci.yaml` as written. |
+| `config.environments`, `.limits`, `.policies`, `.mcp_servers`, `.actions` | `default: {}` | Passed to `saci.yaml` as written. Action servers are called from the backend pod ([outcome actions](actions.md)). |
 | `persistence.existingClaim` | none | Use this claim instead of creating one. |
 | `persistence.storageClass`, `.size`, `.accessMode` | cluster default, `1Gi`, `ReadWriteOnce` | The created claim. |
 | `backend.serviceAccount.name` | `<release>` | The backend's identity, bound to the launcher Role. |

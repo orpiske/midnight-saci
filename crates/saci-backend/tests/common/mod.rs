@@ -83,9 +83,14 @@ pub struct Answer {
 
 impl TestBackend {
     pub async fn start(auth: ClientAuth) -> Self {
+        Self::start_with(auth, CONFIG).await
+    }
+
+    /// A backend with the configuration `yaml`.
+    pub async fn start_with(auth: ClientAuth, yaml: &str) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let store = Store::open(dir.path()).await.unwrap();
-        let config = Config::from_yaml(CONFIG, "test.yaml").unwrap();
+        let config = Config::from_yaml(yaml, "test.yaml").unwrap_or_else(|e| panic!("{e}"));
         let supervisor = Arc::new(Recording::default());
         let backend = Backend::new(store, config, supervisor.clone());
         let app = saci_backend::api::router(backend.clone(), auth);
@@ -137,7 +142,12 @@ impl TestBackend {
 
     /// Submits the test plan and returns the new run's ID.
     pub async fn submit(&self) -> RunId {
-        let answer = self.post("/api/v1/runs", &submission(PLAN)).await;
+        self.submit_plan(PLAN).await
+    }
+
+    /// Submits `plan` and returns the new run's ID.
+    pub async fn submit_plan(&self, plan: &str) -> RunId {
+        let answer = self.post("/api/v1/runs", &submission(plan)).await;
         assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.body);
         RunId::parse(answer.body["id"].as_str().unwrap()).unwrap()
     }

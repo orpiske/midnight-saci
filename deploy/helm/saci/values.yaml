@@ -45,6 +45,9 @@ config:
     default: {}
   policies: {}
   mcp_servers: {}
+  # Outcome actions, called from the backend pod (docs/actions.md). Pass
+  # their secrets to the backend with backend.extraEnv.
+  actions: {}
 
 # SQLite storage. The backend is the only writer: the chart runs one
 # replica and replaces it (Recreate) on upgrades.

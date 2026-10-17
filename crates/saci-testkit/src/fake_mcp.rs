@@ -1,8 +1,15 @@
 //! A controlled MCP server for tests and the local walkthrough.
 //!
 //! Tools: `echo` (returns its `text`), `fail` (a tool-level error result),
-//! `sleep` (waits `seconds`), and `env` (returns the value of environment
-//! variable `name`, to check what the server process received).
+//! `sleep` (waits `seconds`), `env` (returns the value of environment
+//! variable `name`, to check what the server process received), and
+//! `record`, a stand-in for an external action such as creating a ticket.
+//!
+//! `record` appends one JSON line per call to the file named by
+//! `FAKE_MCP_RECORD`: the arguments and the names of the server's
+//! environment variables. A call whose `key` was already recorded is not
+//! recorded again (an idempotency key). With `pause`, it waits that many
+//! seconds after recording, to simulate a lost response.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -66,6 +73,7 @@ impl ServerHandler for FakeMcp {
             ),
             tool("sleep", "Wait for the given number of seconds", &seconds),
             tool("env", "Return an environment variable of the server", &name),
+            tool("record", "Record an external action", &record_schema()),
         ]))
     }
 
@@ -95,12 +103,55 @@ impl ServerHandler for FakeMcp {
                 let value = std::env::var(string_arg(arguments, "name")).unwrap_or_default();
                 Ok(CallToolResult::success(vec![Content::text(value)]))
             }
+            "record" => Ok(record(arguments).await),
             other => Err(ErrorData::invalid_params(
                 format!("no tool `{other}`"),
                 None,
             )),
         }
     }
+}
+
+fn record_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "body": {"type": "string"},
+            "key": {"type": "string"},
+            "pause": {"type": "number"}
+        },
+        "required": ["title"]
+    })
+}
+
+async fn record(arguments: Option<&Map<String, Value>>) -> CallToolResult {
+    let Ok(path) = std::env::var("FAKE_MCP_RECORD") else {
+        return CallToolResult::error(vec![Content::text("FAKE_MCP_RECORD is not set")]);
+    };
+    let arguments = arguments.cloned().unwrap_or_default();
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let key = arguments.get("key").and_then(Value::as_str);
+    let duplicate = key.is_some_and(|key| {
+        existing
+            .lines()
+            .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+            .any(|line| line["arguments"]["key"] == key)
+    });
+    if duplicate {
+        return CallToolResult::success(vec![Content::text("duplicate of an earlier call")]);
+    }
+    let mut env: Vec<String> = std::env::vars().map(|(name, _)| name).collect();
+    env.sort();
+    let line = json!({"arguments": arguments, "env": env});
+    let count = existing.lines().count() + 1;
+    if let Err(error) = std::fs::write(&path, format!("{existing}{line}\n")) {
+        return CallToolResult::error(vec![Content::text(format!("cannot record: {error}"))]);
+    }
+    if let Some(pause) = arguments.get("pause").and_then(Value::as_f64) {
+        tokio::time::sleep(Duration::from_secs_f64(pause.clamp(0.0, 600.0))).await;
+    }
+    CallToolResult::success(vec![Content::text(format!("recorded action {count}"))])
 }
 
 /// A Streamable HTTP router serving [`FakeMcp`] at `/mcp`. When `token` is

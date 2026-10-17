@@ -5909,6 +5909,7 @@ dependencies = [
  "reqwest 0.13.5",
  "rusqlite",
  "saci-core",
+ "saci-mcp",
  "saci-testkit",
  "serde",
  "serde_json",
@@ -5960,6 +5961,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "saci-mcp"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "reqwest 0.13.5",
+ "rmcp",
+ "saci-core",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "saci-testkit"
 version = "0.1.0"
 dependencies = [
@@ -5984,6 +5998,7 @@ dependencies = [
  "rmcp",
  "saci-backend",
  "saci-core",
+ "saci-mcp",
  "saci-testkit",
  "serde",
  "serde_json",

@@ -74,7 +74,11 @@ supports are those of that release. It is the same major version Rig 0.44's
 `rmcp` bridge (`rig-rmcp`) depends on, and Cargo resolves both to one copy;
 upgrading one requires upgrading the other.
 
-Enabled `rmcp` features in the worker:
+The connection code lives in the `saci-mcp` crate. The worker uses it for
+step tools, and the backend for [outcome actions](actions.md), each with
+its own servers and credentials.
+
+Enabled `rmcp` features:
 
 | Feature | Provides |
 |---------|----------|
@@ -87,7 +91,9 @@ The legacy HTTP+SSE transport, WebSocket and OAuth flows are not enabled.
 ## Testing with the fake server
 
 `saci-fake-mcp` (in `crates/saci-testkit`) is a controlled MCP server with
-`echo`, `fail`, `sleep` and `env` tools. It speaks stdio by default, or
+`echo`, `fail`, `sleep` and `env` tools, and `record`, which stands in for an
+external action: it appends each call to the file named by
+`FAKE_MCP_RECORD`. It speaks stdio by default, or
 Streamable HTTP with `saci-fake-mcp --http 127.0.0.1:9090` (endpoint `/mcp`,
 requiring `Authorization: Bearer $FAKE_MCP_TOKEN` when that variable is set).
 

@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/saci-core",
+    "crates/saci-mcp",
     "crates/saci-worker",
     "crates/saci-backend",
     "crates/saci-cli",
@@ -43,6 +44,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.28", features = ["v4", "serde"] }
 
 saci-core = { version = "0.1.0", path = "crates/saci-core" }
+saci-mcp = { version = "0.1.0", path = "crates/saci-mcp" }
 saci-worker = { version = "0.1.0", path = "crates/saci-worker" }
 saci-backend = { version = "0.1.0", path = "crates/saci-backend" }
 saci-testkit = { version = "0.1.0", path = "crates/saci-testkit" }
