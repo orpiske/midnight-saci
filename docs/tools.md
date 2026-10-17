@@ -74,7 +74,10 @@ refused, DNS or TLS failure, deadline, cancellation) has a
 `transport_error`. Credential headers and secret values are redacted. The
 response body keeps at most `limits.output_limit_bytes`; reading stops
 there, `truncated` is set, and `total_bytes` is the `Content-Length` when
-the server sent one, otherwise the bytes read before stopping.
+the server sent one, otherwise the bytes read before stopping. When the
+status and headers arrived but the body could not be read to its end (the
+connection broke, the deadline passed, the run was cancelled), the response
+is kept with the part that was read and `body_error` says why.
 
 ### Redirects and credentials
 

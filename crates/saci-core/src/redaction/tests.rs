@@ -78,6 +78,7 @@ fn http_evidence_is_redacted() {
             status: 200,
             headers: BTreeMap::from([("x-echo".into(), "s3cr3t".into())]),
             body: CapturedText::complete("s3cr3t-token"),
+            body_error: Some("reset after s3cr3t".into()),
         }),
         transport_error: Some("failed with s3cr3t".into()),
     });

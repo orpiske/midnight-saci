@@ -78,6 +78,9 @@ fn http(http: &HttpEvidence) -> String {
         let _ = writeln!(text, "  {name}: {value}");
     }
     let _ = write!(text, "body:\n{}", response.body.rendered());
+    if let Some(error) = &response.body_error {
+        let _ = write!(text, "\n[body incomplete: {error}]");
+    }
     text
 }
 

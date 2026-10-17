@@ -168,6 +168,9 @@ impl Redactor {
         if let Some(response) = &mut http.response {
             self.redact_headers(&mut response.headers);
             self.redact_captured(&mut response.body);
+            if let Some(error) = &mut response.body_error {
+                self.redact_string(error);
+            }
         }
         if let Some(error) = &mut http.transport_error {
             self.redact_string(error);
