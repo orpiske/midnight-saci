@@ -6,7 +6,9 @@ use std::collections::VecDeque;
 use std::time::Duration;
 
 use rig::rig_reqwest::reqwest::{self, Method, StatusCode};
-use saci_core::api::{API_BASE, ErrorBody, ErrorCode, EventAck, EventBatch, WorkerControl};
+use saci_core::api::{
+    API_BASE, ErrorBody, ErrorCode, EventAck, EventBatch, MAX_EVENT_BATCH_BYTES, WorkerControl,
+};
 use saci_core::event::RunEvent;
 use saci_core::ids::RunId;
 use saci_core::run::{ErrorKind, ExecutionError};
@@ -19,6 +21,9 @@ use crate::llm::Backoff;
 
 /// Events sent in one request at most.
 const BATCH: usize = 100;
+
+/// Room left in a request for the batch's own JSON around its events.
+const ENVELOPE: usize = 64;
 
 /// How long the backend may stay unreachable before delivery gives up.
 const UNREACHABLE: Duration = Duration::from_secs(300);
@@ -249,8 +254,7 @@ pub async fn deliver(
         if !fill(&mut events, &mut pending).await {
             return Ok(acknowledged);
         }
-        let batch: Vec<RunEvent> = pending.iter().take(BATCH).cloned().collect();
-        match client.send(batch).await {
+        match client.send(next_batch(&mut pending)?).await {
             Err(ReportError::Gap(seq)) if pending.front().is_some_and(|e| e.seq > seq + 1) => {
                 // The backend lacks events this worker no longer holds.
                 return Err(ReportError::Gap(seq).into_execution());
@@ -264,6 +268,51 @@ pub async fn deliver(
             Err(rejected) => return Err(rejected.into_execution()),
         }
     }
+}
+
+/// Serialized size of `event` in a batch, with its separator.
+fn encoded_len(event: &RunEvent) -> usize {
+    serde_json::to_vec(event).map_or(usize::MAX, |bytes| bytes.len() + 1)
+}
+
+/// The leading events of `pending` that fit in one request: at most
+/// [`BATCH`] events and [`MAX_EVENT_BATCH_BYTES`] bytes. A first event too
+/// large on its own has its captured output cut until it fits.
+fn next_batch(pending: &mut VecDeque<RunEvent>) -> Result<Vec<RunEvent>, ExecutionError> {
+    let budget = MAX_EVENT_BATCH_BYTES - ENVELOPE;
+    if let Some(first) = pending.front_mut() {
+        fit(first, budget)?;
+    }
+    let mut size = 0;
+    let mut batch = Vec::new();
+    for event in pending.iter().take(BATCH) {
+        let bytes = encoded_len(event);
+        if !batch.is_empty() && size + bytes > budget {
+            break;
+        }
+        size += bytes;
+        batch.push(event.clone());
+    }
+    Ok(batch)
+}
+
+fn fit(event: &mut RunEvent, budget: usize) -> Result<(), ExecutionError> {
+    while encoded_len(event) > budget {
+        if !event.kind.shrink_evidence() {
+            return Err(ExecutionError::new(
+                ErrorKind::WorkerLost,
+                format!(
+                    "event {} is larger than the backend accepts ({MAX_EVENT_BATCH_BYTES} bytes)",
+                    event.seq
+                ),
+            ));
+        }
+        tracing::warn!(
+            seq = event.seq,
+            "observation too large to report; truncating its output"
+        );
+    }
+    Ok(())
 }
 
 /// Tops up `pending` to a batch, waiting for an event when it is empty.

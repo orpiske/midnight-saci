@@ -89,4 +89,13 @@ impl EventKind {
     pub const fn is_terminal(&self) -> bool {
         matches!(self, Self::RunFinished { .. })
     }
+
+    /// Halves the captured output an observation holds; returns false when
+    /// there is none left to drop. See [`EvidenceRecord::shrink`](crate::evidence::EvidenceRecord::shrink).
+    pub fn shrink_evidence(&mut self) -> bool {
+        match self {
+            Self::Observation { evidence } => evidence.record.shrink(),
+            _ => false,
+        }
+    }
 }
