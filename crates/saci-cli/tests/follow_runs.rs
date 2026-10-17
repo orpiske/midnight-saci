@@ -497,3 +497,36 @@ async fn unknown_runs_and_listing() {
         "{listed}"
     );
 }
+
+#[tokio::test]
+async fn following_a_finished_run_prints_every_page() {
+    let harness = Harness::start().await;
+    harness.emit(None, None, EventKind::RunStarted { model: "m".into() });
+    harness.emit(Some(0), Some(1), EventKind::AttemptStarted);
+    // More observations than one page of events holds.
+    for _ in 0..70 {
+        harness.observe(0);
+    }
+    let evidence = harness.observe(0);
+    let finished = EventKind::AttemptFinished {
+        outcome: Outcome::Passed,
+        assessment: Some(assessment(Outcome::Passed, evidence)),
+        error: None,
+    };
+    harness.emit(Some(0), Some(1), finished);
+    let passed = Outcome::Passed;
+    harness.emit(Some(0), None, EventKind::UnitFinished { outcome: passed });
+    harness.unit(1, Outcome::Failed);
+    harness.finish(Outcome::Failed, "1.2 failed");
+    harness.deliver().await;
+    let output = harness.saci(&["follow", &harness.run.to_string()]).await;
+    let printed: Vec<u64> = text(&output.stdout).lines().map(seq).collect();
+    let last = *printed.last().unwrap();
+    assert_eq!(
+        printed,
+        (1..=last).collect::<Vec<_>>(),
+        "{}",
+        text(&output.stderr)
+    );
+    assert!(last > 70, "{last}");
+}
