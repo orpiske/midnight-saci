@@ -53,6 +53,10 @@ impl saci_mcp::Projection for ActionCredentials {
         }
         out
     }
+
+    fn redactor(&self) -> &Redactor {
+        &self.redactor
+    }
 }
 
 fn credentials(

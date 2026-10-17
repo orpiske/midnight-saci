@@ -203,3 +203,66 @@ async fn one_failing_server_fails_the_whole_set() {
         error.message
     );
 }
+
+/// Captures what the worker logs while a test runs.
+#[derive(Clone, Default)]
+struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for Captured {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Captured {
+    /// The server task may log from any runtime thread, so the capture is
+    /// global; no other test in this file sets a subscriber.
+    fn global() -> Self {
+        let logs = Self::default();
+        let writer = logs.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(move || writer.clone())
+            .with_ansi(false)
+            .finish();
+        tracing::subscriber::set_global_default(subscriber).unwrap();
+        logs
+    }
+
+    fn text(&self) -> String {
+        String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
+    }
+}
+
+#[tokio::test]
+async fn server_stderr_is_logged_with_credentials_redacted() {
+    let logs = Captured::global();
+    let mut chatty = stdio("sh", None);
+    if let McpTransport::Stdio(stdio) = &mut chatty.transport {
+        stdio.args = vec![
+            "-c".into(),
+            "echo \"starting with $TOKEN\" >&2; sleep 30".into(),
+        ];
+    }
+    let credentials = credentials();
+    let error = connect("chatty", &chatty, &credentials, Duration::from_secs(1))
+        .await
+        .unwrap_err();
+    assert!(
+        error.message.contains("did not initialize"),
+        "{}",
+        error.message
+    );
+    let started = Instant::now();
+    while !logs.text().contains("starting with") && started.elapsed() < TIMEOUT {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let text = logs.text();
+    assert!(text.contains("mcp server: starting with"), "{text}");
+    assert!(text.contains("chatty"), "{text}");
+    assert!(!text.contains("mcp-token-value"), "{text}");
+}
