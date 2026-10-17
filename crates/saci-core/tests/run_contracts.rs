@@ -133,3 +133,53 @@ fn events_for_unknown_units_or_other_runs_are_rejected() {
         Err(ContractError::WrongRun { .. })
     ));
 }
+
+fn apply_through(fixture: &Fixture, last: usize) -> RunReport {
+    let mut report = RunReport::new(fixture.header.clone(), fixture.units.clone());
+    for event in &fixture.events[..last] {
+        report.apply(event).unwrap();
+    }
+    report
+}
+
+fn rejection(event: &RunEvent, before: usize) -> String {
+    let fixture = load("success.json");
+    let mut report = apply_through(&fixture, before);
+    report.apply(event).unwrap_err().to_string()
+}
+
+#[test]
+fn attempts_must_follow_valid_assessments() {
+    let fixture = load("success.json");
+    let finished = serde_json::to_value(&fixture.events[3]).unwrap();
+    let mut invented = finished.clone();
+    invented["assessment"]["criteria"][0]["evidence"][0] = "ev-9".into();
+    let invented: RunEvent = serde_json::from_value(invented).unwrap();
+    assert!(rejection(&invented, 3).contains("unknown evidence ev-9"));
+    let mut unassessed = finished.clone();
+    unassessed.as_object_mut().unwrap().remove("assessment");
+    let unassessed: RunEvent = serde_json::from_value(unassessed).unwrap();
+    assert!(rejection(&unassessed, 3).contains("does not follow its assessment"));
+    let mut mismatched = finished;
+    mismatched["outcome"] = "failed".into();
+    let mismatched: RunEvent = serde_json::from_value(mismatched).unwrap();
+    assert!(rejection(&mismatched, 3).contains("does not follow its assessment"));
+}
+
+#[test]
+fn a_unit_takes_its_last_attempts_outcome() {
+    let fixture = load("success.json");
+    let mut finished = serde_json::to_value(&fixture.events[4]).unwrap();
+    finished["outcome"] = "failed".into();
+    let finished: RunEvent = serde_json::from_value(finished).unwrap();
+    assert!(rejection(&finished, 4).contains("last attempt's outcome"));
+}
+
+#[test]
+fn negative_tests_pass_on_error_responses() {
+    let report = check("success.json");
+    let negative = &report.evidence[1];
+    let text = serde_json::to_string(negative).unwrap();
+    assert!(text.contains("\"status\":401"), "{text}");
+    assert_eq!(report.units[1].outcome, Some(Outcome::Passed));
+}
