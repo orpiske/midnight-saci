@@ -11,10 +11,22 @@
 
 ARG RUST_IMAGE=docker.io/library/rust:1.96-slim-trixie
 ARG BASE_IMAGE=docker.io/library/debian:trixie-slim
+ARG NODE_IMAGE=docker.io/library/node:22-trixie-slim
+
+# The web console (docs/web-ui.md), embedded in saci-backend below.
+FROM ${NODE_IMAGE} AS web
+WORKDIR /src/web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+COPY docs/templates/ /src/docs/templates/
+RUN npm run build
 
 FROM ${RUST_IMAGE} AS build
 WORKDIR /src
 COPY . .
+COPY --from=web /src/web/dist /src/web/dist
+ENV SACI_WEB_DIST=/src/web/dist
 RUN cargo build --locked --release --package saci-worker --bin saci-worker \
         --package saci-backend --bin saci-backend --package saci-cli --bin saci \
     && install -D -t /out target/release/saci-worker target/release/saci-backend target/release/saci

@@ -173,7 +173,7 @@ fn client_routes() -> Router<Backend> {
         .route("/policies", get(catalog::policies))
 }
 
-/// The client and worker routes and the health check.
+/// The client and worker routes, the health check and the web console.
 pub fn router(backend: Backend, auth: ClientAuth) -> Router {
     let runs = client_routes()
         .merge(action_routes())
@@ -198,7 +198,9 @@ pub fn router(backend: Backend, auth: ClientAuth) -> Router {
         .merge(workers)
         .fallback(unknown_route)
         .with_state(backend);
-    Router::new().nest(API_BASE, api)
+    Router::new()
+        .nest(API_BASE, api)
+        .merge(crate::console::routes())
 }
 
 /// Unknown API routes answer the structured error, never a page.

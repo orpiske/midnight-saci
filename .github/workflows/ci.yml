@@ -44,6 +44,48 @@ jobs:
       - name: Test
         run: cargo test --locked --workspace
 
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: Swatinem/rust-cache@v2
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+      - name: Install dependencies
+        run: npm ci
+      - name: Generated API types match the OpenAPI file
+        run: npm run api-types:check
+      - name: Type check
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser and accessibility tests
+        run: npm run e2e
+      - name: Upload screenshots and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-console-screenshots
+          path: |
+            web/test-results/
+            web/playwright-report/
+          if-no-files-found: ignore
+      - name: Serve the built console from the backend
+        working-directory: .
+        run: SACI_WEB_DIST=$PWD/web/dist cargo test --locked --package saci-backend --test console
+
   worker-image:
     runs-on: ubuntu-latest
     steps:

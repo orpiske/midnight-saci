@@ -116,7 +116,8 @@ The `saci` command sends your plan to the backend, which stores the run in
 SQLite and starts a worker for it. The worker's agent works through the
 plan with the LLM and its tools, and reports events and evidence back with
 a token valid only for that run. You follow progress and read the report
-through the CLI or the [REST API](docs/api.md).
+through the CLI, the [web console](docs/web-ui.md) or the
+[REST API](docs/api.md).
 
 [Architecture](docs/architecture.md) has the diagram and the role of each
 crate.
@@ -130,6 +131,7 @@ crate.
   [starter template](docs/templates/test-plan.md) and a
   [complete example](docs/templates/example.md)
 - [Command line](docs/cli.md)
+- [Web console: runs, live progress, evidence and action review in the browser](docs/web-ui.md)
 - [Configuration reference](docs/configuration.md)
 
 **Running tests**
@@ -158,6 +160,7 @@ crate.
 - [REST API and worker protocol](docs/api.md) ([OpenAPI](docs/openapi.yaml))
 - [Run contracts: identities, statuses, events and reports](docs/contracts.md)
 - [Agent library decision (Rig)](docs/agent-library.md)
+- [Brand guide](artwork/BRAND.md)
 - [System plan](docs/plans/plan.md),
   [implementation tickets](docs/plans/implementation-tickets.md) and
   [issue index](docs/plans/issue-index.md)
