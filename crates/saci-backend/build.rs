@@ -1,6 +1,7 @@
-//! Embeds the built web console (`web/dist`, see docs/web-ui.md) when
-//! `SACI_WEB_DIST` names its directory at build time. Without it the
-//! backend serves a page that says how to build the console.
+//! Embeds the built web console (docs/web-ui.md) in every build, debug or
+//! release: `web/dist` when it has been built, or the directory
+//! `SACI_WEB_DIST` names. Without either the backend serves a page that
+//! says how to build the console.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -23,18 +24,35 @@ fn files(dir: &Path, base: &Path, out: &mut Vec<(String, PathBuf)>) -> io::Resul
     Ok(())
 }
 
-fn main() -> io::Result<()> {
+/// The client directory to embed: the one `SACI_WEB_DIST` names, which
+/// must be built, or `web/dist` when it is. Registers what Cargo watches.
+fn client_dir() -> io::Result<Option<PathBuf>> {
     println!("cargo::rerun-if-env-changed=SACI_WEB_DIST");
+    let named = env::var_os("SACI_WEB_DIST").filter(|value| !value.is_empty());
+    let dist = named.as_ref().map_or_else(
+        || Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist"),
+        PathBuf::from,
+    );
+    // `npm run build` then triggers a rebuild. A missing path would make
+    // Cargo rebuild every time, so until web/dist exists watch web/.
+    let watched = match dist.parent() {
+        Some(parent) if !dist.is_dir() => parent,
+        _ => &dist,
+    };
+    println!("cargo::rerun-if-changed={}", watched.display());
+    let built = dist.join("index.html").is_file();
+    if named.is_some() && !built {
+        return Err(io::Error::other(format!(
+            "SACI_WEB_DIST={} has no index.html; run `npm run build` in web/ first",
+            dist.display()
+        )));
+    }
+    Ok(built.then_some(dist))
+}
+
+fn main() -> io::Result<()> {
     let mut found = Vec::new();
-    if let Some(dist) = env::var_os("SACI_WEB_DIST").filter(|value| !value.is_empty()) {
-        let dist = PathBuf::from(dist);
-        println!("cargo::rerun-if-changed={}", dist.display());
-        if !dist.join("index.html").is_file() {
-            return Err(io::Error::other(format!(
-                "SACI_WEB_DIST={} has no index.html; run `npm run build` in web/ first",
-                dist.display()
-            )));
-        }
+    if let Some(dist) = client_dir()? {
         files(&dist, &dist, &mut found)?;
         found.sort();
     }

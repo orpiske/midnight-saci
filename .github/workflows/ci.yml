@@ -84,7 +84,7 @@ jobs:
           if-no-files-found: ignore
       - name: Serve the built console from the backend
         working-directory: .
-        run: SACI_WEB_DIST=$PWD/web/dist cargo test --locked --package saci-backend --test console
+        run: cargo test --locked --package saci-backend --test console
 
   worker-image:
     runs-on: ubuntu-latest
