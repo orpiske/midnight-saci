@@ -5,7 +5,7 @@
 #   docker build -f examples/kubernetes/Containerfile.fixtures -t localhost/saci-fixtures:latest .
 
 ARG RUST_IMAGE=docker.io/library/rust:1.96-slim-trixie
-ARG BASE_IMAGE=docker.io/library/debian:trixie-slim
+ARG BASE_IMAGE=registry.fedoraproject.org/fedora:44
 
 FROM ${RUST_IMAGE} AS build
 WORKDIR /src

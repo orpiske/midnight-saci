@@ -10,7 +10,7 @@
 # derived image; see docs/worker.md#adding-utilities.
 
 ARG RUST_IMAGE=docker.io/library/rust:1.96-slim-trixie
-ARG BASE_IMAGE=docker.io/library/debian:trixie-slim
+ARG BASE_IMAGE=registry.fedoraproject.org/fedora:44
 ARG NODE_IMAGE=docker.io/library/node:22-trixie-slim
 
 # The web console (docs/web-ui.md), embedded in saci-backend below.
@@ -33,10 +33,9 @@ RUN cargo build --locked --release --package saci-worker --bin saci-worker \
 
 FROM ${BASE_IMAGE}
 # The utilities test plans most often need. `bash` runs every shell action.
-RUN apt-get update \
-    && apt-get install --yes --no-install-recommends \
-        bash ca-certificates curl jq git openssh-client procps iproute2 dnsutils netcat-openbsd \
-    && rm -rf /var/lib/apt/lists/*
+RUN dnf install --assumeyes --setopt=install_weak_deps=False \
+        bash ca-certificates curl jq git openssh-clients procps-ng iproute bind-utils nmap-ncat \
+    && dnf clean all
 COPY --from=build /out/ /usr/local/bin/
 # The workspace is writable by group 0 so an arbitrary UID can use it.
 RUN mkdir -p /workspace \
