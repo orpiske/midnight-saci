@@ -3,6 +3,7 @@
 
 pub mod actions;
 pub mod api;
+pub mod console;
 pub mod launcher;
 pub mod server;
 pub mod store;

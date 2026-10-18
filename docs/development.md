@@ -6,6 +6,8 @@
   (Rust 1.96.0 with `clippy` and `rustfmt`) is installed automatically on the
   first `cargo` command.
 - Optional: Podman or Docker to build the worker image and run local workers.
+- Optional: Node.js 22 or later with npm to build the
+  [web console](web-ui.md#building-from-source) in `web/`.
 
 The workspace uses Rust edition 2024. The minimum supported Rust version is
 declared once as `rust-version = "1.96"` in `Cargo.toml` and matches the pinned
@@ -36,6 +38,7 @@ versions. Use `cargo build --locked` to verify that.
 | `saci-worker` | library + `saci-worker` binary | Per-run execution: the agent-library integration, shell, HTTP and MCP tools, sequential plan execution, and reporting events to the backend. |
 | `saci-backend` | library + `saci-backend` binary | The REST API, SQLite run records, worker launchers (Podman/Docker and Kubernetes Jobs), supervision and outcome actions. |
 | `saci-testkit` | library (test only) | Controlled fixtures: a scripted OpenAI-compatible model server, a fake MCP server, a fake orders service and a fake Kubernetes API. |
+| `web/` | TypeScript (React) | The [web console](web-ui.md) served by the backend at `/ui/`, embedded when built with `SACI_WEB_DIST`. Talks to the backend only through the REST API. |
 | `saci-cli` | `saci` binary | Offline authoring (`saci new test-plan`), backend startup, and run submission, progress, report and cancellation commands. |
 
 Dependencies only point "down": `saci-cli` → `saci-backend`/`saci-core`,
@@ -53,7 +56,9 @@ make check   # cargo fmt --check, cargo clippy -D warnings, cargo test
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same three jobs on every push to
-`main` and on pull requests, using the pinned toolchain.
+`main` and on pull requests, using the pinned toolchain. Its `web` job
+checks the console (`make web-check`,
+[web console](web-ui.md#developing-the-console)).
 
 The lint baseline is adopted from the
 [Wanaku Rust project](https://github.com/wanaku-ai/wanaku):

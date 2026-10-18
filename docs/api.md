@@ -155,7 +155,7 @@ with the action, or `409 action_not_resolvable` in another state; see
 ## Console reads
 
 These client routes describe what a run may be submitted with and what a
-run executes, for clients such as the web console. They only
+run executes, for clients such as the [web console](web-ui.md). They only
 read, and they are built from an allowlist of fields: secret values and
 references, environment parameters, MCP connection details, headers and
 action argument templates never appear.

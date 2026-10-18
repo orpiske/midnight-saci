@@ -60,16 +60,23 @@ pub async fn serve(
         timing,
     )));
     tokio::spawn(Box::pin(actions::run(backend.clone())));
-    let address = listener.local_addr()?;
+    announce(listener.local_addr()?, &data_dir);
+    axum::serve(listener, router(backend, auth))
+        .with_graceful_shutdown(shutdown)
+        .await
+        .context("the backend server failed")
+}
+
+/// Logs and prints where the backend listens.
+fn announce(address: std::net::SocketAddr, data_dir: &Path) {
     tracing::info!(%address, data_dir = %data_dir.display(), "Saci backend listening");
     println!(
         "Saci backend listening on http://{address} (data in {})",
         data_dir.display()
     );
-    axum::serve(listener, router(backend, auth))
-        .with_graceful_shutdown(shutdown)
-        .await
-        .context("the backend server failed")
+    if crate::console::embedded() {
+        println!("Web console at http://{address}/ui/");
+    }
 }
 
 /// Resolves the configured launcher. A missing runtime does not stop the
