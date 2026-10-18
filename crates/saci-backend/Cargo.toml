@@ -33,6 +33,7 @@ time.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+jsonschema.workspace = true
 reqwest.workspace = true
 saci-testkit.workspace = true
 serde_yaml.workspace = true

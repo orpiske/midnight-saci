@@ -345,6 +345,9 @@ pub struct ActionRecord {
 pub struct ActionList {
     /// The actions: a run's in name order, or across runs oldest first.
     pub items: Vec<ActionRecord>,
+    /// Cursor for the next page of `GET /actions`; absent on the last page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
 }
 
 /// The `{{name}}` variables used in a template, in order of appearance.

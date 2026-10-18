@@ -21,6 +21,8 @@ anyhow = "1"
 axum = "0.8"
 bytes = "1.12"
 http = "1.4"
+# Checks API responses against docs/openapi.yaml in tests.
+jsonschema = { version = "0.59", default-features = false }
 # MCP SDK; must stay on the major version rig-rmcp uses (see docs/mcp.md).
 rmcp = { version = "2.2", default-features = false }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "http2", "system-proxy"] }

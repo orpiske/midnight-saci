@@ -5,6 +5,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use saci_core::api::{ApiError, ErrorBody, ErrorCode};
 use saci_core::run::ContractError;
+use saci_core::view::PlanDiagnostic;
 
 use crate::store::StoreError;
 
@@ -14,6 +15,7 @@ pub struct Failure {
     code: ErrorCode,
     message: String,
     details: Vec<String>,
+    diagnostics: Vec<PlanDiagnostic>,
 }
 
 impl Failure {
@@ -24,6 +26,7 @@ impl Failure {
             code,
             message: message.into(),
             details: Vec::new(),
+            diagnostics: Vec::new(),
         }
     }
 
@@ -31,6 +34,13 @@ impl Failure {
     #[must_use]
     pub fn with_details(mut self, details: Vec<String>) -> Self {
         self.details = details;
+        self
+    }
+
+    /// Adds plan diagnostics by document and line.
+    #[must_use]
+    pub fn with_diagnostics(mut self, diagnostics: Vec<PlanDiagnostic>) -> Self {
+        self.diagnostics = diagnostics;
         self
     }
 
@@ -62,6 +72,7 @@ impl IntoResponse for Failure {
                 code: self.code,
                 message: self.message,
                 details: self.details,
+                diagnostics: self.diagnostics,
             },
         };
         (status, Json(body)).into_response()

@@ -292,6 +292,20 @@ fn record(stored: Stored) -> Result<ActionRecord, StoreError> {
     })
 }
 
+/// The ordering position of the action a page cursor names.
+fn cursor_position(connection: &Connection, cursor: &str) -> Result<(String, i64), StoreError> {
+    let rowid: i64 = cursor.parse().map_err(|_| StoreError::InvalidCursor)?;
+    connection
+        .query_row(
+            "SELECT created_at FROM actions WHERE rowid = ?1",
+            [rowid],
+            |row| row.get(0),
+        )
+        .optional()?
+        .map(|created_at| (created_at, rowid))
+        .ok_or(StoreError::InvalidCursor)
+}
+
 fn select(
     connection: &Connection,
     filter: &str,
@@ -569,22 +583,44 @@ impl Store {
         .await
     }
 
-    /// Actions in `state` across runs, oldest first, at most `limit`.
+    /// Actions in `state` across runs, oldest first, at most `limit`, and
+    /// the cursor of the next page when there is one. `cursor` continues a
+    /// previous page; the order (creation time, then insertion) is stable
+    /// while actions change state.
     ///
     /// # Errors
     ///
-    /// Fails on a database error.
+    /// Fails on a cursor this store did not issue or a database error.
     pub async fn actions_in_state(
         &self,
         state: ActionState,
+        cursor: Option<String>,
         limit: u32,
-    ) -> Result<Vec<ActionRecord>, StoreError> {
+    ) -> Result<(Vec<ActionRecord>, Option<String>), StoreError> {
         self.with(move |connection| {
-            select(
-                connection,
-                "WHERE state = ?1 ORDER BY created_at, rowid LIMIT ?2",
-                params![state.as_str(), limit],
-            )
+            let after = cursor
+                .map(|cursor| cursor_position(connection, &cursor))
+                .transpose()?;
+            let (created_at, rowid) = after.unwrap_or_default();
+            let sql = format!(
+                "SELECT {COLUMNS}, rowid FROM actions WHERE state = ?1 \
+                 AND (created_at, rowid) > (?2, ?3) ORDER BY created_at, rowid LIMIT ?4"
+            );
+            let mut statement = connection.prepare(&sql)?;
+            let rows = statement
+                .query_map(
+                    params![state.as_str(), created_at, rowid, limit + 1],
+                    |row| Ok((read(row)?, row.get::<_, i64>(17)?)),
+                )?
+                .collect::<Result<Vec<_>, _>>()?;
+            let more = rows.len() > limit as usize;
+            let mut items = Vec::with_capacity(rows.len());
+            let mut last = None;
+            for (stored, rowid) in rows.into_iter().take(limit as usize) {
+                items.push(record(stored)?);
+                last = Some(rowid);
+            }
+            Ok((items, last.filter(|_| more).map(|rowid| rowid.to_string())))
         })
         .await
     }

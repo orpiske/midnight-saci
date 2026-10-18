@@ -4,6 +4,13 @@
     "message": "the plan is invalid",
     "details": [
       "plan.md:5: Test 1.1 has no expected result: add `**Expected result:**` followed by a list of observable criteria"
+    ],
+    "diagnostics": [
+      {
+        "document": "plan.md",
+        "line": 5,
+        "message": "Test 1.1 has no expected result: add `**Expected result:**` followed by a list of observable criteria"
+      }
     ]
   }
 }

@@ -1,0 +1,79 @@
+{
+  "run_id": "run-3f1c9a2b7d4e4f0a9c1b2d3e4f5a6b7c",
+  "title": "Service health",
+  "entry": "plan.md",
+  "documents": {
+    "common/login.md": "# Procedure: Log in\n\n## Phase 1: Login\n\n### Step 1: Obtain a session\n\n```bash\nexport SESSION=$(curl -s -H \"Authorization: Bearer ${SERVICE_TOKEN}\" \"${SERVICE_URL}/login\")\n```\n\n**Expected result:**\n\n- `SESSION` is not empty.\n",
+    "plan.md": "# Test Plan: Service health\n\n## Phase 1: Service availability\n\n### Test 1.1: Check service health\n\nFollow [common/login.md](common/login.md).\n\nUse the HTTP tool to send a GET request to `SERVICE_URL` followed by `/health`.\n\n**Expected result:**\n\n- The response status is 200.\n"
+  },
+  "units": [
+    {
+      "key": "1.1>common/login.md#1",
+      "id": "1",
+      "kind": "step",
+      "title": "Obtain a session",
+      "phase": "Login",
+      "location": {
+        "document": "common/login.md",
+        "line": 5
+      },
+      "cleanup": false,
+      "action": "```bash\nexport SESSION=$(curl -s -H \"Authorization: Bearer ${SERVICE_TOKEN}\" \"${SERVICE_URL}/login\")\n```",
+      "commands": [
+        {
+          "language": "bash",
+          "code": "export SESSION=$(curl -s -H \"Authorization: Bearer ${SERVICE_TOKEN}\" \"${SERVICE_URL}/login\")\n",
+          "location": {
+            "document": "common/login.md",
+            "line": 7
+          }
+        }
+      ],
+      "criteria": [
+        {
+          "index": 0,
+          "text": "`SESSION` is not empty.",
+          "location": {
+            "document": "common/login.md",
+            "line": 13
+          }
+        }
+      ],
+      "invoked_by": [
+        "1.1"
+      ]
+    },
+    {
+      "key": "1.1",
+      "id": "1.1",
+      "kind": "test",
+      "title": "Check service health",
+      "phase": "Service availability",
+      "location": {
+        "document": "plan.md",
+        "line": 5
+      },
+      "cleanup": false,
+      "action": "Follow [common/login.md](common/login.md).\n\nUse the HTTP tool to send a GET request to `SERVICE_URL` followed by `/health`.",
+      "criteria": [
+        {
+          "index": 0,
+          "text": "The response status is 200.",
+          "location": {
+            "document": "plan.md",
+            "line": 13
+          }
+        }
+      ],
+      "procedures": [
+        {
+          "target": "common/login.md",
+          "location": {
+            "document": "plan.md",
+            "line": 7
+          }
+        }
+      ]
+    }
+  ]
+}

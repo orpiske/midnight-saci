@@ -8,6 +8,7 @@ use crate::ids::{RunId, UnitKey};
 use crate::plan::PlanBundle;
 use crate::run::OutcomeCounts;
 use crate::status::{Lifecycle, Outcome};
+use crate::view::PlanDiagnostic;
 
 /// Base path of every Saci route.
 pub const API_BASE: &str = "/api/v1";
@@ -131,6 +132,10 @@ pub struct ApiError {
     /// Individual problems, for example plan diagnostics.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub details: Vec<String>,
+    /// Plan diagnostics by document and line, when the plan is invalid.
+    /// `details` holds the same problems as text.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagnostics: Vec<PlanDiagnostic>,
 }
 
 /// Stable error codes.

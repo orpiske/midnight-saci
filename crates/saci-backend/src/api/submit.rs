@@ -64,12 +64,11 @@ pub fn prepare(
 }
 
 fn plan_invalid(error: saci_core::parser::PlanError) -> Failure {
-    let details = error
-        .diagnostics
-        .into_iter()
-        .map(|d| d.to_string())
-        .collect();
-    Failure::new(ErrorCode::ValidationFailed, "the plan is invalid").with_details(details)
+    let details = error.diagnostics.iter().map(ToString::to_string).collect();
+    let diagnostics = error.diagnostics.into_iter().map(Into::into).collect();
+    Failure::new(ErrorCode::ValidationFailed, "the plan is invalid")
+        .with_details(details)
+        .with_diagnostics(diagnostics)
 }
 
 fn header(spec: &RunSpec, plan_title: &str) -> ReportHeader {
