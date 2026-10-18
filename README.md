@@ -93,7 +93,8 @@ curl -sS -w '\nstatus %{http_code}\n' "$SERVICE_URL/orders/1"
 - The order's `status` is `shipped`.
 ````
 
-Then start a backend and submit it (the build puts `saci` in
+To validate it offline, without a backend, run
+`saci check plans/service-health.md`. Then start a backend and submit it (the build puts `saci` in
 `target/debug`):
 
 ```sh

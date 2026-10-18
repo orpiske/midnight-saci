@@ -125,6 +125,8 @@ When a unit invokes a procedure, the procedure's units run first, in order, and 
 
 ## Validation and authoring guidance
 
+`saci check plan.md` does this validation offline, without a backend. It also warns about content that does not run, for example a phase without tests or steps, or a `Follow` outside a unit. See the [command line](cli.md#saci-check).
+
 Before starting a worker, validate the document structure, unique execution IDs, action content, explicit expected results, and invoked procedure references. Errors should identify the source file and relevant heading or line so the author can fix them. A valid submission starts immediately under its configured policy.
 
 The starter template, this guide, CLI help, and parser must describe the same conventions. Keep at least one complete example alongside the template as the format evolves.
@@ -135,4 +137,4 @@ The starter template, this guide, CLI help, and parser must describe the same co
 - [Wanaku MCP CLI commands plan](https://github.com/wanaku-ai/wanaku-barn/blob/main/tests/plans/mcp-cli-commands.md).
 - [Wanaku operator basic functionality plan](https://github.com/wanaku-ai/wanaku-barn/blob/main/tests/plans/operator-basic-functionality.md).
 
-The Markdown syntax follows an open specification. The test execution conventions described here are specific to Saci. Existing Wanaku plans may need explicit expected-result sections or executable headings added before they satisfy these conventions.
+The Markdown syntax follows an open specification. The test execution conventions described here are specific to Saci. Existing Wanaku plans may need explicit expected-result sections or executable headings added before they satisfy these conventions. The [`convert-test-plan` skill](../.claude/skills/convert-test-plan/SKILL.md) gives an AI agent the procedure for that conversion.
