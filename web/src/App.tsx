@@ -3,6 +3,7 @@ import { type ReactNode, useEffect, useState } from "react";
 
 import { Wordmark } from "./components/Brand";
 import { EmptyState } from "./components/Feedback";
+import { ActionsPage } from "./features/actions/ActionsPage";
 import { ConnectionPage, TokenForm } from "./features/connection/ConnectionPage";
 import { connectionSummary, useConnection } from "./features/connection/connection";
 import { RunsPage } from "./features/runs/RunsPage";
@@ -103,6 +104,7 @@ function Navigation({
 function Screen({ path }: { path: string }): ReactNode {
   if (path === "/" || path === "/runs") return <RunsPage />;
   if (path === "/runs/new") return <NewRunPage />;
+  if (path === "/actions") return <ActionsPage />;
   if (path === "/connection") return <ConnectionPage />;
   return (
     <div className="page">
