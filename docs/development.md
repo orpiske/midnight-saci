@@ -39,7 +39,7 @@ versions. Use `cargo build --locked` to verify that.
 | `saci-backend` | library + `saci-backend` binary | The REST API, SQLite run records, worker launchers (Podman/Docker and Kubernetes Jobs), supervision and outcome actions. |
 | `saci-testkit` | library (test only) | Controlled fixtures: a scripted OpenAI-compatible model server, a fake MCP server, a fake orders service and a fake Kubernetes API. |
 | `web/` | TypeScript (React) | The [web console](web-ui.md) served by the backend at `/ui/`, embedded in every backend build once `web/dist` is built. Talks to the backend only through the REST API. |
-| `saci-cli` | `saci` binary | Offline authoring (`saci new test-plan`), backend startup, and run submission, progress, report and cancellation commands. |
+| `saci-cli` | `saci` binary | Offline authoring and validation (`saci new test-plan`, `saci check`), backend startup, and run submission, progress, report and cancellation commands. |
 
 Dependencies only point "down": `saci-cli` → `saci-backend`/`saci-core`,
 `saci-backend` → `saci-mcp`/`saci-core`, `saci-worker` → `saci-mcp`/`saci-core`,

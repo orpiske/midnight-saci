@@ -67,9 +67,46 @@ pub struct PlanError {
 /// malformed or duplicate headings, units outside phases, missing actions,
 /// missing expected results, or no executable units at all.
 pub fn parse_document(document: &str, source: &str, role: DocumentRole) -> Result<Plan, PlanError> {
+    parse_document_with_warnings(document, source, role).map(|(plan, _)| plan)
+}
+
+/// Parses and validates one document, also returning warnings about valid
+/// content that will never run.
+///
+/// Warnings name a phase without tests or steps, a `Follow` invocation
+/// outside any unit, a fenced command in Prerequisites or inside a phase
+/// but outside any unit, and a block after `**Expected result:**` that is
+/// not a criterion. Such content is accepted, but never runs.
+///
+/// # Errors
+///
+/// The same as [`parse_document`].
+pub fn parse_document_with_warnings(
+    document: &str,
+    source: &str,
+    role: DocumentRole,
+) -> Result<(Plan, Vec<Diagnostic>), PlanError> {
     let mut state = State::new(document, source);
     state.run(role, &blocks::blocks(source));
     state.finish()
+}
+
+/// Every code block of a document, at any depth: inside units or not, and
+/// inside list items and block quotes too.
+///
+/// Unlike [`Unit::commands`], this works on any Markdown, so a converted
+/// plan can be compared with a document in another format.
+#[must_use]
+pub fn code_blocks(document: &str, source: &str) -> Vec<CodeBlock> {
+    let lines = Lines::new(source);
+    blocks::code_blocks(source)
+        .into_iter()
+        .map(|(language, code, offset)| CodeBlock {
+            language,
+            code,
+            location: SourceLocation::new(document, lines.line(offset)),
+        })
+        .collect()
 }
 
 /// Line-number lookup for byte offsets.
@@ -126,6 +163,7 @@ struct State<'a> {
     phases: Vec<Phase>,
     unit: Option<OpenUnit>,
     diagnostics: Vec<Diagnostic>,
+    warnings: Vec<Diagnostic>,
 }
 
 impl<'a> State<'a> {
@@ -142,6 +180,7 @@ impl<'a> State<'a> {
             phases: Vec::new(),
             unit: None,
             diagnostics: Vec::new(),
+            warnings: Vec::new(),
         }
     }
 
@@ -152,6 +191,14 @@ impl<'a> State<'a> {
     fn error(&mut self, offset: usize, message: impl Into<String>) {
         let location = self.location(offset);
         self.diagnostics.push(Diagnostic {
+            location,
+            message: message.into(),
+        });
+    }
+
+    fn warn(&mut self, offset: usize, message: impl Into<String>) {
+        let location = self.location(offset);
+        self.warnings.push(Diagnostic {
             location,
             message: message.into(),
         });
@@ -170,7 +217,7 @@ impl<'a> State<'a> {
         self.close_section(self.source.len());
     }
 
-    fn finish(mut self) -> Result<Plan, PlanError> {
+    fn finish(mut self) -> Result<(Plan, Vec<Diagnostic>), PlanError> {
         if self.title.is_none() {
             self.error(
                 0,
@@ -181,6 +228,7 @@ impl<'a> State<'a> {
             self.error(0, "no executable units: add a `### Test <id>: <title>` or `### Step <id>: <title>` inside a `## Phase <id>: <title>`");
         }
         self.check_duplicates();
+        self.warn_empty_phases();
         if !self.diagnostics.is_empty() {
             self.diagnostics
                 .sort_by_key(|diagnostic| diagnostic.location.line);
@@ -188,13 +236,27 @@ impl<'a> State<'a> {
                 diagnostics: self.diagnostics,
             });
         }
-        Ok(Plan {
+        self.warnings.sort_by_key(|warning| warning.location.line);
+        let plan = Plan {
             title: self.title.unwrap_or_default(),
             document: self.document.to_owned(),
             overview: self.overview,
             prerequisites: self.prerequisites,
             phases: self.phases,
-        })
+        };
+        Ok((plan, self.warnings))
+    }
+
+    fn warn_empty_phases(&mut self) {
+        for phase in self.phases.iter().filter(|phase| phase.units.is_empty()) {
+            self.warnings.push(Diagnostic {
+                location: phase.location.clone(),
+                message: format!(
+                    "Phase {} has no tests or steps, so nothing in it runs: put its actions in a `### Step <id>: <title>` with an expected result",
+                    phase.id
+                ),
+            });
+        }
     }
 
     fn check_duplicates(&mut self) {
@@ -341,6 +403,7 @@ impl<'a> State<'a> {
     fn body_block(&mut self, block: &Block) {
         let location = self.location(block.range.start);
         let Some(open) = self.unit.as_mut() else {
+            self.outside_unit(block);
             return;
         };
         open.end = block.range.end;
@@ -352,7 +415,38 @@ impl<'a> State<'a> {
             }
             return;
         }
+        let ignored = open.part == UnitPart::Expected
+            && matches!(block.kind, BlockKind::Code { .. } | BlockKind::Other);
         open.content(block, location);
+        if ignored {
+            self.warn(
+                block.range.start,
+                "this block comes after `**Expected result:**`, which holds only criteria, so it is ignored: move it before the marker",
+            );
+        }
+    }
+
+    /// Warns about content outside any unit that looks meant to run.
+    fn outside_unit(&mut self, block: &Block) {
+        match &block.kind {
+            BlockKind::Paragraph(paragraph) => {
+                if let Some(target) = procedure_target(paragraph) {
+                    self.warn(
+                        block.range.start,
+                        format!("`Follow [{target}]` is outside a test or step, so the procedure is not invoked: put it in a `### Step <id>: <title>` with an expected result"),
+                    );
+                }
+            }
+            BlockKind::Code { .. } if self.section == Section::Phase => self.warn(
+                block.range.start,
+                "this fenced command is inside a phase but outside any test or step, so it does not run: move it into a unit",
+            ),
+            BlockKind::Code { .. } if self.section == Section::Prerequisites => self.warn(
+                block.range.start,
+                "this fenced command in Prerequisites is context for the model, not a step, so it does not run: if the run needs it, move it into a setup step",
+            ),
+            _ => {}
+        }
     }
 
     fn close_unit(&mut self, end: usize) {

@@ -99,3 +99,61 @@ fn verification_text_on_the_marker_line_is_kept() {
     assert_eq!(separate.as_deref(), Some("Record the status."));
     assert_eq!(verification("**Verification:**"), None);
 }
+
+#[test]
+fn warns_about_content_that_never_runs() {
+    let source = "# Test Plan: Example\n\n## Prerequisites\n\nFollow [common/env.md](common/env.md).\n\n## Phase 0: Login\n\nFollow [common/login.md](common/login.md).\n\n## Phase 1: Checks\n\n```bash\nexport A=1\n```\n\n### Test 1.1: Health\n\nRun `true`.\n\n**Expected result:**\n\n- It exits 0.\n";
+    let (plan, warnings) =
+        parse_document_with_warnings("plan.md", source, DocumentRole::Entry).unwrap();
+    assert_eq!(plan.units().count(), 1);
+    assert!(plan.units().all(|unit| unit.procedures.is_empty()));
+    let found: Vec<_> = warnings
+        .iter()
+        .map(|w| {
+            (
+                w.location.line,
+                w.message.split_whitespace().next().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        found,
+        [(5, "`Follow"), (7, "Phase"), (9, "`Follow"), (13, "this")],
+        "{warnings:?}"
+    );
+}
+
+#[test]
+fn warns_about_prerequisite_commands_and_blocks_after_the_criteria() {
+    let source = "# Test Plan: Example\n\n## Prerequisites\n\n```bash\nexport A=1\n```\n\n## Phase 1: Checks\n\n### Test 1.1: Health\n\nRun `true`.\n\n**Expected result:**\n\n- It exits 0.\n\n```bash\necho late\n```\n\n> Note: kept?\n";
+    let (plan, warnings) =
+        parse_document_with_warnings("plan.md", source, DocumentRole::Entry).unwrap();
+    assert!(plan.units().all(|unit| unit.commands.is_empty()));
+    let lines: Vec<_> = warnings.iter().map(|w| w.location.line).collect();
+    assert_eq!(lines, [5, 19, 23], "{warnings:?}");
+    assert!(warnings[0].message.contains("Prerequisites"));
+    assert!(warnings[1].message.contains("after `**Expected result:**`"));
+}
+
+#[test]
+fn a_well_formed_plan_has_no_warnings() {
+    let (_, warnings) = parse_document_with_warnings("plan.md", PLAN, DocumentRole::Entry).unwrap();
+    assert!(warnings.is_empty(), "{warnings:?}");
+}
+
+#[test]
+fn code_blocks_are_found_at_any_depth() {
+    let source = "# Notes\n\n```bash\necho top\n```\n\n- item:\n\n  ```sh\n  echo listed\n  ```\n\n> ```\n> quoted\n> ```\n";
+    let found: Vec<_> = code_blocks("notes.md", source)
+        .into_iter()
+        .map(|block| (block.language, block.code, block.location.line))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            ("bash".to_owned(), "echo top\n".to_owned(), 3),
+            ("sh".to_owned(), "echo listed\n".to_owned(), 9),
+            (String::new(), "quoted\n".to_owned(), 13),
+        ]
+    );
+}

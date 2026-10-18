@@ -183,3 +183,33 @@ fn list_items(inner: &[Spanned<'_>]) -> Vec<(Range<usize>, String)> {
     }
     items
 }
+
+/// Every code block in `source` at any depth, including inside lists and
+/// block quotes, as (language, code, byte offset), in document order.
+pub fn code_blocks(source: &str) -> Vec<(String, String, usize)> {
+    let mut found = Vec::new();
+    let mut open: Option<(String, String, usize)> = None;
+    for (event, range) in Parser::new_ext(source, Options::empty()).into_offset_iter() {
+        match event {
+            Event::Start(Tag::CodeBlock(kind)) => {
+                let language = match kind {
+                    CodeBlockKind::Fenced(info) => info
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or_default()
+                        .to_owned(),
+                    CodeBlockKind::Indented => String::new(),
+                };
+                open = Some((language, String::new(), range.start));
+            }
+            Event::Text(text) => {
+                if let Some((_, code, _)) = open.as_mut() {
+                    code.push_str(&text);
+                }
+            }
+            Event::End(TagEnd::CodeBlock) => found.extend(open.take()),
+            _ => {}
+        }
+    }
+    found
+}

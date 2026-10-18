@@ -33,6 +33,50 @@ The `saci-backend` binary does the same and exists for container images.
 An invalid configuration, a missing client token variable or an unusable
 listen address or data directory exits 2 with the offending setting.
 
+## `saci check`
+
+```sh
+saci check plan.md [--strict] [--original <dir>]
+```
+
+`saci check` reads `plan.md` and each procedure that it invokes. It
+validates them with the same rules as `saci run` ([test plans](test-plans.md))
+and prints a summary. It works offline. It does not connect to a backend.
+
+```text
+$ saci check plans/orders.md
+plans/orders.md is valid: "Orders", 6 units (4 tests, 2 steps), 1 procedure, 0 warnings.
+```
+
+If the plan is not valid, the command exits 2. It shows each problem with
+its file and line.
+
+The command also writes a warning to standard error for valid content that
+does not run:
+
+- A phase that has no tests or steps.
+- A `Follow [...](...)` paragraph outside a test or step, for example in
+  Prerequisites. It does not invoke the procedure.
+- A fenced block in a phase but outside a test or step.
+- A fenced block in Prerequisites. The model sees it as context. The worker
+  does not run it as a step.
+- A fenced block or block quote after `**Expected result:**`. The parser
+  ignores it.
+
+Warnings do not change the exit code. With `--strict`, the command exits 2
+if there are warnings. Use `--strict` in CI and when you convert plans from
+a different format.
+
+Use `--original <dir>` when you convert a plan from a different format.
+`<dir>` is a copy of the original documents, with the same layout as the
+plan directory. The command then compares the code blocks of all documents
+in the bundle with the code blocks of the originals at the same paths. It
+finds code blocks at all levels, also in lists and block quotes. A code
+block can move to a different document. If a code block is missing,
+changed or new, the command exits 2 and shows each one. The
+[`convert-test-plan` skill](../.claude/skills/convert-test-plan/SKILL.md)
+uses this check to make sure that a conversion keeps all commands.
+
 ## `saci run`
 
 ```sh

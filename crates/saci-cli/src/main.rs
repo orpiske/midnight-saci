@@ -2,6 +2,7 @@
 //! `saci` command-line entry point.
 
 mod actions;
+mod check;
 mod client;
 mod inspect;
 mod new;
@@ -30,6 +31,24 @@ enum Command {
     /// Create files from built-in templates. Works offline.
     #[command(subcommand)]
     New(NewCommand),
+    /// Validate a plan bundle offline, without submitting it.
+    ///
+    /// Reads the plan and every procedure it invokes, reports every problem
+    /// `saci run` would refuse, and warns about content that would never
+    /// run, such as a phase without tests or steps. Exits 2 when the plan is
+    /// invalid, or with --strict when there are warnings.
+    Check {
+        /// Entry document of the plan bundle.
+        plan: PathBuf,
+        /// Treat warnings as errors.
+        #[arg(long)]
+        strict: bool,
+        /// Directory holding the documents the plan was converted from, laid
+        /// out like the plan's. Exits 2 unless every code block in the
+        /// bundle is identical to one there and none is missing.
+        #[arg(long, value_name = "DIR")]
+        original: Option<PathBuf>,
+    },
     /// Run the backend.
     #[command(subcommand)]
     Backend(BackendCommand),
@@ -116,6 +135,11 @@ fn main() -> ExitCode {
         Command::New(NewCommand::TestPlan { file }) => new::test_plan(&file)
             .map(|()| exit::OK)
             .map_err(CliError::from),
+        Command::Check {
+            plan,
+            strict,
+            original,
+        } => check::plan(&plan, strict, original.as_deref()),
         Command::Backend(BackendCommand::Start { config }) => start_backend(config),
         command => {
             let connection = cli.connection;
@@ -143,7 +167,7 @@ async fn remote(client: &Client, command: Command) -> Result<u8, CliError> {
         Command::Report(run) => inspect::report(client, &run).await,
         Command::Cancel { run, wait } => Box::pin(inspect::cancel(client, &run, wait)).await,
         Command::Actions(command) => Box::pin(actions::run(client, command)).await,
-        Command::New(_) | Command::Backend(_) => Ok(exit::OK),
+        Command::New(_) | Command::Check { .. } | Command::Backend(_) => Ok(exit::OK),
     }
 }
 
