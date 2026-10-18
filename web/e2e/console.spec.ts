@@ -156,3 +156,11 @@ test("the connection screen passes accessibility checks", async ({ page }, testI
   await expect(page.getByRole("main").getByText("Reachable", { exact: true })).toBeVisible();
   await accessible(page, testInfo, "connection");
 });
+
+test("nothing is blocked by the backend's Content-Security-Policy", async ({ page }) => {
+  const mock = await mockBackend(page);
+  await page.goto(`/ui/runs/${fx.RUN}?evidence=ev-2&unit=1.2`);
+  await expect(page.getByRole("region", { name: /ev-2 · HTTP request/ })).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  expect(mock.blocked).toEqual([]);
+});

@@ -54,6 +54,9 @@ export default defineConfig({
     outDir: "dist",
     assetsDir: "assets",
     sourcemap: false,
+    // Fonts and icons stay files: the backend's Content-Security-Policy
+    // allows them from 'self' only, not as data: URLs.
+    assetsInlineLimit: 0,
     chunkSizeWarningLimit: 800,
   },
   server: {
@@ -62,6 +65,17 @@ export default defineConfig({
     proxy: { "/api": { target: backend, changeOrigin: false } },
     // The starter plan is imported from docs/templates.
     fs: { allow: [".."] },
+  },
+  preview: {
+    // The policy saci-backend sends with the console
+    // (crates/saci-backend/src/console.rs), so the browser tests catch
+    // anything it would block.
+    headers: {
+      "Content-Security-Policy":
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; " +
+        "font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; " +
+        "form-action 'self'; frame-ancestors 'none'",
+    },
   },
   test: {
     environment: "jsdom",

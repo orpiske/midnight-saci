@@ -110,7 +110,7 @@ console is on the backend's service port.
 Requirements: Node.js 22 or later with npm.
 
 ```sh
-make console          # npm ci and build web/, then the backend with it embedded
+make console          # builds web/, then target/release/saci-backend and saci with it embedded
 ```
 
 or by hand:
@@ -120,8 +120,9 @@ cd web && npm ci && npm run build && cd ..
 SACI_WEB_DIST=$PWD/web/dist cargo build --locked -p saci-backend
 ```
 
-`SACI_WEB_DIST` is read at compile time; without it the backend embeds
-nothing. The built client also contains `licenses.txt` with the licenses of
+`SACI_WEB_DIST` is read at compile time by every binary that contains the
+backend, `saci` included (`saci backend start`); a binary built without it
+embeds nothing and says so when it starts. The built client also contains `licenses.txt` with the licenses of
 the bundled fonts (SIL Open Font License) and libraries.
 
 ### Developing the console
