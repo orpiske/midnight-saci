@@ -110,20 +110,21 @@ console is on the backend's service port.
 Requirements: Node.js 22 or later with npm.
 
 ```sh
-make console          # builds web/, then target/release/saci-backend and saci with it embedded
+make web              # npm ci and npm run build in web/, producing web/dist
+cargo build           # or cargo run, cargo build --release, make console
 ```
 
-or by hand:
+Every build of the backend, debug or release, embeds `web/dist` when it
+exists, in `saci-backend` and in `saci` (`saci backend start`) alike.
+Rebuilding the client (`npm run build`) makes the next `cargo build`
+embed the new files. `make console` does both steps for a debug build;
+`make console CARGO_FLAGS=--release` for a release build. To embed a
+client built elsewhere, set `SACI_WEB_DIST` to its directory at build
+time. A backend built before `web/dist` existed embeds nothing and says
+so when it starts.
 
-```sh
-cd web && npm ci && npm run build && cd ..
-SACI_WEB_DIST=$PWD/web/dist cargo build --locked -p saci-backend
-```
-
-`SACI_WEB_DIST` is read at compile time by every binary that contains the
-backend, `saci` included (`saci backend start`); a binary built without it
-embeds nothing and says so when it starts. The built client also contains `licenses.txt` with the licenses of
-the bundled fonts (SIL Open Font License) and libraries.
+The built client also contains `licenses.txt` with the licenses of the
+bundled fonts (SIL Open Font License) and libraries.
 
 ### Developing the console
 

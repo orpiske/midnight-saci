@@ -34,10 +34,11 @@ web:
 ## Run every web console check CI runs, including the browser tests.
 web-check: web
 	cd web && npm run check && npm run e2e
-	SACI_WEB_DIST=$(CURDIR)/web/dist cargo test --locked --package saci-backend --test console
+	cargo test --locked --package saci-backend --test console
 
 ## Build the backend and the saci CLI (which also starts the backend) with
-## the web console embedded.
+## the web console embedded. Debug by default; CARGO_FLAGS=--release for a
+## release build.
+CARGO_FLAGS ?=
 console: web
-	SACI_WEB_DIST=$(CURDIR)/web/dist cargo build --locked --release --package saci-backend --bin saci-backend --package saci-cli --bin saci
-	@echo "Built target/release/saci-backend and target/release/saci with the console at /ui/"
+	cargo build --locked $(CARGO_FLAGS) --package saci-backend --bin saci-backend --package saci-cli --bin saci

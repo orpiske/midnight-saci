@@ -1,6 +1,6 @@
 //! The web console under `/ui/`: deep links, caching, security headers,
 //! and API routes that stay JSON. Tests of the built client's files run
-//! when the backend was built with `SACI_WEB_DIST` (CI's web job).
+//! when the backend was built after `web/dist` (CI's web job).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -120,7 +120,7 @@ fn asset_links(html: &str) -> Vec<&str> {
 #[tokio::test]
 async fn the_built_client_serves_its_hashed_assets() {
     if !console::embedded() {
-        eprintln!("skipped: the backend was built without SACI_WEB_DIST");
+        eprintln!("skipped: the backend was built without web/dist");
         return;
     }
     let api = TestBackend::start(ClientAuth::Open).await;
