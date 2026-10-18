@@ -65,9 +65,9 @@ before the worker exits.
 ## The image
 
 [`Containerfile`](../Containerfile) builds `saci-worker` in a Rust stage and
-copies it into `debian:trixie-slim` with the utilities test plans commonly
-use: `bash`, `curl`, `jq`, `git`, `ssh`, `ps`, `ip`, `dig` and `nc`, plus the
-CA certificates the HTTP tool and the model connection need. The image
+copies it into `registry.fedoraproject.org/fedora:44` with the utilities test
+plans commonly use: `bash`, `curl`, `jq`, `git`, `ssh`, `ps`, `ip`, `dig` and
+`nc`, plus the CA certificates the HTTP tool and the model connection need. The image
 also contains `saci-backend` and `saci`, so the Helm chart runs the backend
 from the same image with `saci-backend --config ...` ([Helm](helm.md)).
 The entry point stays `saci-worker`.
@@ -114,9 +114,8 @@ Plans can only use what the image contains. Derive an image and point
 ```dockerfile
 FROM localhost/saci-worker:latest
 USER root
-RUN apt-get update \
-    && apt-get install --yes --no-install-recommends postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+RUN dnf install --assumeyes --setopt=install_weak_deps=False postgresql \
+    && dnf clean all
 USER 10001:0
 ```
 
