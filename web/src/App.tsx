@@ -6,9 +6,10 @@ import { EmptyState } from "./components/Feedback";
 import { ActionsPage } from "./features/actions/ActionsPage";
 import { ConnectionPage, TokenForm } from "./features/connection/ConnectionPage";
 import { connectionSummary, useConnection } from "./features/connection/connection";
+import { RunPage } from "./features/runs/RunPage";
 import { RunsPage } from "./features/runs/RunsPage";
 import { NewRunPage } from "./features/submission/NewRunPage";
-import { Link, navigate, useLocation } from "./lib/router";
+import { Link, match, navigate, useLocation } from "./lib/router";
 
 type Section = "runs" | "actions" | "connection";
 
@@ -104,6 +105,8 @@ function Navigation({
 function Screen({ path }: { path: string }): ReactNode {
   if (path === "/" || path === "/runs") return <RunsPage />;
   if (path === "/runs/new") return <NewRunPage />;
+  const run = match("/runs/:id", path);
+  if (run?.id) return <RunPage id={run.id} />;
   if (path === "/actions") return <ActionsPage />;
   if (path === "/connection") return <ConnectionPage />;
   return (
