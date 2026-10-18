@@ -39,13 +39,35 @@ versions. Use `cargo build --locked` to verify that.
 | `saci-backend` | library + `saci-backend` binary | The REST API, SQLite run records, worker launchers (Podman/Docker and Kubernetes Jobs), supervision and outcome actions. |
 | `saci-testkit` | library (test only) | Controlled fixtures: a scripted OpenAI-compatible model server, a fake MCP server, a fake orders service and a fake Kubernetes API. |
 | `web/` | TypeScript (React) | The [web console](web-ui.md) served by the backend at `/ui/`, embedded in every backend build once `web/dist` is built. Talks to the backend only through the REST API. |
-| `saci-cli` | `saci` binary | Offline authoring and validation (`saci new test-plan`, `saci check`), backend startup, and run submission, progress, report and cancellation commands. |
+| `saci-cli` | `saci` binary | Offline authoring, validation and agent skills (`saci new test-plan`, `saci check`, `saci skill`), backend startup, and run submission, progress, report and cancellation commands. |
 
 Dependencies only point "down": `saci-cli` → `saci-backend`/`saci-core`,
 `saci-backend` → `saci-mcp`/`saci-core`, `saci-worker` → `saci-mcp`/`saci-core`,
 `saci-mcp` → `saci-core`. The worker and the
 backend never link each other; they communicate through the REST contract in
 `saci-core`.
+
+## Agent skills
+
+Agent skills are in `skills/<name>/`, at the repository root. Each skill
+has a `SKILL.md` with `name` and `description` front matter. The `saci`
+binary embeds the skills, and `saci skill install` writes them for a coding
+agent ([command line](cli.md#saci-skill)).
+
+To add a skill:
+
+1. Create `skills/<name>/SKILL.md`. The name must start with `saci-`, so
+   that it does not clash with other skills, and the `name` in the front
+   matter must be the same as the directory name. Write the skill in
+   Simplified Technical English. Use full URLs for links to the Saci documentation, because the
+   skill is installed outside this repository.
+2. Add the skill and each of its files to `SKILLS` in
+   `crates/saci-cli/src/skills.rs`.
+3. Run `make check`. A test fails if a skill directory or file is not in
+   `SKILLS`, or if a name does not obey these rules.
+
+To use a skill while you work on Saci, install it into your checkout, for
+example with `saci skill install --all --agent claude`.
 
 ## Quality gates
 

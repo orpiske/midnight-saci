@@ -3,3 +3,11 @@
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Agent skills installed into the checkout with `saci skill install`
+/.claude/skills/
+/.agents/skills/
+/.cursor/skills/
+/.github/skills/
+/.gemini/skills/
+/.opencode/skills/

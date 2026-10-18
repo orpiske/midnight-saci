@@ -94,7 +94,10 @@ curl -sS -w '\nstatus %{http_code}\n' "$SERVICE_URL/orders/1"
 ````
 
 To validate it offline, without a backend, run
-`saci check plans/service-health.md`. Then start a backend and submit it (the build puts `saci` in
+`saci check plans/service-health.md`. To let your coding agent help, for
+example to convert existing plans, install the Saci skills with
+`saci skill install --all --agent claude` (or `codex`, `cursor`,
+`copilot`, `gemini`, `opencode`). Then start a backend and submit it (the build puts `saci` in
 `target/debug`):
 
 ```sh

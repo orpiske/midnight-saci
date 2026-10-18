@@ -1,5 +1,5 @@
 ---
-name: convert-test-plan
+name: saci-convert-test-plan
 description: Convert an existing Markdown test plan (such as Wanaku's tests/plans/*.md and their common/*.md procedures) into Saci's plan format, keeping every command unchanged and validating with `saci check --strict --original`.
 ---
 
@@ -14,8 +14,8 @@ fenced commands. They do not have explicit expected results. Usually,
 
 Before you convert the first file, read these documents:
 
-- [docs/test-plans.md](../../../docs/test-plans.md): the plan format.
-- [docs/tools.md](../../../docs/tools.md): how the worker runs commands.
+- [docs/test-plans.md](https://github.com/orpiske/midnight-saci/blob/main/docs/test-plans.md): the plan format.
+- [docs/tools.md](https://github.com/orpiske/midnight-saci/blob/main/docs/tools.md): how the worker runs commands.
 
 ## Rules
 
@@ -76,8 +76,8 @@ Do these steps for each plan (entry document):
 1. Copy the plan directory to a scratch directory outside the repository.
    Keep the layout. For example: `cp -r tests/plans /tmp/orig-plans`.
    `saci check` compares the conversion with this copy.
-2. In the Saci checkout, build the CLI with
-   `cargo build --package saci-cli`. The binary is `target/debug/saci`.
+2. Make sure that the `saci` command is available. If it is not, ask the
+   person to install Saci or to give you the path of the `saci` binary.
 3. Run `saci check --strict plan.md` to see the problems. If the entry
    document has errors, `check` does not load the procedures. Procedure
    errors show one file at a time. Thus, new problems can show after you

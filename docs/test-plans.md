@@ -137,4 +137,4 @@ The starter template, this guide, CLI help, and parser must describe the same co
 - [Wanaku MCP CLI commands plan](https://github.com/wanaku-ai/wanaku-barn/blob/main/tests/plans/mcp-cli-commands.md).
 - [Wanaku operator basic functionality plan](https://github.com/wanaku-ai/wanaku-barn/blob/main/tests/plans/operator-basic-functionality.md).
 
-The Markdown syntax follows an open specification. The test execution conventions described here are specific to Saci. Existing Wanaku plans may need explicit expected-result sections or executable headings added before they satisfy these conventions. The [`convert-test-plan` skill](../.claude/skills/convert-test-plan/SKILL.md) gives an AI agent the procedure for that conversion.
+The Markdown syntax follows an open specification. The test execution conventions described here are specific to Saci. Existing Wanaku plans may need explicit expected-result sections or executable headings added before they satisfy these conventions. The [`saci-convert-test-plan` skill](../skills/saci-convert-test-plan/SKILL.md) gives an AI agent the procedure for that conversion.
