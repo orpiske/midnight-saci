@@ -1,4 +1,4 @@
-.PHONY: check fmt fmt-check clippy test image image-check web web-check console
+.PHONY: check fmt fmt-check clippy test image image-check web web-check console install uninstall
 
 ## Run every quality gate that CI runs.
 check: fmt-check clippy test
@@ -42,3 +42,20 @@ web-check: web
 CARGO_FLAGS ?=
 console: web
 	cargo build --locked $(CARGO_FLAGS) --package saci-backend --bin saci-backend --package saci-cli --bin saci
+
+PREFIX ?= /usr/local
+BINDIR ?= $(PREFIX)/bin
+BINARIES := saci saci-backend saci-worker
+
+## Build the binaries in release mode and install them in $(DESTDIR)$(BINDIR).
+## Override the location with PREFIX=... or BINDIR=.... Run `make web` first
+## to embed the web console.
+install:
+	cargo build --locked --release --package saci-cli --bin saci \
+		--package saci-backend --bin saci-backend --package saci-worker --bin saci-worker
+	install -d "$(DESTDIR)$(BINDIR)"
+	for bin in $(BINARIES); do install -m 0755 "target/release/$$bin" "$(DESTDIR)$(BINDIR)/$$bin"; done
+
+## Remove the installed binaries from $(DESTDIR)$(BINDIR).
+uninstall:
+	for bin in $(BINARIES); do rm -f "$(DESTDIR)$(BINDIR)/$$bin"; done

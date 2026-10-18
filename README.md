@@ -66,6 +66,10 @@ restarts the backend and reads every report back. The
 [walkthrough guide](docs/walkthrough.md) explains each step so you can do
 it by hand, and shows how to switch to a real model.
 
+To install the `saci` binaries in `/usr/local/bin`, run `make install`. To
+install them in a different directory, set `BINDIR`, for example
+`make install BINDIR=$HOME/bin`. See [installing](docs/cli.md#installing).
+
 ## Your first plan
 
 ```sh
