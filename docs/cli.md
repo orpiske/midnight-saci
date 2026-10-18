@@ -74,8 +74,50 @@ in the bundle with the code blocks of the originals at the same paths. It
 finds code blocks at all levels, also in lists and block quotes. A code
 block can move to a different document. If a code block is missing,
 changed or new, the command exits 2 and shows each one. The
-[`convert-test-plan` skill](../.claude/skills/convert-test-plan/SKILL.md)
+[`saci-convert-test-plan` skill](../skills/saci-convert-test-plan/SKILL.md)
 uses this check to make sure that a conversion keeps all commands.
+
+## `saci skill`
+
+```sh
+saci skill list
+saci skill install <name>... --agent <agent> [--agent <agent>] [--global] [--force]
+saci skill install --all --dir <dir>
+```
+
+Saci contains skills for coding agents. A skill teaches an agent to do a
+Saci task, for example to convert existing test plans
+(`saci-convert-test-plan`). The skills use the `SKILL.md` format that most
+coding agents read. These commands work offline.
+
+`saci skill list` shows the name and description of each skill.
+
+`saci skill install` writes each skill to `<skills directory>/<name>/`.
+Use `--all` to install all skills. Use `--agent` to select the coding
+agent. You can use `--agent` more than one time. Without `--global`, the
+command installs into the project in the current directory. With
+`--global`, it installs into your home directory, and the skill is
+available in all projects.
+
+| `--agent` | Project directory | `--global` directory |
+| --- | --- | --- |
+| `claude` (Claude Code) | `.claude/skills` | `~/.claude/skills` |
+| `codex` (OpenAI Codex) | `.agents/skills` | `~/.agents/skills` |
+| `cursor` | `.cursor/skills` | `~/.cursor/skills` |
+| `copilot` (GitHub Copilot) | `.github/skills` | `~/.copilot/skills` |
+| `gemini` (Gemini CLI) | `.gemini/skills` | `~/.gemini/skills` |
+| `opencode` | `.opencode/skills` | `~/.config/opencode/skills` |
+| `agents` (shared location) | `.agents/skills` | `~/.agents/skills` |
+
+Codex, Cursor, Copilot, Gemini CLI and OpenCode also read the shared
+`.agents/skills` location. For a different agent, use `--dir` to give its
+skills directory.
+
+If a skill is already installed and is the same, the command reports that
+it is up to date. If the installed skill is different, for example because
+you changed it or because it is from an older Saci version, the command
+does not change it and exits 2. Use `--force` to replace it. An unknown
+skill name also exits 2.
 
 ## `saci run`
 

@@ -8,6 +8,7 @@ mod inspect;
 mod new;
 mod render;
 mod run;
+mod skills;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -49,6 +50,13 @@ enum Command {
         #[arg(long, value_name = "DIR")]
         original: Option<PathBuf>,
     },
+    /// List and install the agent skills that ship with Saci. Works offline.
+    ///
+    /// Skills teach coding agents such as Claude Code, Codex, Cursor,
+    /// Copilot, Gemini CLI or OpenCode to do Saci tasks, for example to
+    /// convert existing test plans.
+    #[command(subcommand)]
+    Skill(skills::SkillCommand),
     /// Run the backend.
     #[command(subcommand)]
     Backend(BackendCommand),
@@ -140,6 +148,9 @@ fn main() -> ExitCode {
             strict,
             original,
         } => check::plan(&plan, strict, original.as_deref()),
+        Command::Skill(command) => skills::run(command)
+            .map(|()| exit::OK)
+            .map_err(CliError::from),
         Command::Backend(BackendCommand::Start { config }) => start_backend(config),
         command => {
             let connection = cli.connection;
@@ -167,7 +178,9 @@ async fn remote(client: &Client, command: Command) -> Result<u8, CliError> {
         Command::Report(run) => inspect::report(client, &run).await,
         Command::Cancel { run, wait } => Box::pin(inspect::cancel(client, &run, wait)).await,
         Command::Actions(command) => Box::pin(actions::run(client, command)).await,
-        Command::New(_) | Command::Check { .. } | Command::Backend(_) => Ok(exit::OK),
+        Command::New(_) | Command::Check { .. } | Command::Skill(_) | Command::Backend(_) => {
+            Ok(exit::OK)
+        }
     }
 }
 
