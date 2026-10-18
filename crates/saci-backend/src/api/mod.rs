@@ -1,6 +1,7 @@
 //! The REST API under `/api/v1` (see `docs/api.md` and `docs/openapi.yaml`).
 
 mod actions;
+mod catalog;
 mod error;
 mod runs;
 mod submit;
@@ -158,15 +159,23 @@ fn action_routes() -> Router<Backend> {
         .route("/actions", get(actions::by_state))
 }
 
-/// The client and worker routes and the health check.
-pub fn router(backend: Backend, auth: ClientAuth) -> Router {
-    let runs = Router::new()
+/// Client routes for runs and what they may be submitted with.
+fn client_routes() -> Router<Backend> {
+    Router::new()
         .route("/runs", post(runs::submit).get(runs::list))
         .route("/runs/{run_id}", get(runs::inspect))
         .route("/runs/{run_id}/events", get(runs::events))
         .route("/runs/{run_id}/report", get(runs::report))
         .route("/runs/{run_id}/evidence/{evidence_id}", get(runs::evidence))
         .route("/runs/{run_id}/cancellation", post(runs::cancel))
+        .route("/runs/{run_id}/plan", get(catalog::plan))
+        .route("/environments", get(catalog::environments))
+        .route("/policies", get(catalog::policies))
+}
+
+/// The client and worker routes and the health check.
+pub fn router(backend: Backend, auth: ClientAuth) -> Router {
+    let runs = client_routes()
         .merge(action_routes())
         .route_layer(middleware::from_fn_with_state(Arc::new(auth), authorize));
     let workers = Router::new()
@@ -187,8 +196,14 @@ pub fn router(backend: Backend, auth: ClientAuth) -> Router {
         .route("/health", get(runs::health))
         .merge(runs)
         .merge(workers)
+        .fallback(unknown_route)
         .with_state(backend);
     Router::new().nest(API_BASE, api)
+}
+
+/// Unknown API routes answer the structured error, never a page.
+async fn unknown_route() -> Failure {
+    Failure::new(ErrorCode::NotFound, "no such API route")
 }
 
 async fn authorize(

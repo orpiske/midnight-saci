@@ -14,6 +14,8 @@ servers:
 tags:
   - name: runs
     description: Submitting, inspecting and cancelling runs.
+  - name: catalog
+    description: What runs may be submitted with.
   - name: actions
     description: Outcome actions of finished runs (docs/actions.md).
   - name: worker
@@ -204,6 +206,71 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorBody" }
+  /api/v1/runs/{run_id}/plan:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      tags: [runs]
+      summary: The plan the run executes, from the documents retained with it.
+      description: |
+        The submitted bundle and its units in execution order, expanded by the backend's
+        parser: authored action, criteria, verification, source locations and the
+        run-unique keys reports and events use. It is read from the run's retained input,
+        never from changed files or the current configuration.
+      operationId: getRunPlan
+      security: [{ clientToken: [] }, {}]
+      responses:
+        "200":
+          description: The plan.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunPlan" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/environments:
+    get:
+      tags: [catalog]
+      summary: Environments runs may name, with their effective limits.
+      description: |
+        Names, descriptions, effective execution limits and the names of the MCP servers
+        steps may use. Parameters, secrets and connection details are never included.
+      operationId: listEnvironments
+      security: [{ clientToken: [] }, {}]
+      responses:
+        "200":
+          description: Every configured environment, by name.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/EnvironmentInfo" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/v1/policies:
+    get:
+      tags: [catalog]
+      summary: Policies runs may name, including the implied `default`.
+      description: |
+        Failure behavior, retries and the outcome actions each policy considers (name,
+        server, tool, triggering outcomes and approval; never their arguments).
+      operationId: listPolicies
+      security: [{ clientToken: [] }, {}]
+      responses:
+        "200":
+          description: Every policy, by name.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/PolicyInfo" }
+        "401": { $ref: "#/components/responses/Error" }
   /api/v1/runs/{run_id}/actions:
     parameters:
       - $ref: "#/components/parameters/RunId"
@@ -371,20 +438,25 @@ paths:
   /api/v1/actions:
     get:
       tags: [actions]
-      summary: Actions in one state across runs, oldest first.
+      summary: Actions in one state across runs, oldest first, one page at a time.
+      description: |
+        Ordered by creation time, then insertion. Pass `next_cursor` as `cursor` to read the
+        next page; it is absent on the last page. The order stays stable while actions change
+        state, so an action is never listed twice in one state's pages.
       operationId: listActions
       security: [{ clientToken: [] }, {}]
       parameters:
         - name: state
           in: query
-          schema:
-            type: string
-            enum: [pending_approval, queued, executing, rejected, completed, error, unknown]
-            default: pending_approval
+          schema: { $ref: "#/components/schemas/ActionState" }
         - $ref: "#/components/parameters/Limit"
+        - name: cursor
+          in: query
+          description: "`next_cursor` of the previous page."
+          schema: { type: string }
       responses:
         "200":
-          description: The actions.
+          description: One page of actions.
           content:
             application/json:
               schema:
@@ -394,6 +466,7 @@ paths:
                   items:
                     type: array
                     items: { $ref: "#/components/schemas/Action" }
+                  next_cursor: { type: string }
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
   /api/v1/worker/runs/{run_id}/specification:
@@ -522,6 +595,10 @@ components:
             details:
               type: array
               items: { type: string }
+            diagnostics:
+              type: array
+              description: Plan problems by document and line (`validation_failed`); `details` holds the same text.
+              items: { $ref: "#/components/schemas/PlanDiagnostic" }
     Lifecycle:
       type: string
       enum: [accepted, starting, running, stopping, finished]
@@ -547,6 +624,7 @@ components:
         policy: { type: string, default: default }
     OutcomeCounts:
       type: object
+      required: [passed, failed, blocked, inconclusive, error, skipped, cancelled]
       properties:
         passed: { type: integer }
         failed: { type: integer }
@@ -571,8 +649,8 @@ components:
         total_units: { type: integer }
         last_event_seq: { type: integer }
         created_at: { type: string, format: date-time }
-        finished_at: { type: string, format: date-time }
-        cancel_requested_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        cancel_requested_at: { type: [string, "null"], format: date-time }
     EventPage:
       type: object
       required: [items, next_after, finished]
@@ -587,66 +665,360 @@ components:
       required: [acknowledged_seq]
       properties:
         acknowledged_seq: { type: integer }
-    RunEvent:
+    SourceLocation:
       type: object
-      description: |
-        One progress event. `type` is one of run_started, attempt_started, observation,
-        attempt_finished, unit_finished, unit_skipped, cancellation_requested, run_finished;
-        the remaining properties depend on it (see docs/contracts.md).
-      required: [run_id, seq, at, type]
+      required: [document, line]
+      properties:
+        document: { type: string, description: Bundle-relative path. }
+        line: { type: integer, minimum: 1 }
+    PlanDiagnostic:
+      type: object
+      required: [document, line, message]
+      properties:
+        document: { type: string }
+        line: { type: integer, minimum: 1 }
+        message: { type: string }
+    UnitKind:
+      type: string
+      enum: [test, step]
+    Criterion:
+      type: object
+      required: [index, text, location]
+      properties:
+        index: { type: integer, minimum: 0, description: Position within the unit's expected results. }
+        text: { type: string }
+        location: { $ref: "#/components/schemas/SourceLocation" }
+    CodeBlock:
+      type: object
+      required: [language, code, location]
+      properties:
+        language: { type: string }
+        code: { type: string }
+        location: { $ref: "#/components/schemas/SourceLocation" }
+    ProcedureRef:
+      type: object
+      required: [target, location]
+      properties:
+        target: { type: string, description: Link target as written. }
+        location: { $ref: "#/components/schemas/SourceLocation" }
+    ExecutionLimits:
+      type: object
+      required: [run_timeout_secs, step_timeout_secs, operation_timeout_secs, model_request_timeout_secs, model_request_retries, model_calls_per_step, tool_calls_per_step, output_limit_bytes]
+      properties:
+        run_timeout_secs: { type: integer }
+        step_timeout_secs: { type: integer }
+        operation_timeout_secs: { type: integer }
+        model_request_timeout_secs: { type: integer }
+        model_request_retries: { type: integer }
+        model_calls_per_step: { type: integer }
+        tool_calls_per_step: { type: integer }
+        output_limit_bytes: { type: integer }
+    EnvironmentInfo:
+      type: object
+      required: [name, limits]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        limits: { $ref: "#/components/schemas/ExecutionLimits" }
+        mcp_servers:
+          type: array
+          description: Names of the MCP servers steps may use.
+          items: { type: string }
+    PolicyInfo:
+      type: object
+      required: [name, configured, on_failure, retry]
+      properties:
+        name: { type: string }
+        configured: { type: boolean, description: False for the implied `default` policy. }
+        on_failure: { type: string, enum: [stop, continue] }
+        retry:
+          type: object
+          required: [max_attempts]
+          properties:
+            max_attempts: { type: integer, minimum: 1 }
+            on:
+              type: array
+              items: { $ref: "#/components/schemas/Outcome" }
+        actions:
+          type: array
+          items: { $ref: "#/components/schemas/ActionInfo" }
+    ActionInfo:
+      type: object
+      required: [name, server, tool, on, approval]
+      properties:
+        name: { type: string }
+        server: { type: string }
+        tool: { type: string }
+        on:
+          type: array
+          items: { $ref: "#/components/schemas/Outcome" }
+        approval: { type: string, enum: [none, required] }
+    RunPlan:
+      type: object
+      required: [run_id, title, entry, documents, units]
       properties:
         run_id: { type: string }
-        seq: { type: integer, minimum: 1 }
-        at: { type: string, format: date-time }
-        unit: { type: string }
-        attempt: { type: integer, minimum: 1 }
-        source:
+        title: { type: string }
+        entry: { type: string }
+        documents:
           type: object
-          properties:
-            document: { type: string }
-            line: { type: integer }
-        type:
-          type: string
-          enum: [run_started, attempt_started, observation, attempt_finished, unit_finished, unit_skipped, cancellation_requested, run_finished]
-      additionalProperties: true
-    Evidence:
+          additionalProperties: { type: string }
+        units:
+          type: array
+          items: { $ref: "#/components/schemas/PlannedUnit" }
+        diagnostics:
+          type: array
+          description: Why the retained bundle no longer expands, when it does not; `units` is then empty.
+          items: { $ref: "#/components/schemas/PlanDiagnostic" }
+    PlannedUnit:
       type: object
-      description: >-
-        A redacted tool observation; `tool` is shell, http, mcp or rejected. MCP evidence also has
-        `server`, `tool_name`, `arguments`, `result`, `is_error` (the tool reported an error) and
-        `protocol_error` (no result: the call failed, timed out or was cancelled).
-      required: [id, unit, attempt, recorded_at, duration_ms, tool]
+      required: [key, id, kind, title, phase, location, cleanup, action, criteria]
       properties:
+        key: { type: string, description: "Run-unique key, as in reports and events." }
         id: { type: string }
-        unit: { type: string }
-        attempt: { type: integer }
-        recorded_at: { type: string, format: date-time }
-        duration_ms: { type: integer }
-        tool: { type: string, enum: [shell, http, mcp, rejected] }
-      additionalProperties: true
+        kind: { $ref: "#/components/schemas/UnitKind" }
+        title: { type: string }
+        phase: { type: string }
+        location: { $ref: "#/components/schemas/SourceLocation" }
+        cleanup: { type: boolean }
+        action: { type: string, description: The action as authored Markdown. }
+        commands:
+          type: array
+          items: { $ref: "#/components/schemas/CodeBlock" }
+        criteria:
+          type: array
+          items: { $ref: "#/components/schemas/Criterion" }
+        verification: { type: string }
+        procedures:
+          type: array
+          items: { $ref: "#/components/schemas/ProcedureRef" }
+        invoked_by:
+          type: array
+          description: Keys of the units whose invocations led here, outermost first.
+          items: { type: string }
+    ExecutionError:
+      type: object
+      required: [kind, message]
+      properties:
+        kind:
+          type: string
+          enum: [provider, invalid_assessment, tool, limit_exceeded, launch_failed, worker_lost, invalid_specification]
+        message: { type: string }
+    CriterionResult:
+      type: object
+      required: [criterion, status, basis, evidence, explanation]
+      properties:
+        criterion: { type: integer, minimum: 0 }
+        status: { type: string, enum: [satisfied, contradicted, undetermined] }
+        basis: { type: string, enum: [mechanical, model_judgment] }
+        evidence:
+          type: array
+          items: { type: string }
+        explanation: { type: string }
+    Assessment:
+      type: object
+      required: [outcome, criteria, explanation]
+      properties:
+        outcome: { $ref: "#/components/schemas/Outcome" }
+        criteria:
+          type: array
+          items: { $ref: "#/components/schemas/CriterionResult" }
+        explanation: { type: string }
+    Attempt:
+      type: object
+      required: [number, started_at, evidence]
+      properties:
+        number: { type: integer, minimum: 1 }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+        outcome: { $ref: "#/components/schemas/Outcome" }
+        assessment: { $ref: "#/components/schemas/Assessment" }
+        error: { $ref: "#/components/schemas/ExecutionError" }
+        evidence:
+          type: array
+          items: { type: string }
+    UnitReport:
+      type: object
+      required: [key, id, kind, title, phase, location, cleanup, attempts]
+      properties:
+        key: { type: string }
+        id: { type: string }
+        kind: { $ref: "#/components/schemas/UnitKind" }
+        title: { type: string }
+        phase: { type: string }
+        location: { $ref: "#/components/schemas/SourceLocation" }
+        cleanup: { type: boolean }
+        criteria:
+          type: array
+          items: { $ref: "#/components/schemas/Criterion" }
+        outcome: { $ref: "#/components/schemas/Outcome" }
+        reason: { type: string, description: Why the unit was skipped or interrupted. }
+        attempts:
+          type: array
+          items: { $ref: "#/components/schemas/Attempt" }
+    RunEvent:
+      description: |
+        One progress event: the common fields plus the fields of its `type` (see
+        docs/contracts.md).
+      allOf:
+        - type: object
+          required: [run_id, seq, at]
+          properties:
+            run_id: { type: string }
+            seq: { type: integer, minimum: 1 }
+            at: { type: string, format: date-time }
+            unit: { type: string }
+            attempt: { type: integer, minimum: 1 }
+            source: { $ref: "#/components/schemas/SourceLocation" }
+        - oneOf:
+            - type: object
+              required: [type, model]
+              properties:
+                type: { type: string, const: run_started }
+                model: { type: string }
+            - type: object
+              required: [type]
+              properties:
+                type: { type: string, const: attempt_started }
+            - type: object
+              required: [type, evidence]
+              properties:
+                type: { type: string, const: observation }
+                evidence: { $ref: "#/components/schemas/Evidence" }
+            - type: object
+              required: [type, outcome]
+              properties:
+                type: { type: string, const: attempt_finished }
+                outcome: { $ref: "#/components/schemas/Outcome" }
+                assessment: { $ref: "#/components/schemas/Assessment" }
+                error: { $ref: "#/components/schemas/ExecutionError" }
+            - type: object
+              required: [type, outcome]
+              properties:
+                type: { type: string, const: unit_finished }
+                outcome: { $ref: "#/components/schemas/Outcome" }
+            - type: object
+              required: [type, reason]
+              properties:
+                type: { type: string, const: unit_skipped }
+                reason: { type: string }
+            - type: object
+              required: [type]
+              properties:
+                type: { type: string, const: cancellation_requested }
+            - type: object
+              required: [type, outcome, reason]
+              properties:
+                type: { type: string, const: run_finished }
+                outcome: { $ref: "#/components/schemas/Outcome" }
+                reason: { type: string }
+    CapturedText:
+      type: object
+      required: [text, total_bytes]
+      properties:
+        text: { type: string, description: "The retained, redacted text." }
+        truncated: { type: boolean, description: Bytes beyond the configured limit were discarded. }
+        total_bytes: { type: integer, description: Size of the original output. }
+    Evidence:
+      description: >-
+        A redacted tool observation: the common fields plus the fields of its `tool` (shell,
+        http, mcp or rejected). MCP evidence names the tool `tool_name`; `is_error` means the
+        tool reported an error, `protocol_error` that no result arrived.
+      allOf:
+        - type: object
+          required: [id, unit, attempt, recorded_at, duration_ms]
+          properties:
+            id: { type: string }
+            unit: { type: string }
+            attempt: { type: integer }
+            recorded_at: { type: string, format: date-time }
+            duration_ms: { type: integer }
+        - oneOf:
+            - type: object
+              required: [tool, command, stdout, stderr, termination]
+              properties:
+                tool: { type: string, const: shell }
+                command: { type: string }
+                stdout: { $ref: "#/components/schemas/CapturedText" }
+                stderr: { $ref: "#/components/schemas/CapturedText" }
+                exit_code: { type: integer }
+                termination:
+                  type: string
+                  enum: [exited, timed_out, cancelled, session_ended, session_lost]
+                restarted: { type: boolean, description: Ran in a new shell session; earlier state is gone. }
+                session_lost: { type: boolean, description: The shell session did not survive this command. }
+            - type: object
+              required: [tool, method, url]
+              properties:
+                tool: { type: string, const: http }
+                method: { type: string }
+                url: { type: string }
+                request_headers:
+                  type: object
+                  additionalProperties: { type: string }
+                request_body: { $ref: "#/components/schemas/CapturedText" }
+                response:
+                  type: object
+                  required: [status, headers, body]
+                  properties:
+                    status: { type: integer }
+                    headers:
+                      type: object
+                      additionalProperties: { type: string }
+                    body: { $ref: "#/components/schemas/CapturedText" }
+                    body_error: { type: string }
+                transport_error: { type: string, description: "No response arrived (connection, TLS, timeout)." }
+            - type: object
+              required: [tool, server, tool_name, arguments, result, is_error]
+              properties:
+                tool: { type: string, const: mcp }
+                server: { type: string }
+                tool_name: { type: string }
+                arguments: {}
+                result: { $ref: "#/components/schemas/CapturedText" }
+                is_error: { type: boolean }
+                protocol_error: { type: string }
+            - type: object
+              required: [tool, name, arguments, reason]
+              properties:
+                tool: { type: string, const: rejected }
+                name: { type: string }
+                arguments: { type: string, description: The arguments as received. }
+                reason: { type: string }
     RunReport:
       type: object
       description: The durable run report (see docs/contracts.md).
-      required: [schema_version, run_id, lifecycle, counts, units, evidence, last_seq]
+      required: [schema_version, run_id, plan_title, entry, environment, policy, model, created_at, lifecycle, counts, units, cleanup_not_run, evidence, last_seq]
       properties:
         schema_version: { type: integer }
         run_id: { type: string }
         plan_title: { type: string }
+        entry: { type: string }
+        environment: { type: string }
+        policy: { type: string }
+        model: { type: string }
+        created_at: { type: string, format: date-time }
         lifecycle: { $ref: "#/components/schemas/Lifecycle" }
         outcome: { $ref: "#/components/schemas/Outcome" }
         reason: { type: string }
+        started_at: { type: [string, "null"], format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
         counts: { $ref: "#/components/schemas/OutcomeCounts" }
         units:
           type: array
-          items: { type: object, additionalProperties: true }
+          items: { $ref: "#/components/schemas/UnitReport" }
         cleanup_not_run:
           type: array
+          description: Cleanup units that did not run.
           items: { type: string }
         evidence:
           type: array
           items: { $ref: "#/components/schemas/Evidence" }
         last_seq: { type: integer }
-      additionalProperties: true
+    ActionState:
+      type: string
+      enum: [pending_approval, queued, executing, rejected, completed, error, unknown]
+      default: pending_approval
     Decision:
       type: object
       required: [digest]
@@ -662,9 +1034,7 @@ components:
         server: { type: string, description: "Server under `actions.servers`." }
         tool: { type: string }
         approval: { type: string, enum: [none, required] }
-        state:
-          type: string
-          enum: [pending_approval, queued, executing, rejected, completed, error, unknown]
+        state: { $ref: "#/components/schemas/ActionState" }
         arguments:
           type: object
           description: The exact arguments sent, or to be sent, rendered from the final report.
@@ -682,7 +1052,7 @@ components:
         attempts: { type: integer, minimum: 0 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-        result: { type: string, description: The tool's result text, once it answered. }
+        result: { type: string, description: "The tool's result text, once it answered." }
         error: { type: string, description: Why delivery failed or is unknown. }
         history:
           type: array
@@ -695,9 +1065,7 @@ components:
               event:
                 type: string
                 enum: [recorded, approved, rejected, claimed, answered, failed, uncertain, replayed, redispatched, reconciled]
-              state:
-                type: string
-                enum: [pending_approval, queued, executing, rejected, completed, error, unknown]
+              state: { $ref: "#/components/schemas/ActionState" }
               attempt: { type: integer, minimum: 0 }
               detail: { type: string, description: The error or note. }
     RunSpec:

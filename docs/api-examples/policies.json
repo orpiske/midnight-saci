@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "name": "default",
+      "configured": false,
+      "on_failure": "stop",
+      "retry": { "max_attempts": 1 }
+    },
+    {
+      "name": "nightly",
+      "configured": true,
+      "on_failure": "continue",
+      "retry": { "max_attempts": 2, "on": ["failed"] },
+      "actions": [
+        {
+          "name": "file-bug",
+          "server": "tracker",
+          "tool": "create_issue",
+          "on": ["failed"],
+          "approval": "required"
+        }
+      ]
+    }
+  ]
+}

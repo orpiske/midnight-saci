@@ -42,6 +42,11 @@ Errors use one body shape and stable codes:
 | `digest_mismatch` | 409 | An approval, rejection or redispatch named a digest other than the recorded arguments'. |
 | `action_not_resolvable` | 409 | A redispatch of an action that is not `unknown` or `error`, or a reconciliation of one that is not `unknown`. |
 | `validation_failed` | 422 | Invalid plan bundle, unknown environment or policy; `details` lists every diagnostic with its file and line. |
+
+A plan `validation_failed` also carries the same problems as structured
+`diagnostics`, each with `document`, `line` and `message`
+([example](api-examples/error-validation.json)), so a client can show them
+next to the source without parsing the text.
 | `internal` | 500 | The backend failed. |
 
 ## Submitting a run
@@ -79,6 +84,8 @@ tell whether the run was created and should list runs before resubmitting.
   once `lifecycle` is `finished` and remains available after the worker is
   removed.
 - `GET /api/v1/runs/{run_id}/evidence/{evidence_id}` returns one observation.
+- `GET /api/v1/runs/{run_id}/plan` returns the plan the run executes
+  ([example](api-examples/run-plan.json)); see [console reads](#console-reads).
 
 Query parameters are validated: `limit` must be 1 to 200 (default 50),
 `wait` 0 to 60, and a `cursor` must come from an earlier page; anything else
@@ -91,7 +98,10 @@ with `seq > after` in order ([example](api-examples/event-page.json)). With
 `wait`, the backend holds the request until a new event exists, the run
 finishes, or the wait (at most 60 seconds) ends. A client keeps
 `next_after` and reconnects with it, so a dropped connection never loses or
-repeats an event. `finished: true` means no more events will appear.
+repeats an event. `finished: true` means no more events will be recorded,
+not that this page holds the rest: a finished run may still have more
+events than one page (`limit`, 50 by default). Keep reading from
+`next_after` until a page ends with `run_finished` or is empty.
 
 ## Cancelling
 
@@ -118,8 +128,13 @@ run's outcome. See [outcome actions](actions.md).
 `replayed`, `redispatched` or `reconciled`), the `state` and `attempt`
 count afterwards, and the error or note as `detail`.
 
-`GET /api/v1/actions?state=<state>&limit=<n>` lists actions in one state
-across runs, oldest first. The default state is `pending_approval`.
+`GET /api/v1/actions?state=<state>&limit=<n>&cursor=<cursor>` lists actions
+in one state across runs, oldest first (by creation time, then insertion).
+The default state is `pending_approval`. A page that is not the last has a
+`next_cursor`; pass it as `cursor` to read the next one. The order is stable
+while actions change state, so paging never lists an action twice in one
+state; an action that moves to another state while you page leaves this
+listing.
 
 `POST /api/v1/runs/{run_id}/actions/{name}/approval` and
 `POST /api/v1/runs/{run_id}/actions/{name}/rejection` decide on an
@@ -136,6 +151,33 @@ with `{"state": "completed" | "error", "note": "optional"}` records what a
 person found for an `unknown` action and sends nothing. Both answer `200`
 with the action, or `409 action_not_resolvable` in another state; see
 [retries and restarts](actions.md#retries-and-restarts).
+
+## Console reads
+
+These client routes describe what a run may be submitted with and what a
+run executes, for clients such as the web console. They only
+read, and they are built from an allowlist of fields: secret values and
+references, environment parameters, MCP connection details, headers and
+action argument templates never appear.
+
+- `GET /api/v1/environments` lists each configured environment with its
+  `description`, its effective `limits` (top-level limits and the
+  environment's overrides over the built-in defaults) and the names of the
+  MCP servers its steps may use ([example](api-examples/environments.json)).
+- `GET /api/v1/policies` lists each policy with `on_failure`, `retry` and
+  the outcome actions it considers (`name`, `server`, `tool`, the outcomes
+  in `on` and `approval`). The `default` policy is always listed;
+  `configured: false` marks it when it is only implied
+  ([example](api-examples/policies.json)).
+- `GET /api/v1/runs/{run_id}/plan` returns the documents submitted with the
+  run and its units in execution order, expanded by the backend's own
+  parser: each unit's run-unique `key` (the key reports and events use),
+  authored action, fenced commands, `criteria`, `verification`,
+  `procedures`, source `location` and `invoked_by`, the keys of the units
+  whose procedure invocations led to it. It reads the run's retained input,
+  never files or configuration that changed since. If the retained bundle no
+  longer expands (for example after a parser change), `units` is empty and
+  `diagnostics` says why.
 
 ## Worker reporting protocol
 

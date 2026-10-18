@@ -18,6 +18,7 @@ pub mod redaction;
 pub mod run;
 pub mod spec;
 pub mod status;
+pub mod view;
 
 /// Version of the Saci contracts implemented by this build.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

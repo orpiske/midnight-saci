@@ -22,7 +22,10 @@ pub async fn list(
     Path(id): Path<String>,
 ) -> Result<Json<ActionList>, Failure> {
     let items = backend.store.actions(&run_id(&id)?).await?;
-    Ok(Json(ActionList { items }))
+    Ok(Json(ActionList {
+        items,
+        next_cursor: None,
+    }))
 }
 
 /// One action with its history.
@@ -96,10 +99,11 @@ pub async fn reconcile(
 pub struct StateQuery {
     state: Option<String>,
     limit: Option<u32>,
+    cursor: Option<String>,
 }
 
-/// Actions across runs in one state, oldest first: by default the ones
-/// waiting for approval.
+/// Actions across runs in one state, oldest first, one page at a time: by
+/// default the ones waiting for approval.
 pub async fn by_state(
     State(backend): State<Backend>,
     params: Result<Query<StateQuery>, QueryRejection>,
@@ -114,8 +118,11 @@ pub async fn by_state(
     if !(1..=200).contains(&limit) {
         return Err(Failure::bad_request("limit must be between 1 and 200"));
     }
-    let items = backend.store.actions_in_state(state, limit).await?;
-    Ok(Json(ActionList { items }))
+    let (items, next_cursor) = backend
+        .store
+        .actions_in_state(state, params.cursor, limit)
+        .await?;
+    Ok(Json(ActionList { items, next_cursor }))
 }
 
 /// Approves the recorded arguments named by their digest; the action is
