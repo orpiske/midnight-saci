@@ -81,13 +81,29 @@ make image-check                         # runs a fixture-backed plan in the ima
 `localhost/saci-worker:latest` is the default `worker.image`
 ([configuration](configuration.md#worker)).
 
+CI publishes `quay.io/orpiske/saci-worker:latest` and a tag with the full
+commit SHA after a successful push to `main`. Each tag is a multi-arch
+manifest for Linux x86_64 (`amd64`) and AArch64 (`arm64`). Set `worker.image`
+to this image to use it. For Helm, set
+`--set image.repository=quay.io/orpiske/saci-worker --set image.tag=latest`.
+
+To enable publication, configure the repository secrets `QUAY_USERNAME`
+and `QUAY_PASSWORD` with credentials that can push to the Quay repository.
+The optional repository variables `CONTAINER_REGISTRY` and
+`CONTAINER_GROUP` override `quay.io` and the GitHub repository owner.
+Without both secrets, CI builds and tests the images but skips publication.
+Pull requests also build and test both architectures without publication.
+Architecture images use tags unique to the workflow run. The manifest job
+combines these images only after all CI jobs pass.
+
 - **Non-root.** The image runs as UID 10001 in group 0. `/workspace` (also
   `HOME`) is owned by group 0 and group-writable, so the arbitrary UIDs that
   OpenShift's restricted policy assigns work too. Nothing needs root, a
   container runtime socket or added capabilities.
 - **Isolation.** Every run gets a new container; files a plan creates live
   only in that container's `/workspace`.
-- **Checked in CI.** The `worker-image` job builds the image and runs a
+- **Checked in CI.** The `worker-image` job builds the image on native
+  x86_64 and AArch64 runners and runs a
   fixture-backed plan in it as UID 123456, against a scripted model.
 
 ### Adding utilities

@@ -9,8 +9,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
+  CONTAINER_REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'quay.io' }}
+  CONTAINER_GROUP: ${{ vars.CONTAINER_GROUP || github.repository_owner }}
+  # Unique per run so a manifest cannot combine images from different builds.
+  IMAGE_BUILD_TAG: ${{ github.sha }}-${{ github.run_id }}
 
 jobs:
   format:
@@ -87,7 +95,19 @@ jobs:
         run: cargo test --locked --package saci-backend --test console
 
   worker-image:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    env:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+      IMAGE_ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
@@ -119,6 +139,46 @@ jobs:
           podman --version
           docker save localhost/saci-worker:ci | podman load
           cargo test --locked --package saci-backend --test container_launcher the_backend_launches_the_real_image
+
+      - name: Login to Quay
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.QUAY_USERNAME != '' && env.QUAY_PASSWORD != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ env.QUAY_USERNAME }}
+          password: ${{ env.QUAY_PASSWORD }}
+      - name: Push the tested architecture image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.QUAY_USERNAME != '' && env.QUAY_PASSWORD != ''
+        run: |
+          image="$CONTAINER_REGISTRY/$CONTAINER_GROUP/saci-worker:$IMAGE_BUILD_TAG-$IMAGE_ARCH"
+          docker tag localhost/saci-worker:ci "$image"
+          docker push "$image"
+
+  image-manifest:
+    needs: [format, clippy, test, web, worker-image, kubernetes]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+    steps:
+      - name: Login to Quay
+        if: env.QUAY_USERNAME != '' && env.QUAY_PASSWORD != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ env.QUAY_USERNAME }}
+          password: ${{ env.QUAY_PASSWORD }}
+      - name: Create and push multi-arch manifests
+        if: env.QUAY_USERNAME != '' && env.QUAY_PASSWORD != ''
+        run: |
+          image="$CONTAINER_REGISTRY/$CONTAINER_GROUP/saci-worker"
+          for tag in "$GITHUB_SHA" latest; do
+            docker manifest create "$image:$tag" \
+              "$image:$IMAGE_BUILD_TAG-amd64" \
+              "$image:$IMAGE_BUILD_TAG-arm64"
+            docker manifest push "$image:$tag"
+          done
 
   kubernetes:
     runs-on: ubuntu-latest
