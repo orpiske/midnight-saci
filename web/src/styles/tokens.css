@@ -1,0 +1,64 @@
+/* Midnight Saci design tokens (artwork/BRAND.md section 9), plus the
+ * functional tokens docs/web-ui.md#accessibility documents. Contrast of
+ * every pair the components use is checked by src/styles/contrast.test.ts. */
+:root {
+  /* Surfaces */
+  --ms-bg: #0b1026;
+  --ms-surface: #141b3a;
+  --ms-raised: #1c2550;
+  --ms-border: #2a3366;
+  --ms-code-bg: #070a1a;
+
+  /* Text */
+  --ms-text: #f2e9d8;
+  --ms-text-muted: #b9b3c9;
+  --ms-text-faint: #7f7a99;
+  --ms-on-accent: #ffffff;
+
+  /* Brand. --ms-accent is the exact logo red, used for the active
+   * navigation indicator and large marks only. */
+  --ms-accent: #e5402f;
+  --ms-accent-hover: #f0503f;
+  --ms-glow: #ffd166;
+
+  /* Functional fills behind white text: the guide's Cap Red reaches only
+   * 4.11:1 (hover 3.54:1) with white, below WCAG AA for button labels. */
+  --ms-accent-fill: #c93527;
+  --ms-accent-fill-hover: #d63b2b;
+
+  /* Status */
+  --ms-pass: #4fd1a5;
+  --ms-fail: #ff6b8b;
+  --ms-flaky: #ffd166;
+  --ms-running: #7aa2ff;
+  --ms-skipped: #7f7a99;
+  /* Text on a neutral status tint: Fog is below 4.5:1 on Night Surface. */
+  --ms-neutral-text: #b9b3c9;
+
+  /* Type */
+  --ms-font-sans: "Bricolage Grotesque Variable", "Bricolage Grotesque", ui-sans-serif, system-ui,
+    sans-serif;
+  --ms-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Shape */
+  --ms-radius-sm: 6px;
+  --ms-radius-md: 10px;
+  --ms-radius-lg: 16px;
+  --ms-focus: 0 0 0 2px var(--ms-bg), 0 0 0 4px var(--ms-glow);
+
+  /* Space (4px base) */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+
+  /* Status tints: the status color at 12% over the surface below it. */
+  --tint: 12%;
+
+  --nav-width: 216px;
+  --units-width: 280px;
+}

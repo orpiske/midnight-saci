@@ -1,0 +1,40 @@
+{
+  "name": "saci-web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Midnight Saci web console: served by saci-backend at /ui/",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run typecheck && vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "api-types": "openapi-typescript ../docs/openapi.yaml -o src/api/schema.d.ts",
+    "api-types:check": "openapi-typescript ../docs/openapi.yaml -o .api-types.check.d.ts && node scripts/same-file.mjs src/api/schema.d.ts .api-types.check.d.ts",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "check": "npm run api-types:check && npm run typecheck && npm run test"
+  },
+  "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "lucide-react": "1.52.0",
+    "react": "19.2.9",
+    "react-dom": "19.2.9"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.56.1",
+    "@testing-library/react": "16.3.0",
+    "@types/node": "24.19.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "6.1.2",
+    "jsdom": "29.1.0",
+    "openapi-typescript": "7.13.0",
+    "playwright-core": "1.56.1",
+    "typescript": "5.9.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
+  }
+}
