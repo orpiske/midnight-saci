@@ -4,6 +4,27 @@
 submits plans to a local or remote backend through the [REST API](api.md).
 It never starts workers or containers itself: the backend does.
 
+## Installing
+
+To build the binaries in release mode and install them, run this command
+from the repository root:
+
+```sh
+make install                      # installs in /usr/local/bin
+make install BINDIR=$HOME/bin     # installs in a directory that you select
+make install PREFIX=/opt/saci     # installs in /opt/saci/bin
+```
+
+The target installs `saci`, `saci-backend` and `saci-worker`. It uses only
+`cargo` and the standard `install` tool, and works on Linux and macOS. If
+you do not have write access to the directory, use `sudo make install`, or
+select a directory that you own. Packagers can set `DESTDIR` to install into
+a staging root.
+
+To embed the [web console](web-ui.md), run `make web` before
+`make install`. To remove the installed binaries, run `make uninstall` with
+the same `PREFIX` or `BINDIR`.
+
 ## Connecting to a backend
 
 Every command that talks to a backend accepts:
