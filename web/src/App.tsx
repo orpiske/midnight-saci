@@ -5,6 +5,8 @@ import { Wordmark } from "./components/Brand";
 import { EmptyState } from "./components/Feedback";
 import { ConnectionPage, TokenForm } from "./features/connection/ConnectionPage";
 import { connectionSummary, useConnection } from "./features/connection/connection";
+import { RunsPage } from "./features/runs/RunsPage";
+import { NewRunPage } from "./features/submission/NewRunPage";
 import { Link, navigate, useLocation } from "./lib/router";
 
 type Section = "runs" | "actions" | "connection";
@@ -99,6 +101,8 @@ function Navigation({
 }
 
 function Screen({ path }: { path: string }): ReactNode {
+  if (path === "/" || path === "/runs") return <RunsPage />;
+  if (path === "/runs/new") return <NewRunPage />;
   if (path === "/connection") return <ConnectionPage />;
   return (
     <div className="page">
