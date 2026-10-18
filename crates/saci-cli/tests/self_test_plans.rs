@@ -42,15 +42,21 @@ fn every_self_test_plan_is_valid() {
     }
 }
 
+/// The environment parameters the plans read. The values depend on where
+/// the two Saci instances run, so only their presence is checked.
+const PARAMETERS: [&str; 3] = ["UNDER_TEST_URL", "UNDER_TEST_ENVIRONMENT", "SERVICE_URL"];
+
 #[test]
 fn the_self_test_configuration_loads() {
     let path = repository().join("test/saci.yaml");
     let config = Config::load(&path).unwrap_or_else(|error| panic!("{error}"));
     let (environment, _) = config.environment("saci-under-test").unwrap();
-    assert_eq!(
-        environment.parameters["UNDER_TEST_URL"],
-        "http://127.0.0.1:18080"
-    );
-    assert_eq!(environment.parameters["UNDER_TEST_ENVIRONMENT"], "local");
+    for name in PARAMETERS {
+        let value = environment
+            .parameters
+            .get(name)
+            .unwrap_or_else(|| panic!("saci-under-test does not define {name}"));
+        assert!(!value.is_empty(), "{name} is empty");
+    }
     assert_eq!(config.worker.network.as_deref(), Some("host"));
 }
