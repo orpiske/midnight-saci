@@ -36,6 +36,8 @@ web-check: web
 	cd web && npm run check && npm run e2e
 	SACI_WEB_DIST=$(CURDIR)/web/dist cargo test --locked --package saci-backend --test console
 
-## Build the backend with the web console embedded.
+## Build the backend and the saci CLI (which also starts the backend) with
+## the web console embedded.
 console: web
-	SACI_WEB_DIST=$(CURDIR)/web/dist cargo build --locked --release --package saci-backend
+	SACI_WEB_DIST=$(CURDIR)/web/dist cargo build --locked --release --package saci-backend --bin saci-backend --package saci-cli --bin saci
+	@echo "Built target/release/saci-backend and target/release/saci with the console at /ui/"

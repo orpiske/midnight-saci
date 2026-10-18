@@ -15,6 +15,8 @@ export interface Mock {
   /** Required bearer token, or null for an open backend. */
   token: string | null;
   events: RunEvent[];
+  /** Console messages about content the Content-Security-Policy blocked. */
+  blocked: string[];
 }
 
 function json(route: Route, status: number, body: unknown, headers: Record<string, string> = {}) {
@@ -37,8 +39,12 @@ export async function mockBackend(page: Page, options: Partial<Mock> = {}): Prom
     submit: [],
     token: null,
     events: fx.liveEvents,
+    blocked: [],
     ...options,
   };
+  page.on("console", (message) => {
+    if (message.text().includes("Content Security Policy")) mock.blocked.push(message.text());
+  });
   let served = 0;
 
   await page.route("**/api/v1/**", async (route, request) => {
