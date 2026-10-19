@@ -46,16 +46,21 @@ console: web
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 BINARIES := saci saci-backend saci-worker
+# Runs the commands that write to $(DESTDIR)$(BINDIR). It is sudo when the
+# nearest existing directory on that path is not writable, else empty.
+# Override it, for example SUDO= or SUDO=doas.
+SUDO ?= $(shell d="$(DESTDIR)$(BINDIR)"; while [ ! -d "$$d" ]; do d=$$(dirname "$$d"); done; [ -w "$$d" ] || echo sudo)
 
-## Build the binaries in release mode and install them in $(DESTDIR)$(BINDIR).
+## Build the binaries in release mode as the current user and install them in
+## $(DESTDIR)$(BINDIR), with sudo when that directory is not writable.
 ## Override the location with PREFIX=... or BINDIR=.... Run `make web` first
 ## to embed the web console.
 install:
 	cargo build --locked --release --package saci-cli --bin saci \
 		--package saci-backend --bin saci-backend --package saci-worker --bin saci-worker
-	install -d "$(DESTDIR)$(BINDIR)"
-	for bin in $(BINARIES); do install -m 0755 "target/release/$$bin" "$(DESTDIR)$(BINDIR)/$$bin"; done
+	$(SUDO) install -d "$(DESTDIR)$(BINDIR)"
+	for bin in $(BINARIES); do $(SUDO) install -m 0755 "target/release/$$bin" "$(DESTDIR)$(BINDIR)/$$bin"; done
 
 ## Remove the installed binaries from $(DESTDIR)$(BINDIR).
 uninstall:
-	for bin in $(BINARIES); do rm -f "$(DESTDIR)$(BINDIR)/$$bin"; done
+	for bin in $(BINARIES); do $(SUDO) rm -f "$(DESTDIR)$(BINDIR)/$$bin"; done
