@@ -1,7 +1,9 @@
-# Configuration for the Saci that runs the self-test plans in test/plans/
-# against a second Saci, the one test/start-under-test.sh starts on
-# 127.0.0.1:18080. This one listens on 127.0.0.1:8080 and needs a real,
-# tool-capable model. Reference: docs/configuration.md, test/README.md.
+# Configuration for the Saci that runs the self-test plans in test/plans/.
+# It listens on 127.0.0.1:8080, needs a real, tool-capable model and requires
+# a client token. The saci-under-test environment points the plans at this
+# same backend. To test a second Saci, such as the one test/start-under-test.sh
+# starts on 127.0.0.1:18080, change UNDER_TEST_URL and UNDER_TEST_TOKEN.
+# Reference: docs/configuration.md, test/README.md.
 
 backend:
   listen: 127.0.0.1:8080
@@ -9,6 +11,11 @@ backend:
   # Workers share the host's network, so loopback reaches this backend and
   # the backend under test.
   worker_url: http://host.docker.internal:8080
+  # Clients send the token in SACI_TOKEN. The saci-under-test environment
+  # gives the same token to the plans as UNDER_TEST_TOKEN, so the plans can
+  # also test this backend.
+  auth:
+    token_env: SACI_TOKEN
 
 worker:
   runtime: auto            # podman if found in PATH, otherwise docker
@@ -29,11 +36,15 @@ limits:
 
 environments:
   saci-under-test:
-    description: The Saci started by test/start-under-test.sh.
+    description: This Saci, tested by itself.
     parameters:
       UNDER_TEST_URL: http://host.docker.internal:8080
       UNDER_TEST_ENVIRONMENT: saci-under-test
       SERVICE_URL: http://host.docker.internal:18081
+    secrets:
+      # The client token of the backend under test. When it is a different
+      # backend, use the variable that holds its token.
+      UNDER_TEST_TOKEN: { env: SACI_TOKEN }
 
 policies:
   # Keep going after a failed test, so one failure does not hide the rest.
