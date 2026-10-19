@@ -16,10 +16,13 @@ make install PREFIX=/opt/saci     # installs in /opt/saci/bin
 ```
 
 The target installs `saci`, `saci-backend` and `saci-worker`. It uses only
-`cargo` and the standard `install` tool, and works on Linux and macOS. If
-you do not have write access to the directory, use `sudo make install`, or
-select a directory that you own. Packagers can set `DESTDIR` to install into
-a staging root.
+`cargo` and the standard `install` tool, and works on Linux and macOS.
+
+Do not run `sudo make install`. The target builds as the current user. If
+you do not have write access to the directory, the target uses `sudo` only
+to copy the binaries, and `sudo` asks for your password. To use a different
+command, set `SUDO`, for example `make install SUDO=doas`. To disable it,
+set `SUDO=`. Packagers can set `DESTDIR` to install into a staging root.
 
 To embed the [web console](web-ui.md), run `make web` before
 `make install`. To remove the installed binaries, run `make uninstall` with
