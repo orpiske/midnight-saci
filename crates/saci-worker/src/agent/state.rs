@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use saci_core::assessment::Assessment;
 use saci_core::evidence::{Evidence, EvidenceRecord, RejectedCall};
 use saci_core::plan::Criterion;
-use saci_core::run::{ErrorKind, ExecutionError, UnitIdentity};
+use saci_core::run::{AttemptTiming, ErrorKind, ExecutionError, UnitIdentity};
 use saci_core::spec::ExecutionLimits;
 use tokio_util::sync::CancellationToken;
 
@@ -32,6 +32,25 @@ pub struct AttemptState {
     /// Why a limit or the tool infrastructure ended the attempt.
     halt: Mutex<Option<ExecutionError>>,
     problems: Mutex<Vec<String>>,
+    timing: Mutex<Clock>,
+}
+
+/// Where the attempt spent its time so far.
+#[derive(Debug, Default)]
+struct Clock {
+    model_requests: u32,
+    model: Duration,
+    /// When the model request in flight was sent.
+    model_since: Option<Instant>,
+    tool: Duration,
+}
+
+impl Clock {
+    fn settle_model(&mut self) {
+        if let Some(since) = self.model_since.take() {
+            self.model += since.elapsed();
+        }
+    }
 }
 
 /// What an attempt starts from.
@@ -84,6 +103,7 @@ impl AttemptState {
             assessment: Mutex::new(None),
             halt: Mutex::new(None),
             problems: Mutex::new(Vec::new()),
+            timing: Mutex::new(Clock::default()),
         }
     }
 
@@ -182,8 +202,34 @@ impl AttemptState {
 
     /// Records an observation of this attempt.
     pub fn record(&self, duration: Duration, record: EvidenceRecord) -> Evidence {
+        lock(&self.timing).tool += duration;
         self.recorder
             .record(&self.unit, self.attempt, duration, record)
+    }
+
+    /// Notes that a model request was sent.
+    pub fn model_sent(&self) {
+        let mut clock = lock(&self.timing);
+        clock.settle_model();
+        clock.model_requests += 1;
+        clock.model_since = Some(Instant::now());
+    }
+
+    /// Notes that the model request in flight was answered.
+    pub fn model_answered(&self) {
+        lock(&self.timing).settle_model();
+    }
+
+    /// Where the attempt spent its time. A request still in flight (one that
+    /// failed or was interrupted) counts until now.
+    pub fn timing(&self) -> AttemptTiming {
+        let mut clock = lock(&self.timing);
+        clock.settle_model();
+        AttemptTiming {
+            model_requests: clock.model_requests,
+            model_ms: millis(clock.model),
+            tool_ms: millis(clock.tool),
+        }
     }
 
     /// Records a tool request that was refused before it ran.
@@ -195,4 +241,8 @@ impl AttemptState {
         });
         self.record(Duration::ZERO, record)
     }
+}
+
+fn millis(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }

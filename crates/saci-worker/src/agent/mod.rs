@@ -25,7 +25,7 @@ use rig::tool::DynamicTool;
 use saci_core::assessment::Assessment;
 use saci_core::bundle::ExecutionUnit;
 use saci_core::event::EventKind;
-use saci_core::run::{ErrorKind, ExecutionError};
+use saci_core::run::{AttemptTiming, ErrorKind, ExecutionError};
 use saci_core::spec::ExecutionLimits;
 use saci_core::status::Outcome;
 use tokio::sync::Mutex;
@@ -103,6 +103,8 @@ pub struct AttemptResult {
     pub assessment: Option<Assessment>,
     /// What prevented an assessment, when something did.
     pub error: Option<ExecutionError>,
+    /// Where the attempt spent its time, once its agent ran.
+    pub timing: Option<AttemptTiming>,
 }
 
 impl AttemptResult {
@@ -111,6 +113,7 @@ impl AttemptResult {
             outcome: assessment.outcome,
             assessment: Some(assessment),
             error: None,
+            timing: None,
         }
     }
 
@@ -119,6 +122,7 @@ impl AttemptResult {
             outcome: Outcome::Error,
             assessment: None,
             error: Some(error),
+            timing: None,
         }
     }
 
@@ -127,6 +131,7 @@ impl AttemptResult {
             outcome: Outcome::Cancelled,
             assessment: None,
             error: None,
+            timing: None,
         }
     }
 }
@@ -192,6 +197,7 @@ impl Executor {
             outcome: result.outcome,
             assessment: result.assessment.clone(),
             error: result.error.clone(),
+            timing: result.timing,
         };
         events.emit(Some(identity), Some(request.attempt), kind);
         result
@@ -219,7 +225,9 @@ impl Executor {
         );
         let run = self.start(&state, tools, text);
         let ending = Box::pin(self.run_agent(&state, run, request.cancel)).await;
-        self.conclude(&state, ending, request.cancel)
+        let mut result = self.conclude(&state, ending, request.cancel);
+        result.timing = Some(state.timing());
+        result
     }
 
     fn tools(&self, state: &Arc<AttemptState>) -> Result<Vec<DynamicTool>, ExecutionError> {

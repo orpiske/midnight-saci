@@ -4,7 +4,7 @@
 import { Pause, Play } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import type { RunEvent } from "../../api/types";
+import type { AttemptTiming, RunEvent } from "../../api/types";
 import { Callout, describeError } from "../../components/Feedback";
 import { StatusIcon } from "../../components/Status";
 import { formatClock } from "../../lib/format";
@@ -16,6 +16,13 @@ import type { Activity } from "./RunPage";
 
 /** Events rendered at once. */
 export const RENDERED_EVENTS = 500;
+
+/** Where a finished attempt spent its time; empty when the worker did not say. */
+function timingNote(timing?: AttemptTiming): string {
+  if (!timing) return "";
+  const requests = timing.model_requests === 1 ? "request" : "requests";
+  return ` (model: ${timing.model_requests} ${requests}, ${timing.model_ms} ms; tools: ${timing.tool_ms} ms)`;
+}
 
 /** What one event says, in plain words. */
 export function describeEvent(event: RunEvent): { look?: StatusLook; text: ReactNode } {
@@ -32,13 +39,14 @@ export function describeEvent(event: RunEvent): { look?: StatusLook; text: React
           </>
         ),
       };
-    case "attempt_finished":
+    case "attempt_finished": {
+      const outcome = OUTCOME[event.outcome].label.toLowerCase();
+      const error = event.error ? `: ${event.error.message}` : "";
       return {
         look: OUTCOME[event.outcome],
-        text: `Attempt ${event.attempt ?? ""} ${OUTCOME[event.outcome].label.toLowerCase()}${
-          event.error ? `: ${event.error.message}` : ""
-        }`,
+        text: `Attempt ${event.attempt ?? ""} ${outcome}${timingNote(event.timing)}${error}`,
       };
+    }
     case "unit_finished":
       return { look: OUTCOME[event.outcome], text: `Unit ${OUTCOME[event.outcome].label.toLowerCase()}` };
     case "unit_skipped":

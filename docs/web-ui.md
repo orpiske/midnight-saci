@@ -36,7 +36,9 @@ says how to build it; the API is unaffected.
     model's judgment decided it, and the evidence it cites. Cleanup that
     did not run is called out.
   - *Activity*: the live event feed. It follows the newest event until you
-    scroll away or pause it, and keeps the newest 500 on screen.
+    scroll away or pause it, and keeps the newest 500 on screen. A finished
+    attempt shows its model requests, the time spent on them and the time
+    spent in tool calls.
   - *Plan*: the documents retained with the run and the units the backend
     expanded from them.
   - *Outcome actions*: the run's actions and their delivery.

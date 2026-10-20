@@ -129,6 +129,7 @@
       "attempt": 1,
       "type": "attempt_finished",
       "outcome": "passed",
+      "timing": { "model_requests": 2, "model_ms": 2400, "tool_ms": 15 },
       "assessment": {
         "outcome": "passed",
         "criteria": [

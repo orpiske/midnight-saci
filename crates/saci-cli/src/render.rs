@@ -7,7 +7,7 @@ use saci_core::action::{ActionRecord, ActionState, HistoryEntry, Verdict};
 use saci_core::api::RunSummary;
 use saci_core::event::{EventKind, RunEvent};
 use saci_core::evidence::{Evidence, EvidenceRecord};
-use saci_core::run::{Attempt, OutcomeCounts, RunReport, UnitReport};
+use saci_core::run::{Attempt, AttemptTiming, OutcomeCounts, RunReport, UnitReport};
 use saci_core::status::Lifecycle;
 use serde::Serialize;
 
@@ -39,7 +39,13 @@ pub fn event(event: &RunEvent) -> String {
             outcome,
             assessment,
             error,
-        } => attempt_ending(*outcome, assessment.as_ref(), error.as_ref()),
+            timing,
+        } => attempt_ending(
+            *outcome,
+            assessment.as_ref(),
+            error.as_ref(),
+            timing.as_ref(),
+        ),
         EventKind::UnitFinished { outcome } => format!("{outcome}"),
         EventKind::UnitSkipped { reason } => format!("skipped: {reason}"),
         EventKind::CancellationRequested => "cancellation requested".to_owned(),
@@ -52,14 +58,29 @@ fn attempt_ending(
     outcome: saci_core::status::Outcome,
     assessment: Option<&saci_core::assessment::Assessment>,
     error: Option<&saci_core::run::ExecutionError>,
+    timing: Option<&AttemptTiming>,
 ) -> String {
     let detail = assessment
         .map(|a| a.explanation.clone())
         .or_else(|| error.map(|e| format!("{}: {}", name(&e.kind), e.message)));
     format!(
-        "{outcome}{}",
+        "{outcome}{}{}",
+        timing_note(timing),
         detail.map(|d| format!(": {d}")).unwrap_or_default()
     )
+}
+
+/// Where an attempt spent its time, as a note after its outcome.
+fn timing_note(timing: Option<&AttemptTiming>) -> String {
+    timing.map_or_else(String::new, |t| {
+        format!(
+            " (model: {} request{}, {} ms; tools: {} ms)",
+            t.model_requests,
+            if t.model_requests == 1 { "" } else { "s" },
+            t.model_ms,
+            t.tool_ms
+        )
+    })
 }
 
 /// What one observation shows, in a line.
@@ -347,9 +368,10 @@ fn unit_report(unit: &UnitReport, report: &RunReport) -> String {
 }
 
 fn attempt_report(attempt: &Attempt, report: &RunReport) -> String {
-    let outcome = attempt
-        .outcome
-        .map_or_else(|| "running".to_owned(), |o| o.to_string());
+    let outcome = attempt.outcome.map_or_else(
+        || "running".to_owned(),
+        |o| format!("{o}{}", timing_note(attempt.timing.as_ref())),
+    );
     let mut text = format!("  attempt {}: {outcome}", attempt.number);
     if let Some(assessment) = &attempt.assessment {
         let _ = writeln!(text, ": {}", assessment.explanation);

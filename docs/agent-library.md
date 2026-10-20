@@ -93,6 +93,8 @@ run (`Executor::attempt`):
    when the model stopped without a valid assessment.
 
 The attempt emits `attempt_started`, one `observation` per recorded
-evidence, and `attempt_finished`. Every observation goes through the run's
-`Recorder`, which numbers evidence across the run, redacts it with the
-run's credentials, and reports it.
+evidence, and `attempt_finished`. The hook measures each model request from
+its dispatch to its answer, and the recorder adds up the tool durations;
+`attempt_finished` reports both as `timing`. Every observation goes through
+the run's `Recorder`, which numbers evidence across the run, redacts it with
+the run's credentials, and reports it.

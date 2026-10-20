@@ -76,6 +76,21 @@ pub struct Attempt {
     /// Evidence recorded during the attempt.
     #[serde(default)]
     pub evidence: Vec<EvidenceId>,
+    /// Where the attempt spent its time, once finished.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timing: Option<AttemptTiming>,
+}
+
+/// Where one attempt spent its time. The rest of the attempt's duration is
+/// worker overhead, such as building prompts and validating calls.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttemptTiming {
+    /// Model requests sent.
+    pub model_requests: u32,
+    /// Time spent waiting on model requests, retries included.
+    pub model_ms: u64,
+    /// Time spent in tool calls.
+    pub tool_ms: u64,
 }
 
 /// The planned identity of one execution unit, known before execution.
@@ -491,6 +506,7 @@ impl RunReport {
                 outcome,
                 assessment,
                 error,
+                timing,
             } => {
                 self.check_attempt(event, *outcome, assessment.as_ref(), error.is_some())?;
                 let attempt = self.open_attempt(event)?;
@@ -498,6 +514,7 @@ impl RunReport {
                 attempt.finished_at = Some(event.at);
                 attempt.assessment.clone_from(assessment);
                 attempt.error.clone_from(error);
+                attempt.timing = *timing;
                 Ok(())
             }
             EventKind::UnitFinished { outcome } => self.finish_unit(event, *outcome, None),
@@ -566,6 +583,7 @@ impl RunReport {
             assessment: None,
             error: None,
             evidence: Vec::new(),
+            timing: None,
         });
         Ok(())
     }

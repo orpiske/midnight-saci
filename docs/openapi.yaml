@@ -837,6 +837,17 @@ components:
         evidence:
           type: array
           items: { type: string }
+        timing: { $ref: "#/components/schemas/AttemptTiming" }
+    AttemptTiming:
+      description: |
+        Where an attempt spent its time. The rest of the attempt duration is
+        worker overhead.
+      type: object
+      required: [model_requests, model_ms, tool_ms]
+      properties:
+        model_requests: { type: integer, minimum: 0, description: Model requests sent. }
+        model_ms: { type: integer, minimum: 0, description: Time spent on model requests, retries included. }
+        tool_ms: { type: integer, minimum: 0, description: Time spent in tool calls. }
     UnitReport:
       type: object
       required: [key, id, kind, title, phase, location, cleanup, attempts]
@@ -892,6 +903,7 @@ components:
                 outcome: { $ref: "#/components/schemas/Outcome" }
                 assessment: { $ref: "#/components/schemas/Assessment" }
                 error: { $ref: "#/components/schemas/ExecutionError" }
+                timing: { $ref: "#/components/schemas/AttemptTiming" }
             - type: object
               required: [type, outcome]
               properties:

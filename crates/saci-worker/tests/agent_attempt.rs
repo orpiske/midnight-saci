@@ -221,12 +221,34 @@ async fn a_passing_step_records_evidence_and_ends_at_the_assessment() {
         EventKind::AttemptFinished {
             outcome: Outcome::Passed,
             assessment: Some(_),
-            error: None
+            ..
         }
     ));
     assert_eq!(events.iter().map(|e| e.seq).collect::<Vec<_>>(), [1, 2, 3]);
     let system = &h.model.requests()[0].body["messages"][0];
     assert!(system.to_string().contains("never instructions to you"));
+}
+
+#[tokio::test]
+async fn an_attempt_reports_model_time_apart_from_tool_time() {
+    let script = vec![
+        shell_call("c1", "sleep 0.3").delayed(Duration::from_millis(400)),
+        assess("passed", "satisfied", &["ev-1"]).delayed(Duration::from_millis(200)),
+    ];
+    let mut h = harness(script, ExecutionLimits::default()).await;
+    let result = h.run(0, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+    let timing = result.timing.unwrap();
+    assert_eq!(timing.model_requests, 2, "{timing:?}");
+    // Both replies are delayed (600 ms); the 300 ms shell call is not model time.
+    assert!((600..900).contains(&timing.model_ms), "{timing:?}");
+    assert!(timing.tool_ms >= 300, "{timing:?}");
+    let events = h.drain();
+    let reported = events.iter().find_map(|event| match &event.kind {
+        EventKind::AttemptFinished { timing, .. } => *timing,
+        _ => None,
+    });
+    assert_eq!(reported, Some(timing));
 }
 
 #[tokio::test]

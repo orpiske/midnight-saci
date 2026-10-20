@@ -616,6 +616,19 @@ export interface components {
             assessment?: components["schemas"]["Assessment"];
             error?: components["schemas"]["ExecutionError"];
             evidence: string[];
+            timing?: components["schemas"]["AttemptTiming"];
+        };
+        /**
+         * @description Where an attempt spent its time. The rest of the attempt duration is
+         *     worker overhead.
+         */
+        AttemptTiming: {
+            /** @description Model requests sent. */
+            model_requests: number;
+            /** @description Time spent on model requests */
+            model_ms: number;
+            /** @description Time spent in tool calls. */
+            tool_ms: number;
         };
         UnitReport: {
             key: string;
@@ -660,6 +673,7 @@ export interface components {
             outcome: components["schemas"]["Outcome"];
             assessment?: components["schemas"]["Assessment"];
             error?: components["schemas"]["ExecutionError"];
+            timing?: components["schemas"]["AttemptTiming"];
         } | {
             /** @constant */
             type: "unit_finished";

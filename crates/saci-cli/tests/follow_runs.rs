@@ -177,6 +177,7 @@ impl Harness {
             outcome,
             assessment: Some(assessment(outcome, evidence)),
             error: None,
+            timing: None,
         };
         self.emit(Some(unit), Some(1), finished);
         self.emit(Some(unit), None, EventKind::UnitFinished { outcome });
@@ -188,6 +189,7 @@ impl Harness {
             outcome,
             assessment: None,
             error,
+            timing: None,
         };
         self.emit(Some(unit), Some(1), attempt);
         self.emit(Some(unit), None, EventKind::UnitFinished { outcome });
@@ -512,6 +514,7 @@ async fn following_a_finished_run_prints_every_page() {
         outcome: Outcome::Passed,
         assessment: Some(assessment(Outcome::Passed, evidence)),
         error: None,
+        timing: None,
     };
     harness.emit(Some(0), Some(1), finished);
     let passed = Outcome::Passed;

@@ -91,6 +91,11 @@ attempt's, or a skip of a unit that was attempted. Each unit's identity
 carries its authored `criteria` for this. A rejected event leaves the
 report unchanged.
 
+`attempt_finished` also carries `timing`: `model_requests` (the model
+requests sent), `model_ms` (the time spent on model requests, retries
+included) and `tool_ms` (the time spent in tool calls). The report keeps it
+on the attempt. Use it to find where a run spends its time.
+
 Examples of complete event streams live in
 `crates/saci-core/tests/fixtures/runs/` (success, failure with stop, and a
 retried-then-cancelled run).
