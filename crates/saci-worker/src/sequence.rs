@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use saci_core::bundle::{ExecutionUnit, ExpandedPlan};
 use saci_core::event::EventKind;
+use saci_core::ids::UnitKey;
 use saci_core::spec::{FailureAction, RunPolicy};
 use saci_core::status::{Outcome, summarize};
 use tokio_util::sync::CancellationToken;
@@ -67,6 +68,7 @@ pub async fn run(executor: &Executor, plan: RunPlan<'_>, cancel: &CancellationTo
     events.emit(None, None, EventKind::RunStarted { model });
     let mut progress = Progress {
         context: prompt::plan_context(&plan.plan.plan),
+        done: Vec::new(),
         outcomes: Vec::new(),
         stop: None,
     };
@@ -85,6 +87,9 @@ pub async fn run(executor: &Executor, plan: RunPlan<'_>, cancel: &CancellationTo
 /// What the run has done so far.
 struct Progress {
     context: String,
+    /// Each attempted unit's invoking units and its line in the earlier
+    /// results.
+    done: Vec<(Vec<UnitKey>, String)>,
     outcomes: Vec<Outcome>,
     stop: Option<Stop>,
 }
@@ -112,16 +117,39 @@ impl Progress {
             self.outcomes.push(Outcome::Skipped);
             return;
         }
-        let result = Box::pin(attempts(executor, plan, unit, &self.context, cancel)).await;
+        let procedures = self.procedures(unit);
+        let context = (self.context.as_str(), procedures.as_slice());
+        let result = Box::pin(attempts(executor, plan, unit, context, cancel)).await;
         let outcome = result.outcome;
         events.emit(
             Some(&unit.identity),
             None,
             EventKind::UnitFinished { outcome },
         );
-        remember(&mut self.context, unit, &result);
+        self.remember(unit, &result);
         self.outcomes.push(outcome);
         self.stop = after(plan, unit, outcome, cancel);
+    }
+
+    /// Adds a unit's result to the context later units see.
+    fn remember(&mut self, unit: &ExecutionUnit, result: &AttemptResult) {
+        let line = summary(unit, result);
+        if self.done.is_empty() {
+            self.context.push_str("\nEarlier results:\n");
+        }
+        let _ = writeln!(self.context, "{line}");
+        self.done.push((unit.invoked_by.clone(), line));
+    }
+
+    /// The results of the procedure units that `unit` invoked, directly or
+    /// through other procedures. They ran before it.
+    fn procedures(&self, unit: &ExecutionUnit) -> Vec<String> {
+        let key = &unit.identity.key;
+        self.done
+            .iter()
+            .filter(|(invoked_by, _)| invoked_by.contains(key))
+            .map(|(_, line)| line.clone())
+            .collect()
     }
 }
 
@@ -155,12 +183,13 @@ fn after(
 }
 
 /// Attempts `unit` until an outcome the policy does not retry, or the
-/// attempts allowed run out.
+/// attempts allowed run out. `context` is the run context and the results of
+/// the unit's procedures.
 async fn attempts(
     executor: &Executor,
     plan: &RunPlan<'_>,
     unit: &ExecutionUnit,
-    context: &str,
+    (context, procedures): (&str, &[String]),
     cancel: &CancellationToken,
 ) -> AttemptResult {
     let retry = &plan.policy.retry;
@@ -171,6 +200,7 @@ async fn attempts(
             unit,
             attempt,
             context,
+            procedures,
             deadline,
             cancel,
         };
@@ -187,23 +217,32 @@ async fn attempts(
     }
 }
 
-/// Adds a unit's result to the context later units see.
-fn remember(context: &mut String, unit: &ExecutionUnit, result: &AttemptResult) {
-    if !context.contains("\nEarlier results:\n") {
-        context.push_str("\nEarlier results:\n");
-    }
-    let detail = result
+/// A unit's result as later units see it, with the evidence its assessment
+/// cites so they can cite it too.
+fn summary(unit: &ExecutionUnit, result: &AttemptResult) -> String {
+    let mut detail = result
         .assessment
         .as_ref()
         .map(|a| a.explanation.clone())
         .or_else(|| result.error.as_ref().map(|e| e.message.clone()))
         .unwrap_or_default();
+    let mut cited: Vec<String> = Vec::new();
+    for criterion in result.assessment.iter().flat_map(|a| &a.criteria) {
+        for id in &criterion.evidence {
+            let id = id.to_string();
+            if !cited.contains(&id) {
+                cited.push(id);
+            }
+        }
+    }
+    if !cited.is_empty() {
+        let _ = write!(detail, "; evidence {}", cited.join(", "));
+    }
     let identity = &unit.identity;
-    let _ = writeln!(
-        context,
+    format!(
         "- {} \"{}\": {} ({detail})",
         identity.key, identity.title, result.outcome
-    );
+    )
 }
 
 fn ending(outcomes: &[Outcome], stop: Option<&Stop>) -> RunEnding {

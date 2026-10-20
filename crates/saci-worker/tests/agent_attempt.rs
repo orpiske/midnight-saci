@@ -162,6 +162,7 @@ impl Harness {
             unit: &self.units[unit],
             attempt,
             context: "Test plan: Agent",
+            procedures: &[],
             deadline,
             cancel,
         };

@@ -71,9 +71,12 @@ run (`Executor::attempt`):
    exit normally (timeout, cancellation, or a lost or ended session).
 2. It builds an agent on the configured chat model with the system prompt
    (`agent::prompt::PREAMBLE`), registers `shell`, `http` and `assess` as
-   `DynamicTool`s, and prompts it with the plan context, earlier results,
+   `DynamicTool`s, and prompts it with the plan context, earlier results
+   (with the evidence IDs that each assessment cites),
    environment parameters and secret names, the unit's action, notes on
-   code blocks in unsupported languages, the evidence of the `run` blocks
+   code blocks in unsupported languages, the results of the procedures
+   that the unit follows (which ran before it, with the evidence IDs
+   that their assessments cite), the evidence of the `run` blocks
    that already ran, and the numbered expected results. When that evidence
    is enough, the model assesses in its first request; it can still call
    every tool.
