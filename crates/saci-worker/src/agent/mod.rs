@@ -89,6 +89,9 @@ pub struct AttemptRequest<'a> {
     pub attempt: u32,
     /// Plan context and earlier results, see [`prompt::plan_context`].
     pub context: &'a str,
+    /// The results of the procedure units the unit invoked, which ran
+    /// before it.
+    pub procedures: &'a [String],
     /// When the attempt must end: the step deadline, capped by the run's.
     pub deadline: Instant,
     /// Cancels the run.
@@ -218,7 +221,8 @@ impl Executor {
             Ok(tools) => tools,
             Err(error) => return AttemptResult::failed(error),
         };
-        let ran = Box::pin(self.run_marked(&state, request.unit)).await;
+        let mut ran = Box::pin(self.run_marked(&state, request.unit)).await;
+        ran.procedures = request.procedures.to_vec();
         let text = prompt::unit(
             request.unit,
             request.attempt,

@@ -3,7 +3,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -137,15 +136,33 @@ fn report(plan: &ExpandedPlan, run_id: &RunId, mut events: EventReceiver) -> Run
     report
 }
 
-fn plan() -> ExpandedPlan {
+fn plan(documents: &[(&str, &str)]) -> ExpandedPlan {
     let bundle = PlanBundle {
         entry: "plan.md".into(),
-        documents: BTreeMap::from([("plan.md".to_owned(), PLAN.to_owned())]),
+        documents: documents
+            .iter()
+            .map(|(path, source)| ((*path).to_owned(), (*source).to_owned()))
+            .collect(),
     };
     expand(&bundle).unwrap()
 }
 
 async fn execute(script: Vec<Reply>, policy: RunPolicy, cancel: &CancellationToken) -> Run {
+    Box::pin(execute_plan(
+        plan(&[("plan.md", PLAN)]),
+        script,
+        policy,
+        cancel,
+    ))
+    .await
+}
+
+async fn execute_plan(
+    plan: ExpandedPlan,
+    script: Vec<Reply>,
+    policy: RunPolicy,
+    cancel: &CancellationToken,
+) -> Run {
     let model = FakeModel::start(script).await.unwrap();
     let llm = LlmSettings {
         base_url: model.base_url(),
@@ -156,7 +173,6 @@ async fn execute(script: Vec<Reply>, policy: RunPolicy, cancel: &CancellationTok
     let workspace = tempfile::tempdir().unwrap();
     let run_id = RunId::generate();
     let (executor, events) = executor(&llm, workspace.path(), run_id.clone());
-    let plan = plan();
     let run_plan = RunPlan {
         plan: &plan,
         policy: &policy,
@@ -301,4 +317,82 @@ async fn a_cancelled_run_attempts_nothing_more() {
     );
     assert_eq!(run.report.cleanup_not_run.len(), 1);
     assert!(run.model.requests().is_empty());
+}
+
+const FOLLOWING: &str = "# Test Plan: Following
+
+## Phase 1: Setup
+
+### Step 1.1: Use the helper
+
+Follow [common/helper.md](common/helper.md).
+
+**Expected result:**
+
+- The helper is defined.
+
+### Step 1.2: Unrelated
+
+Run `true`.
+
+**Expected result:**
+
+- The command exits 0.
+";
+
+const HELPER: &str = "# Procedure: Helper
+
+## Phase 1: Define
+
+### Step 1: Define the helper
+
+Run `helper() { echo ok; }`.
+
+**Expected result:**
+
+- The command exits 0.
+";
+
+/// The prompt text of the `n`th model request.
+fn prompt_of(run: &Run, n: usize) -> String {
+    run.model.requests()[n].body["messages"].to_string()
+}
+
+/// A scripted assessment that passes on evidence recorded earlier.
+fn cite(evidence: &str) -> Reply {
+    let assessment = json!({
+        "outcome": "passed",
+        "criteria": [{"criterion": 0, "status": "satisfied", "basis": "mechanical",
+                      "evidence": [evidence], "explanation": "the procedure defined it"}],
+        "explanation": "the procedure defined the helper"
+    })
+    .to_string();
+    Reply::ok(&tool_calls_reply(&[("a", "assess", &assessment)]))
+}
+
+#[tokio::test]
+async fn an_invoking_unit_gets_its_procedure_results_and_evidence() {
+    let script = [
+        attempt(1, "helper() { echo ok; }", "passed").to_vec(),
+        vec![cite("ev-1")],
+        attempt(2, "true", "passed").to_vec(),
+    ]
+    .concat();
+    let plan = plan(&[("plan.md", FOLLOWING), ("common/helper.md", HELPER)]);
+    let cancel = CancellationToken::new();
+    let run = Box::pin(execute_plan(plan, script, RunPolicy::default(), &cancel)).await;
+    assert_eq!(run.ending.outcome, Outcome::Passed, "{:?}", run.ending);
+    // The parent assessed in one request, citing the procedure's evidence.
+    assert_eq!(run.report.units[1].outcome, Some(Outcome::Passed));
+    let parent = prompt_of(&run, 2);
+    assert!(parent.contains("already ran before it"), "{parent}");
+    assert!(
+        parent.contains("1.1>common/helper.md#1 \\\"Define the helper\\\": passed")
+            && parent.contains("evidence ev-1"),
+        "{parent}"
+    );
+    let unrelated = prompt_of(&run, 3);
+    assert!(!unrelated.contains("already ran before it"), "{unrelated}");
+    // Every later unit still sees the cited evidence in the earlier results.
+    assert!(unrelated.contains("evidence ev-1"), "{unrelated}");
 }
