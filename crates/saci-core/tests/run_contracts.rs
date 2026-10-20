@@ -6,7 +6,9 @@ use std::collections::BTreeMap;
 
 use saci_core::event::RunEvent;
 use saci_core::ids::{RunId, UnitKey};
-use saci_core::run::{ContractError, OutcomeCounts, ReportHeader, RunReport, UnitIdentity};
+use saci_core::run::{
+    AttemptTiming, ContractError, OutcomeCounts, ReportHeader, RunReport, UnitIdentity,
+};
 use saci_core::status::{Lifecycle, Outcome};
 use serde::Deserialize;
 
@@ -64,6 +66,16 @@ fn check(name: &str) -> RunReport {
 fn successful_run_passes_every_unit() {
     let report = check("success.json");
     assert_eq!(report.evidence.len(), 3);
+    let timing = AttemptTiming {
+        model_requests: 2,
+        model_ms: 2400,
+        tool_ms: 15,
+    };
+    assert_eq!(report.units[0].attempts[0].timing, Some(timing));
+    assert_eq!(
+        report.units[1].attempts[0].timing, None,
+        "older workers send none"
+    );
 }
 
 #[test]

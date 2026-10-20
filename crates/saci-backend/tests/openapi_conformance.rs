@@ -19,6 +19,7 @@ use saci_core::evidence::{
 };
 use saci_core::ids::{EvidenceId, RunId, UnitKey};
 use saci_core::redaction::Redactor;
+use saci_core::run::AttemptTiming;
 use saci_core::status::Outcome;
 use serde_json::{Value, json};
 use time::OffsetDateTime;
@@ -168,6 +169,11 @@ fn endings() -> Vec<(Option<&'static str>, EventKind)> {
                 outcome: passed,
                 assessment: Some(assessment()),
                 error: None,
+                timing: Some(AttemptTiming {
+                    model_requests: 2,
+                    model_ms: 1500,
+                    tool_ms: 40,
+                }),
             },
         ),
         (Some("1.1"), EventKind::UnitFinished { outcome: passed }),

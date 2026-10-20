@@ -11,6 +11,7 @@ export type OutcomeCounts = Schemas["OutcomeCounts"];
 export type RunReport = Schemas["RunReport"];
 export type UnitReport = Schemas["UnitReport"];
 export type Attempt = Schemas["Attempt"];
+export type AttemptTiming = Schemas["AttemptTiming"];
 export type Assessment = Schemas["Assessment"];
 export type CriterionResult = Schemas["CriterionResult"];
 export type Criterion = Schemas["Criterion"];

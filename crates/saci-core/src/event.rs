@@ -7,7 +7,7 @@ use crate::assessment::Assessment;
 use crate::evidence::Evidence;
 use crate::ids::{RunId, UnitKey};
 use crate::plan::SourceLocation;
-use crate::run::ExecutionError;
+use crate::run::{AttemptTiming, ExecutionError};
 use crate::status::Outcome;
 
 /// One progress event. `seq` starts at 1 and increases by one per event of a
@@ -61,6 +61,9 @@ pub enum EventKind {
         /// The execution error, when one prevented an assessment.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         error: Option<ExecutionError>,
+        /// Where the attempt spent its time.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        timing: Option<AttemptTiming>,
     },
     /// A unit reached its final outcome.
     UnitFinished {

@@ -43,8 +43,14 @@ impl AgentHook for Controls {
             return DispatchAction::stop(reason);
         }
         let counted = if event.completion_request().is_some() {
-            self.state.count_model_call()
+            let counted = self.state.count_model_call();
+            if counted.is_ok() {
+                self.state.model_sent();
+            }
+            counted
         } else if event.tool_name().is_some() {
+            // A model turn Rig recovered without an outcome ends here.
+            self.state.model_answered();
             self.state.count_tool_call()
         } else {
             Ok(())
@@ -53,6 +59,9 @@ impl AgentHook for Controls {
     }
 
     async fn on_outcome(&self, _ctx: &HookContext, event: OutcomeEvent<'_>) -> OutcomeAction {
+        if event.completion().is_some() {
+            self.state.model_answered();
+        }
         if event.tool_result().is_none() {
             return OutcomeAction::proceed();
         }

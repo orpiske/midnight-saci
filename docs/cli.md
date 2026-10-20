@@ -198,12 +198,17 @@ standard output; notes about waiting and reconnecting go to standard error.
 ```text
 [2] 1.1 attempt 1 started
 [3] 1.1 attempt 1   ev-1 shell `curl $URL/health` exited 0 (12 ms)
-[4] 1.1 attempt 1 passed: the service answered 200
+[4] 1.1 attempt 1 passed (model: 2 requests, 3120 ms; tools: 12 ms): the service answered 200
 [5] 1.1 passed
 [10] run finished failed: stopped after 1.2 ended failed
 ```
 
-The number in brackets is the event's sequence number. Each request waits up
+The number in brackets is the event's sequence number. A finished attempt
+shows where it spent its time: the number of model requests and the time
+spent on them, and the time spent in tool calls. The rest of the attempt
+is worker overhead. `saci report` shows the same values for each attempt.
+
+Each request waits up
 to 30 seconds on the backend for new events (a long poll), so a quiet run
 costs one request per 30 seconds. When the connection fails or the backend
 answers with a server error, `follow` says so on standard error and
