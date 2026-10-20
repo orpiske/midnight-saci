@@ -20,7 +20,7 @@ use saci_core::event::{EventKind, RunEvent};
 use saci_core::evidence::Evidence;
 use saci_core::ids::{EvidenceId, RunId};
 use saci_core::redaction::Redactor;
-use saci_core::run::{ContractError, RunReport};
+use saci_core::run::{ContractError, RunReport, WorkerImage};
 use saci_core::spec::RunSpec;
 use saci_core::status::Lifecycle;
 use serde::de::DeserializeOwned;
@@ -389,6 +389,29 @@ impl Store {
             save_report(&transaction, &id, &record.report)?;
             transaction.commit()?;
             Ok(record)
+        })
+        .await
+    }
+
+    /// Records the worker's container image in the report. Unlike
+    /// [`Store::update_report`] this also changes a finished run, because
+    /// the runtime can identify the image after the run has ended.
+    ///
+    /// # Errors
+    ///
+    /// Fails with [`StoreError::NotFound`] or a database error.
+    pub async fn set_worker_image(&self, id: &RunId, image: WorkerImage) -> Result<(), StoreError> {
+        let id = id.as_str().to_owned();
+        self.with(move |connection| {
+            let transaction = connection.transaction()?;
+            let mut record = load(&transaction, &id)?;
+            record.report.worker_image = Some(image);
+            transaction.execute(
+                "UPDATE runs SET report = ?2 WHERE id = ?1",
+                params![id, serde_json::to_string(&record.report)?],
+            )?;
+            transaction.commit()?;
+            Ok(())
         })
         .await
     }

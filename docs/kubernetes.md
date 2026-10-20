@@ -6,7 +6,8 @@ with Podman or Docker ([supervision](supervision.md)): the backend watches
 the Job, stops it on cancellation or at the deadline, records the outcome
 when the worker cannot, and deletes the Job afterwards. The worker image
 and the reporting protocol do not change. No container runtime socket is
-needed.
+needed. The run report records the digest of the image that ran
+([worker image](launchers.md#worker-image)).
 
 ```yaml
 worker:

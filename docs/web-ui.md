@@ -26,8 +26,10 @@ says how to build it; the API is unaffected.
   or a folder), check their bundle paths, pick the environment and policy
   (their limits and outcome actions are shown), and start. Plan problems
   come back with their file and line and are marked in the source.
-- **A run**: its outcome and reason, progress, environment, policy, model
-  and times, and four views:
+- **A run**: its outcome and reason, progress, environment, policy, model,
+  worker image and times, and four views. The worker image shows its
+  reference with the tag, and the digest or image ID that identifies the
+  exact image ([worker image](launchers.md#worker-image)).
   - *Results*: each unit grouped by phase, nested under the procedure
     invocations that reached it, with its attempts, the authored action,
     each expected result with its status, whether a mechanical check or the

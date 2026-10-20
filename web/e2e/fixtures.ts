@@ -92,6 +92,11 @@ export const report: RunReport = {
   environment: "local",
   policy: "review",
   model: "test-model",
+  worker_image: {
+    reference: "quay.io/saci/saci-worker:0.3.0",
+    digest: "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    id: "sha256:4b2f8e0c1d3a5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f",
+  },
   created_at: "2026-10-17T10:00:00Z",
   lifecycle: "finished",
   outcome: "failed",

@@ -1014,7 +1014,16 @@ components:
         evidence:
           type: array
           items: { $ref: "#/components/schemas/Evidence" }
+        worker_image: { $ref: "#/components/schemas/WorkerImage" }
         last_seq: { type: integer }
+    WorkerImage:
+      type: object
+      description: The container image that ran the worker (see docs/launchers.md#worker-image). Absent until the backend launches the worker.
+      required: [reference]
+      properties:
+        reference: { type: string, description: "The configured `worker.image`, with its tag." }
+        digest: { type: string, description: "Registry digest, `sha256:<hex>`. Absent for an image that did not come from a registry." }
+        id: { type: string, description: "Local image ID, `sha256:<hex>`, when the runtime reports one." }
     ActionState:
       type: string
       enum: [pending_approval, queued, executing, rejected, completed, error, unknown]

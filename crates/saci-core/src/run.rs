@@ -204,6 +204,27 @@ pub struct ReportHeader {
     pub created_at: OffsetDateTime,
 }
 
+/// The container image that ran a run's worker, as the runtime reports it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkerImage {
+    /// Image reference as configured in `worker.image`, with its tag.
+    pub reference: String,
+    /// Registry digest (`sha256:<hex>`), when the image came from a registry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub digest: Option<String>,
+    /// Local image ID (`sha256:<hex>`), when the runtime reports one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+}
+
+impl WorkerImage {
+    /// Whether the runtime has identified the exact image.
+    #[must_use]
+    pub const fn is_resolved(&self) -> bool {
+        self.digest.is_some() || self.id.is_some()
+    }
+}
+
 /// The durable, redacted report of a run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunReport {
@@ -236,6 +257,9 @@ pub struct RunReport {
     /// All recorded evidence.
     #[serde(default)]
     pub evidence: Vec<Evidence>,
+    /// The worker's container image, once the backend has launched it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worker_image: Option<WorkerImage>,
     /// Sequence number of the last applied event.
     pub last_seq: u64,
 }
@@ -299,6 +323,7 @@ impl RunReport {
             units: units.into_iter().map(UnitReport::pending).collect(),
             cleanup_not_run: Vec::new(),
             evidence: Vec::new(),
+            worker_image: None,
             last_seq: 0,
         }
     }

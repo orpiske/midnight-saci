@@ -2,7 +2,7 @@ import { CircleSlash, Download, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { ApiError, query, seg } from "../../api/client";
-import type { EventPage, RunEvent, RunPlan, RunReport, RunSummary } from "../../api/types";
+import type { EventPage, RunEvent, RunPlan, RunReport, RunSummary, WorkerImage } from "../../api/types";
 import { CopyText } from "../../components/Copy";
 import { Dialog } from "../../components/Dialog";
 import { Callout, ErrorNotice, Loading, describeError } from "../../components/Feedback";
@@ -258,6 +258,7 @@ function RunHeader({
         <span>Environment {run.environment}</span>
         <span>Policy {run.policy}</span>
         {report?.model ? <span>Model {report.model}</span> : null}
+        {report?.worker_image ? <ImageMeta image={report.worker_image} /> : null}
         <span className="num">Created {formatTime(run.created_at)}</span>
         {report?.started_at ? <span className="num">Started {formatTime(report.started_at)}</span> : null}
         {run.finished_at ? (
@@ -268,6 +269,30 @@ function RunHeader({
       </div>
     </header>
   );
+}
+
+/** The worker's image, with the digest (or, for a local build, the image ID) that names the exact build. */
+function ImageMeta({ image }: { image: WorkerImage }) {
+  const exact = image.digest ?? image.id;
+  const kind = image.digest ? "Digest" : "Image ID";
+  return (
+    <>
+      <span>
+        Image <CopyText value={image.reference} title="image reference" />
+      </span>
+      {exact ? (
+        <span>
+          {kind} <CopyText value={exact} label={shortDigest(exact)} title={kind.toLowerCase()} />
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+/** `sha256:4b2f8e0c1d3a…` for a full digest. */
+function shortDigest(digest: string): string {
+  const at = digest.indexOf(":") + 1;
+  return digest.length > at + 13 ? `${digest.slice(0, at + 12)}…` : digest;
 }
 
 function DownloadReport({ run, report }: { run: RunSummary; report: RunReport | undefined }) {

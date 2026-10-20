@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use saci_core::event::RunEvent;
 use saci_core::plan::PlanBundle;
-use saci_core::run::{ReportHeader, UnitIdentity};
+use saci_core::run::{ReportHeader, UnitIdentity, WorkerImage};
 use saci_core::spec::{EnvironmentSpec, ExecutionLimits, LlmSettings, RunPolicy, SCHEMA_VERSION};
 use saci_core::status::Outcome;
 use serde::Deserialize;
@@ -117,7 +117,7 @@ async fn records_survive_a_restart() {
 
 #[tokio::test]
 async fn duplicates_are_ignored_and_gaps_store_nothing() {
-    let seeded = Seeded::new().await;
+    let seeded = Box::pin(Seeded::new()).await;
     assert_eq!(seeded.append(0..3).await.unwrap(), 3);
     assert_eq!(seeded.append(0..3).await.unwrap(), 3);
     let error = seeded.append(4..6).await.unwrap_err();
@@ -133,7 +133,7 @@ async fn duplicates_are_ignored_and_gaps_store_nothing() {
 
 #[tokio::test]
 async fn finished_runs_are_protected() {
-    let seeded = Seeded::new().await;
+    let seeded = Box::pin(Seeded::new()).await;
     let all = seeded.fixture.events.len();
     seeded.append(0..all).await.unwrap();
     let mut late = seeded.fixture.events.last().unwrap().clone();
@@ -158,6 +158,37 @@ async fn finished_runs_are_protected() {
         cancel.cancel_requested_at, None,
         "a finished run is not cancelled"
     );
+}
+
+#[tokio::test]
+async fn the_worker_image_is_recorded_after_the_run_finished() {
+    let seeded = Box::pin(Seeded::new()).await;
+    let all = seeded.fixture.events.len();
+    seeded.append(0..all).await.unwrap();
+    let before = seeded.store.run(&seeded.id).await.unwrap().report;
+    let image = WorkerImage {
+        reference: "quay.io/saci/worker:1.2".into(),
+        digest: Some("sha256:bbb".into()),
+        id: None,
+    };
+    seeded
+        .store
+        .set_worker_image(&seeded.id, image.clone())
+        .await
+        .unwrap();
+    let after = seeded.store.run(&seeded.id).await.unwrap().report;
+    assert_eq!(after.worker_image, Some(image.clone()));
+    assert_eq!(
+        RunReport {
+            worker_image: None,
+            ..after
+        },
+        before,
+        "nothing else in the report changes"
+    );
+    let missing = RunId::parse("run-missing").unwrap();
+    let error = seeded.store.set_worker_image(&missing, image).await;
+    assert!(matches!(error, Err(StoreError::NotFound)));
 }
 
 #[tokio::test]

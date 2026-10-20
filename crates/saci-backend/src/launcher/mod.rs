@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use saci_core::config::{Config, Runtime};
 use saci_core::ids::RunId;
+use saci_core::run::WorkerImage;
 use saci_core::spec::{KubernetesSecretKey, RunSpec, SecretRef};
 
 pub use container::ContainerLauncher;
@@ -285,6 +286,15 @@ impl Launcher {
         match self {
             Self::Container(launcher) => Box::pin(launcher.logs(run)).await,
             Self::Kubernetes(launcher) => Box::pin(launcher.logs(run)).await,
+        }
+    }
+
+    /// The container image of `run`'s worker. The digest and the image ID
+    /// are left out while the runtime cannot give them.
+    pub async fn image(&self, run: &RunId) -> WorkerImage {
+        match self {
+            Self::Container(launcher) => Box::pin(launcher.image(run)).await,
+            Self::Kubernetes(launcher) => Box::pin(launcher.image(run)).await,
         }
     }
 
