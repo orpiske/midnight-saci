@@ -42,9 +42,9 @@ Configure one backend-default LLM connection, inherited by workers:
 
 | Setting | Requirement |
 |---------|-------------|
-| `base_url` | Required API base URL, including any API prefix such as `/v1` or `/api/v1`. Append `chat/completions` once. |
+| `base_url` | Required API base URL, including any API prefix such as `/v1` or `/api/v1`, or `env:NAME`. Append `chat/completions` once. |
 | `model` | Required explicit model identifier, interpreted by the configured provider. |
-| `api_key_env` | Optional name of an environment variable containing the API credential. A configured but missing credential is an error. If omitted, do not send an Authorization header. |
+| `api_key` | Optional API credential, or `env:NAME` to read it from the environment variable `NAME`. A configured but missing credential is an error. If omitted, do not send an Authorization header. |
 | Request timeout | Finite and configurable as an execution setting. |
 
 For example, the YAML configuration for OpenRouter includes:
@@ -53,7 +53,7 @@ For example, the YAML configuration for OpenRouter includes:
 llm:
   base_url: https://openrouter.ai/api/v1
   model: your-tool-capable-model
-  api_key_env: SACI_LLM_API_KEY
+  api_key: env:SACI_LLM_API_KEY
 ```
 
 For Ollama on a network reachable by the worker:

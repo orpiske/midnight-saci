@@ -50,7 +50,7 @@ pub fn prepare(
         environment,
         policy,
         limits,
-        llm: config.llm.clone(),
+        llm: config.llm.settings(),
     };
     let header = header(&spec, &expanded.plan.title);
     let units = expanded.units.into_iter().map(|u| u.identity).collect();

@@ -115,7 +115,7 @@ pub async fn events(
     let batch: EventBatch = serde_json::from_slice(&body)
         .map_err(|error| Failure::bad_request(format!("invalid event batch: {error}")))?;
     let record = backend.store.run(&id).await?;
-    let redactor = backend_redactor(&record.spec, |name| std::env::var(name).ok());
+    let redactor = backend_redactor(&record.spec, |name| backend.credential(name));
     let acknowledged = Box::pin(backend.store.append_events(&id, batch.events, redactor)).await;
     backend.notify();
     Ok(Json(EventAck {

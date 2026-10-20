@@ -53,7 +53,7 @@ app.kubernetes.io/component: backend
 {{- $_ := set $backend "auth" (dict "token_env" "SACI_API_TOKEN") -}}
 {{- $llm := dict "base_url" .Values.llm.baseUrl "model" .Values.llm.model -}}
 {{- if .Values.llm.apiKey.existingSecret -}}
-{{- $_ := set $llm "api_key_env" "SACI_LLM_API_KEY" -}}
+{{- $_ := set $llm "api_key" "env:SACI_LLM_API_KEY" -}}
 {{- $_ := set $llm "api_key_secret" (dict "name" .Values.llm.apiKey.existingSecret "key" .Values.llm.apiKey.key) -}}
 {{- end -}}
 {{- $config := dict "backend" $backend "worker" $worker "llm" $llm "environments" .Values.config.environments -}}

@@ -190,7 +190,7 @@ async fn state_listing_and_cleanup_of_missing_workers() {
 fn configured(yaml_secrets: &str) -> (Config, RunSpec) {
     let yaml = format!(
         "backend:\n  worker_url: http://host.containers.internal:8080\nllm:\n  base_url: http://m/v1\n  model: m\n  \
-         api_key_env: MODEL_KEY\nenvironments:\n  local:\n    secrets:\n{yaml_secrets}"
+         api_key: env:MODEL_KEY\nenvironments:\n  local:\n    secrets:\n{yaml_secrets}"
     );
     let config = Config::from_yaml(&yaml, "saci.yaml").unwrap();
     let (environment, limits) = config.environment("local").unwrap();
@@ -205,7 +205,7 @@ fn configured(yaml_secrets: &str) -> (Config, RunSpec) {
         environment,
         policy: config.policy("default").unwrap(),
         limits,
-        llm: config.llm.clone(),
+        llm: config.llm.settings(),
     };
     (config, spec)
 }

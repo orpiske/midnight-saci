@@ -166,7 +166,7 @@ fn credentials(
             _ => {
                 let value = lookup(name).ok_or_else(|| {
                     LaunchError::new(format!(
-                        "llm.api_key_env names {name}, which is not set in the backend's environment"
+                        "llm.api_key is env:{name}, but {name} is not set in the backend's environment"
                     ))
                 })?;
                 credentials.0.push((name.clone(), value));

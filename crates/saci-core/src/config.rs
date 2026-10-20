@@ -10,12 +10,74 @@ use serde::{Deserialize, Serialize};
 
 use crate::action::{self, ActionDefinition};
 use crate::spec::{
-    EnvironmentSpec, ExecutionLimits, FailureAction, LlmSettings, McpServerSpec, McpTransport,
-    RetryPolicy, RunPolicy, SecretRef, WorkerResources,
+    EnvironmentSpec, ExecutionLimits, FailureAction, KubernetesSecretKey, LlmSettings,
+    McpServerSpec, McpTransport, RetryPolicy, RunPolicy, SecretRef, WorkerResources,
 };
 
 /// Name of the policy used when a run names none.
 pub const DEFAULT_POLICY: &str = "default";
+
+/// Prefix that makes a setting read its value from the named environment
+/// variable, for example `env:SACI_LLM_API_KEY`.
+pub const ENV_PREFIX: &str = "env:";
+
+/// Variable under which workers receive an LLM key written literally in the
+/// configuration file.
+pub const LLM_API_KEY_VAR: &str = "SACI_LLM_API_KEY";
+
+/// The backend-default model connection, as written in the configuration
+/// file. Runs receive it as [`LlmSettings`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LlmConfig {
+    /// API base URL, or `env:NAME`. Loading replaces `env:NAME` with the
+    /// value of `NAME`.
+    pub base_url: String,
+    /// Explicit tool-capable model identifier.
+    pub model: String,
+    /// The API credential, or `env:NAME` to read it from `NAME`. When
+    /// omitted, no `Authorization` header is sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    /// Kubernetes Secret key that supplies the credential to cluster workers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_secret: Option<KubernetesSecretKey>,
+}
+
+impl LlmConfig {
+    /// The variable that carries the credential to workers: `NAME` for
+    /// `env:NAME`, otherwise [`LLM_API_KEY_VAR`].
+    #[must_use]
+    pub fn api_key_env(&self) -> Option<&str> {
+        self.api_key
+            .as_deref()
+            .map(|key| key.strip_prefix(ENV_PREFIX).unwrap_or(LLM_API_KEY_VAR))
+    }
+
+    /// The connection runs receive. It names the credential variable and
+    /// never holds the credential itself.
+    #[must_use]
+    pub fn settings(&self) -> LlmSettings {
+        LlmSettings {
+            base_url: self.base_url.clone(),
+            model: self.model.clone(),
+            api_key_env: self.api_key_env().map(str::to_owned),
+            api_key_secret: self.api_key_secret.clone(),
+        }
+    }
+
+    /// Looks up variable `name` with `env`, except that a credential written
+    /// literally in the file answers for [`LLM_API_KEY_VAR`].
+    #[must_use]
+    pub fn lookup(&self, name: &str, env: impl Fn(&str) -> Option<String>) -> Option<String> {
+        match &self.api_key {
+            Some(key) if name == LLM_API_KEY_VAR && !key.starts_with(ENV_PREFIX) => {
+                Some(key.clone())
+            }
+            _ => env(name),
+        }
+    }
+}
 
 /// The complete configuration file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,7 +90,7 @@ pub struct Config {
     #[serde(default)]
     pub worker: WorkerConfig,
     /// The backend-default model connection inherited by workers.
-    pub llm: LlmSettings,
+    pub llm: LlmConfig,
     /// Default execution limits; omitted values use built-in defaults.
     #[serde(default)]
     pub limits: LimitsOverride,
@@ -351,7 +413,9 @@ impl Config {
             path: path.to_owned(),
             source,
         })?;
-        Self::from_yaml(&text, &path.display().to_string())
+        Self::from_yaml_with_env(&text, &path.display().to_string(), |name| {
+            std::env::var(name).ok()
+        })
     }
 
     /// Parses and validates configuration text. `source_name` labels errors.
@@ -360,11 +424,42 @@ impl Config {
     ///
     /// Returns [`ConfigError::Parse`] or [`ConfigError::Invalid`].
     pub fn from_yaml(text: &str, source_name: &str) -> Result<Self, ConfigError> {
-        let config: Self = serde_yaml::from_str(text).map_err(|error| ConfigError::Parse {
+        Self::from_yaml_with_env(text, source_name, |_| None)
+    }
+
+    /// Like [`Config::from_yaml`], but replaces `llm.base_url: env:NAME`
+    /// with the value `env` gives for `NAME`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::Parse`] or [`ConfigError::Invalid`].
+    pub fn from_yaml_with_env(
+        text: &str,
+        source_name: &str,
+        env: impl Fn(&str) -> Option<String>,
+    ) -> Result<Self, ConfigError> {
+        let mut config: Self = serde_yaml::from_str(text).map_err(|error| ConfigError::Parse {
             source_name: source_name.to_owned(),
             message: error.to_string(),
         })?;
-        let issues = config.validate();
+        let mut issues = Vec::new();
+        if let Some(name) = config.llm.base_url.strip_prefix(ENV_PREFIX) {
+            match env(name) {
+                Some(value) => config.llm.base_url = value,
+                None => issues.push(ConfigIssue {
+                    path: "llm.base_url".to_owned(),
+                    message: format!("names {name}, which is not set in the environment"),
+                }),
+            }
+        }
+        // An unresolved reference is reported once, not again as a bad URL.
+        let unresolved = !issues.is_empty();
+        issues.extend(
+            config
+                .validate()
+                .into_iter()
+                .filter(|issue| !(unresolved && issue.path == "llm.base_url")),
+        );
         if issues.is_empty() {
             Ok(config)
         } else {
@@ -418,10 +513,10 @@ impl Config {
                     &format!("{path}.{key}"),
                     "names starting with SACI_ are reserved",
                 );
-            } else if self.llm.api_key_env.as_deref() == Some(key.as_str()) {
+            } else if self.llm.api_key_env() == Some(key.as_str()) {
                 issues.push(
                     &format!("{path}.{key}"),
-                    "is llm.api_key_env; the LLM credential is never exported to tools",
+                    "carries llm.api_key; the LLM credential is never exported to tools",
                 );
             }
         }
@@ -608,20 +703,28 @@ fn validate_backend(backend: &BackendConfig, issues: &mut Issues) {
     }
 }
 
-fn validate_llm(llm: &LlmSettings, issues: &mut Issues) {
+fn validate_llm(llm: &LlmConfig, issues: &mut Issues) {
     if !is_http_url(&llm.base_url) {
         issues.push("llm.base_url", "must be an http:// or https:// URL");
     }
     if llm.model.trim().is_empty() {
         issues.push("llm.model", "must name a tool-capable model");
     }
-    if let Some(name) = &llm.api_key_env
-        && !is_variable_name(name)
-    {
-        issues.push("llm.api_key_env", "must be an environment variable name");
+    let key_variable = llm
+        .api_key
+        .as_deref()
+        .and_then(|key| key.strip_prefix(ENV_PREFIX));
+    match (llm.api_key.as_deref(), key_variable) {
+        (_, Some(name)) if !is_variable_name(name) => {
+            issues.push("llm.api_key", "env: must name an environment variable");
+        }
+        (Some(key), None) if key.trim().is_empty() => {
+            issues.push("llm.api_key", "must not be empty");
+        }
+        _ => {}
     }
-    if llm.api_key_secret.is_some() && llm.api_key_env.is_none() {
-        issues.push("llm.api_key_secret", "requires llm.api_key_env");
+    if llm.api_key_secret.is_some() && key_variable.is_none() {
+        issues.push("llm.api_key_secret", "requires llm.api_key: env:NAME");
     }
 }
 
@@ -861,6 +964,106 @@ mod tests {
         assert!(error.to_string().contains("base_url"), "{error}");
     }
 
+    fn invalid(result: Result<Config, ConfigError>) -> Vec<String> {
+        match result {
+            Err(ConfigError::Invalid { issues, .. }) => {
+                issues.iter().map(ToString::to_string).collect()
+            }
+            other => panic!("expected validation issues, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn env_base_url_reads_the_named_variable() {
+        let yaml = "llm:\n  base_url: env:MODEL_URL\n  model: m\n";
+        let env = |name: &str| (name == "MODEL_URL").then(|| "http://internal:8000/v1".to_owned());
+        let config = Config::from_yaml_with_env(yaml, "t.yaml", env).unwrap();
+        assert_eq!(config.llm.base_url, "http://internal:8000/v1");
+        assert_eq!(config.llm.settings().base_url, "http://internal:8000/v1");
+        let config = Config::from_yaml_with_env(MINIMAL, "t.yaml", env).unwrap();
+        assert_eq!(config.llm.base_url, "http://ollama:11434/v1");
+    }
+
+    #[test]
+    fn env_base_url_reports_an_unset_or_invalid_variable() {
+        let yaml = "llm:\n  base_url: env:MODEL_URL\n  model: m\n";
+        let found = invalid(Config::from_yaml_with_env(yaml, "t.yaml", |_| None));
+        assert_eq!(
+            found,
+            ["llm.base_url: names MODEL_URL, which is not set in the environment"]
+        );
+        let env = |_: &str| Some("internal:8000".to_owned());
+        let found = invalid(Config::from_yaml_with_env(yaml, "t.yaml", env));
+        assert_eq!(found, ["llm.base_url: must be an http:// or https:// URL"]);
+    }
+
+    fn llm_with_key(key: &str) -> LlmConfig {
+        let yaml = MINIMAL.replace(
+            "model: qwen3\n",
+            &format!("model: qwen3\n  api_key: {key}\n"),
+        );
+        Config::from_yaml(&yaml, "t.yaml").unwrap().llm
+    }
+
+    fn env_value(name: &str) -> Option<String> {
+        Some(format!("from-{name}"))
+    }
+
+    #[test]
+    fn env_api_key_is_read_from_the_named_variable() {
+        let llm = llm_with_key("env:PROVIDER_KEY");
+        assert_eq!(llm.settings().api_key_env.as_deref(), Some("PROVIDER_KEY"));
+        assert_eq!(
+            llm.lookup("PROVIDER_KEY", env_value).as_deref(),
+            Some("from-PROVIDER_KEY")
+        );
+        let config = Config::from_yaml(MINIMAL, "t.yaml").unwrap();
+        assert_eq!(config.llm.settings().api_key_env, None);
+    }
+
+    #[test]
+    fn literal_api_key_reaches_workers_but_not_the_run_spec() {
+        let llm = llm_with_key("sk-literal");
+        let settings = llm.settings();
+        assert_eq!(settings.api_key_env.as_deref(), Some(LLM_API_KEY_VAR));
+        assert!(
+            !serde_json::to_string(&settings)
+                .unwrap()
+                .contains("sk-literal")
+        );
+        assert_eq!(
+            llm.lookup(LLM_API_KEY_VAR, env_value).as_deref(),
+            Some("sk-literal")
+        );
+        assert_eq!(
+            llm.lookup("OTHER", env_value).as_deref(),
+            Some("from-OTHER")
+        );
+    }
+
+    #[test]
+    fn invalid_api_keys_are_reported() {
+        let with =
+            |extra: &str| MINIMAL.replace("model: qwen3\n", &format!("model: qwen3\n{extra}"));
+        assert!(
+            issues(&with("  api_key: env:not-a-name\n"))
+                .iter()
+                .any(|i| i.starts_with("llm.api_key: env:"))
+        );
+        assert!(
+            issues(&with("  api_key: ' '\n"))
+                .iter()
+                .any(|i| i.starts_with("llm.api_key: must not be empty"))
+        );
+        let secret = "  api_key_secret:\n    name: s\n    key: k\n";
+        assert!(
+            issues(&with(&format!("  api_key: sk-literal\n{secret}")))
+                .iter()
+                .any(|i| i.starts_with("llm.api_key_secret"))
+        );
+        assert!(Config::from_yaml(&with(&format!("  api_key: env:K\n{secret}")), "t.yaml").is_ok());
+    }
+
     #[test]
     fn invalid_limits_and_urls_are_reported() {
         let yaml = "llm:\n  base_url: ftp://x\n  model: ''\nlimits:\n  tool_calls_per_step: 0\n  step_timeout_secs: 7200\n";
@@ -928,14 +1131,14 @@ mod tests {
         let yaml = format!(
             "{MINIMAL}environments:\n  local:\n    parameters:\n      SACI_WORKER_TOKEN: x\n    secrets:\n      LLM_KEY:\n        env: K\n"
         )
-        .replace("model: qwen3\n", "model: qwen3\n  api_key_env: LLM_KEY\n");
+        .replace("model: qwen3\n", "model: qwen3\n  api_key: env:LLM_KEY\n");
         let found = issues(&yaml);
         assert!(
             found.iter().any(|i| i.contains("SACI_ are reserved")),
             "{found:?}"
         );
         assert!(
-            found.iter().any(|i| i.contains("is llm.api_key_env")),
+            found.iter().any(|i| i.contains("carries llm.api_key")),
             "{found:?}"
         );
     }

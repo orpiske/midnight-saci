@@ -18,10 +18,10 @@ worker:
 llm:
   # OpenRouter. For a host-local Ollama use
   #   base_url: http://127.0.0.1:11434/v1
-  # and omit api_key_env.
+  # and omit api_key.
   base_url: https://openrouter.ai/api/v1
   model: z-ai/glm-5.3-flash
-  api_key_env: SACI_LLM_API_KEY
+  api_key: env:SACI_LLM_API_KEY
 
 limits:
   run_timeout_secs: 1800

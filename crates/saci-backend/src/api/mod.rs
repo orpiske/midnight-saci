@@ -123,6 +123,15 @@ impl Backend {
         }
     }
 
+    /// Reads a credential variable from the backend's environment, or the
+    /// LLM key written literally in the configuration file.
+    #[must_use]
+    pub fn credential(&self, name: &str) -> Option<String> {
+        self.config
+            .llm
+            .lookup(name, |name| std::env::var(name).ok())
+    }
+
     /// Wakes clients waiting for events; call after a run record changed.
     pub fn notify(&self) {
         self.changes.send_modify(|version| *version += 1);

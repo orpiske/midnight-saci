@@ -243,7 +243,7 @@ point `llm` in `saci.yaml` at a tool-capable model. See
 llm:
   base_url: https://openrouter.ai/api/v1
   model: your-tool-capable-model
-  api_key_env: SACI_LLM_API_KEY
+  api_key: env:SACI_LLM_API_KEY
 ```
 
 ```yaml

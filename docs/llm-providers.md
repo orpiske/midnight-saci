@@ -18,13 +18,17 @@ trailing `/chat/completions`, then appends `/chat/completions` once:
 | `http://ollama:11434/v1/` | `http://ollama:11434/v1/chat/completions` |
 | `http://gateway/v1/chat/completions` | `http://gateway/v1/chat/completions` |
 
+To keep an internal hostname out of the configuration file, write
+`base_url: env:NAME` and set `NAME` for the backend. See
+[values from the environment](configuration.md#values-from-the-environment).
+
 ## OpenRouter
 
 ```yaml
 llm:
   base_url: https://openrouter.ai/api/v1
   model: your-tool-capable-model   # an OpenRouter model id that lists tool support
-  api_key_env: SACI_LLM_API_KEY
+  api_key: env:SACI_LLM_API_KEY
 ```
 
 Export `SACI_LLM_API_KEY` in the backend's environment. Locally the backend
@@ -38,7 +42,7 @@ exhausted quota ends the attempt with a provider error.
 ## Ollama
 
 Ollama serves Chat Completions under `/v1` and needs no credential, so omit
-`api_key_env` and no `Authorization` header is sent. Pull a model that
+`api_key` and no `Authorization` header is sent. Pull a model that
 supports tools first (`ollama pull <model>`).
 
 The address must be reachable **from the worker**, not from your shell.

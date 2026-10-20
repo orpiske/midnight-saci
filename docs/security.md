@@ -8,7 +8,7 @@ whose secrets matter.
 
 | Credential | Configured as | Reaches the worker as | Used by | Never reaches |
 |------------|---------------|-----------------------|---------|---------------|
-| LLM API key | `llm.api_key_env` (and `llm.api_key_secret` on Kubernetes) | the variable named by `api_key_env` | the model transport's `Authorization` header | the shell, HTTP and MCP tools, model messages, evidence |
+| LLM API key | `llm.api_key` (and `llm.api_key_secret` on Kubernetes) | `NAME` for `api_key: env:NAME`, otherwise `SACI_LLM_API_KEY` | the model transport's `Authorization` header | the shell, HTTP and MCP tools, model messages, evidence |
 | Target secret `NAME` | `environments.<env>.secrets.NAME` | `SACI_SECRET_NAME` | the shell as `$NAME`; HTTP requests as `${NAME}` | model messages (only its name is listed), evidence |
 | Worker token | issued per run by the backend | `SACI_WORKER_TOKEN` | reporting to the backend | the shell and every tool, evidence |
 
@@ -26,7 +26,7 @@ built explicitly from:
 - the environment's `secrets`, under their configured names.
 
 Configuration rejects parameter or secret names that start with `SACI_` or
-equal `llm.api_key_env`, so a tool variable cannot carry a worker
+equal the variable that carries `llm.api_key`, so a tool variable cannot carry a worker
 credential.
 
 The model is told parameter values and secret *names*. It refers to a

@@ -22,7 +22,7 @@ Started by the backend, the worker reads:
 | `SACI_RUN_ID` | The run this worker was assigned. |
 | `SACI_WORKER_TOKEN` | Run-scoped token for the worker routes; never reaches the tools. |
 | `SACI_WORKSPACE` | Working directory of the run's shell; `/workspace` in the image, else the current directory. Also `--workspace`. |
-| the variable named by `llm.api_key_env` | The model API key, if the provider needs one. |
+| `NAME` for `llm.api_key: env:NAME`, otherwise `SACI_LLM_API_KEY` | The model API key, if the provider needs one. |
 | `SACI_SECRET_<NAME>` | The value of each target secret `NAME`. |
 
 See [security](security.md) for where each credential goes.

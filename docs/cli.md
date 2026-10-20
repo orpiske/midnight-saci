@@ -45,7 +45,7 @@ never printed.
 ## `saci backend start`
 
 ```sh
-export OPENROUTER_API_KEY=...        # whatever llm.api_key_env names
+export OPENROUTER_API_KEY=...        # whatever llm.api_key: env:NAME names
 saci backend start --config saci.yaml
 ```
 
