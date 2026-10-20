@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
+use std::process::{Command, ExitCode};
 use std::time::Duration;
 
 use clap::Parser;
@@ -13,6 +13,7 @@ use saci_core::spec::RunSpec;
 use saci_worker::bootstrap::{self, BACKEND_URL_ENV, RUN_ID_ENV, WORKSPACE_ENV};
 use saci_worker::credentials::WORKER_TOKEN_ENV;
 use saci_worker::events::EventReceiver;
+use saci_worker::init;
 use saci_worker::llm::Backoff;
 use saci_worker::report::{self, BackendClient};
 use tokio::io::AsyncWriteExt as _;
@@ -51,6 +52,9 @@ struct Args {
 }
 
 fn main() -> ExitCode {
+    if init::is_pid_one() {
+        return ExitCode::from(as_init());
+    }
     let args = Args::parse();
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -77,6 +81,24 @@ fn main() -> ExitCode {
         }
     });
     ExitCode::from(code)
+}
+
+/// As PID 1, runs the worker again as a child and reaps every process that
+/// ends while it runs (`docs/worker.md#process-1`).
+fn as_init() -> u8 {
+    let program = match std::env::current_exe() {
+        Ok(program) => program,
+        Err(error) => {
+            eprintln!("error: cannot find the worker executable: {error}");
+            return SETUP;
+        }
+    };
+    let mut command = Command::new(program);
+    command.args(std::env::args_os().skip(1));
+    init::supervise(command).unwrap_or_else(|error| {
+        eprintln!("error: cannot start the worker under its init: {error}");
+        SETUP
+    })
 }
 
 fn fail(code: u8, message: &str) -> ExitCode {

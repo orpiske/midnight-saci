@@ -6,6 +6,7 @@ pub mod bootstrap;
 pub mod credentials;
 pub mod events;
 pub mod http;
+pub mod init;
 pub mod llm;
 pub mod mcp;
 pub mod report;

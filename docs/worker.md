@@ -62,6 +62,27 @@ container (SIGTERM) or Ctrl-C cancels the run: the current tool gets a short
 grace period, the remaining units are skipped, and the end is reported
 before the worker exits.
 
+## Process 1
+
+The container runtime starts `saci-worker` as PID 1. The kernel gives each
+orphaned process to PID 1, and only PID 1 can reap it. Processes become
+orphans when the worker closes the run's shell, or when a plan starts a
+background process that outlives its parent. If nothing reaps them, they
+stay as `<defunct>` (zombie) processes.
+
+When `saci-worker` is PID 1, it does the work of an init process:
+
+1. It starts `saci-worker` again, with the same arguments, as its child.
+   The child runs the run.
+2. It sends SIGTERM, SIGINT, SIGHUP and SIGQUIT to the child.
+3. It reaps each process that ends, including the orphans.
+4. It exits with the exit code of the child. If a signal stops the child,
+   the exit code is 128 plus the signal number.
+
+Thus `ps` in a worker container shows two `saci-worker` processes. You do
+not need `--init` or a separate init such as `tini`. When the worker is not
+PID 1 (for example, `saci-worker --spec` on a host), it runs directly.
+
 ## The image
 
 [`Containerfile`](../Containerfile) builds `saci-worker` in a Rust stage and
