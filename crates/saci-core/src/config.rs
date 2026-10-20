@@ -442,18 +442,9 @@ impl Config {
             source_name: source_name.to_owned(),
             message: error.to_string(),
         })?;
-        let mut issues = Vec::new();
-        if let Some(name) = config.llm.base_url.strip_prefix(ENV_PREFIX) {
-            match env(name) {
-                Some(value) => config.llm.base_url = value,
-                None => issues.push(ConfigIssue {
-                    path: "llm.base_url".to_owned(),
-                    message: format!("names {name}, which is not set in the environment"),
-                }),
-            }
-        }
+        let mut issues = config.resolve_env_references(&env);
         // An unresolved reference is reported once, not again as a bad URL.
-        let unresolved = !issues.is_empty();
+        let unresolved = issues.iter().any(|issue| issue.path == "llm.base_url");
         issues.extend(
             config
                 .validate()
@@ -468,6 +459,24 @@ impl Config {
                 issues,
             })
         }
+    }
+
+    /// Replaces each `env:NAME` in `llm.base_url` and in environment
+    /// parameters with the value `env` gives for `NAME`. Returns an issue
+    /// for each variable that is not set.
+    fn resolve_env_references(
+        &mut self,
+        env: &impl Fn(&str) -> Option<String>,
+    ) -> Vec<ConfigIssue> {
+        let mut issues = Issues::default();
+        resolve_env_reference(&mut self.llm.base_url, "llm.base_url", env, &mut issues);
+        for (name, environment) in &mut self.environments {
+            for (key, value) in &mut environment.parameters {
+                let path = format!("environments.{name}.parameters.{key}");
+                resolve_env_reference(value, &path, env, &mut issues);
+            }
+        }
+        issues.0
     }
 
     /// Returns every validation problem; empty when the configuration is valid.
@@ -674,6 +683,25 @@ impl Issues {
             path: path.to_owned(),
             message: message.to_owned(),
         });
+    }
+}
+
+/// Replaces `value` with the variable it names when it is `env:NAME`.
+fn resolve_env_reference(
+    value: &mut String,
+    path: &str,
+    env: &impl Fn(&str) -> Option<String>,
+    issues: &mut Issues,
+) {
+    let Some(name) = value.strip_prefix(ENV_PREFIX) else {
+        return;
+    };
+    match env(name) {
+        Some(resolved) => *value = resolved,
+        None => issues.push(
+            path,
+            &format!("names {name}, which is not set in the environment"),
+        ),
     }
 }
 
@@ -995,6 +1023,26 @@ mod tests {
         let env = |_: &str| Some("internal:8000".to_owned());
         let found = invalid(Config::from_yaml_with_env(yaml, "t.yaml", env));
         assert_eq!(found, ["llm.base_url: must be an http:// or https:// URL"]);
+    }
+
+    #[test]
+    fn env_parameters_read_the_named_variable() {
+        let yaml = format!(
+            "{MINIMAL}environments:\n  staging:\n    parameters:\n      HOST: env:STAGING_HOST\n      PORT: '8443'\n"
+        );
+        let env = |name: &str| (name == "STAGING_HOST").then(|| "app.internal".to_owned());
+        let config = Config::from_yaml_with_env(&yaml, "t.yaml", env).unwrap();
+        let (spec, _) = config.environment("staging").unwrap();
+        assert_eq!(spec.parameters["HOST"], "app.internal");
+        assert_eq!(spec.parameters["PORT"], "8443");
+
+        let found = invalid(Config::from_yaml_with_env(&yaml, "t.yaml", |_| None));
+        assert_eq!(
+            found,
+            [
+                "environments.staging.parameters.HOST: names STAGING_HOST, which is not set in the environment"
+            ]
+        );
     }
 
     fn llm_with_key(key: &str) -> LlmConfig {
