@@ -31,15 +31,6 @@ use scan::Stream;
 /// How long a command may take to return after its descendants are killed.
 const GRACE: Duration = Duration::from_secs(2);
 
-/// Fenced code block languages run by the shell tool.
-pub const SUPPORTED_LANGUAGES: [&str; 3] = ["bash", "sh", "shell"];
-
-/// Whether an author-supplied code block can be executed by the shell tool.
-#[must_use]
-pub fn is_supported_language(language: &str) -> bool {
-    SUPPORTED_LANGUAGES.contains(&language.trim().to_ascii_lowercase().as_str())
-}
-
 /// Settings of a shell session.
 #[derive(Debug, Clone)]
 pub struct ShellConfig {

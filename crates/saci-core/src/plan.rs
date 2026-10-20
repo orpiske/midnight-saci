@@ -104,11 +104,24 @@ pub struct Unit {
     pub procedures: Vec<ProcedureRef>,
 }
 
+/// Fenced code block languages that the worker runs in its shell.
+pub const SHELL_LANGUAGES: [&str; 3] = ["bash", "sh", "shell"];
+
+/// Whether a code block language is one the worker runs in its shell.
+#[must_use]
+pub fn is_shell_language(language: &str) -> bool {
+    SHELL_LANGUAGES.contains(&language.trim().to_ascii_lowercase().as_str())
+}
+
 /// A fenced code block inside an action.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CodeBlock {
     /// Info-string language, such as `bash`; empty when unspecified.
     pub language: String,
+    /// The info string marks the block to run as written (```` ```bash run ````):
+    /// the worker runs it before it asks the model.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub run: bool,
     /// Block contents without the fences.
     pub code: String,
     /// Location of the opening fence.

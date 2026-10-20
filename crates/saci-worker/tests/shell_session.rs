@@ -6,8 +6,9 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use saci_core::evidence::{ShellEvidence, Termination};
+use saci_core::plan::is_shell_language;
 use saci_core::redaction::Redactor;
-use saci_worker::shell::{ShellConfig, ShellSession, is_supported_language};
+use saci_worker::shell::{ShellConfig, ShellSession};
 use tokio_util::sync::CancellationToken;
 
 const LONG: Duration = Duration::from_secs(20);
@@ -174,9 +175,9 @@ async fn cancellation_stops_the_command() {
 
 #[test]
 fn supported_languages_are_bash_compatible() {
-    assert!(is_supported_language("bash"));
-    assert!(is_supported_language("Shell"));
-    assert!(is_supported_language("sh"));
-    assert!(!is_supported_language("python"));
-    assert!(!is_supported_language("console"));
+    assert!(is_shell_language("bash"));
+    assert!(is_shell_language("Shell"));
+    assert!(is_shell_language("sh"));
+    assert!(!is_shell_language("python"));
+    assert!(!is_shell_language("console"));
 }

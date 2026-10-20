@@ -65,12 +65,19 @@ These are the only places Saci adds behavior Rig does not provide:
 `saci_worker::agent::Executor` runs one attempt of one unit as one Rig agent
 run (`Executor::attempt`):
 
-1. It builds an agent on the configured chat model with the system prompt
+1. It runs the unit's `run` code blocks (```` ```bash run ````) in order in the
+   run's shell session, before any model request. Each counts as a tool
+   call and is recorded as evidence. It stops at a block that does not
+   exit normally (timeout, cancellation, or a lost or ended session).
+2. It builds an agent on the configured chat model with the system prompt
    (`agent::prompt::PREAMBLE`), registers `shell`, `http` and `assess` as
    `DynamicTool`s, and prompts it with the plan context, earlier results,
    environment parameters and secret names, the unit's action, notes on
-   code blocks in unsupported languages, and the numbered expected results.
-2. The `Controls` hook sees every boundary. Before each model request and
+   code blocks in unsupported languages, the evidence of the `run` blocks
+   that already ran, and the numbered expected results. When that evidence
+   is enough, the model assesses in its first request; it can still call
+   every tool.
+3. The `Controls` hook sees every boundary. Before each model request and
    each tool call it checks cancellation and the attempt deadline and counts
    the operation; the first operation over `limits.model_calls_per_step` or
    `limits.tool_calls_per_step` stops the run with `DispatchAction::stop`.
@@ -78,16 +85,16 @@ run (`Executor::attempt`):
    are recorded as rejected evidence and counted too, so repeated invalid
    requests end the attempt. Tool concurrency is fixed at 1, so several
    calls in one reply run in order and each is counted before it runs.
-3. A reply without a tool call and without an accepted assessment is sent
+4. A reply without a tool call and without an accepted assessment is sent
    back with `ModelTurnAction::retry_with_feedback`, which consumes the same
    model-request budget. Once `assess` accepts an assessment, `on_outcome`
    stops the run.
-4. Cancellation and the attempt deadline cancel an attempt-scoped token
+5. Cancellation and the attempt deadline cancel an attempt-scoped token
    that the shell and HTTP tools watch. A running tool gets five seconds to
    stop and record its evidence; a pending model request is dropped at once.
    If a shell command is abandoned that way, its session is replaced on the
    next call and that call's evidence says so.
-5. The result is the accepted assessment's outcome; otherwise `cancelled`
+6. The result is the accepted assessment's outcome; otherwise `cancelled`
    when the run was cancelled, or `error` with the limit, deadline,
    provider or tool failure that ended the attempt, or `invalid_assessment`
    when the model stopped without a valid assessment.

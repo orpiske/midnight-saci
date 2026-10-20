@@ -51,7 +51,7 @@ The parser (`saci_core::parser`) applies these rules exactly:
 - The first `#` heading must be `# Test Plan: <title>`. A second `#` heading is an error.
 - `## Overview` and `## Prerequisites` are recorded. `## Phase <id>: <title>` opens a phase. Any other `##` heading (for example `## Summary`) is explanatory and closes the current phase.
 - A `### Test` or `### Step` heading that contains a colon, or whose second word starts with a digit, is an execution unit and must have the form `<Test|Step> <id>: <title>`, with an ID without spaces. Other `###` headings, such as `### Test notes`, are explanatory and close the current unit. `####` and deeper headings are part of the unit's content.
-- A unit's action is everything between its heading and `**Expected result:**`. Fenced code blocks in the action are recorded as its commands, with their language.
+- A unit's action is everything between its heading and `**Expected result:**`. Fenced code blocks in the action are recorded as its commands, with their language. The word `run` after the language in the info string (```` ```bash run ````) marks a block to run as written. A `run` block in a language other than `bash`, `sh` or `shell` is an error.
 - `**Expected result:**` (or `**Expected results:**`) starts the criteria. Each top-level list item is one criterion; a paragraph is one criterion; text after the marker on the same line is a criterion too. The marker may appear once per unit.
 - `**Verification:**` starts optional evidence-collection instructions that run to the end of the unit.
 - Errors name the document and line: a missing or malformed title, malformed phase or unit headings, units outside a phase, duplicate unit IDs, a unit without an action, without `**Expected result:**`, or with no criteria under it, and a plan without any unit. All problems are reported together.
@@ -80,6 +80,22 @@ wanaku mcp tool list --uri "${MCP_SERVER_URI}" --plain
 Every test and step must have an explicit expected result, including setup and cleanup steps. Describe observable outcomes, such as a response status, output value, or resource condition. If several criteria are listed, all must hold for the unit to pass. State alternatives explicitly when more than one outcome is acceptable.
 
 A successful tool call, a zero command exit code, or a printed `PASS` message alone does not establish that all criteria hold. The worker records the observations supporting its verdict. If the evidence cannot establish a verdict, it reports an inconclusive result with a reason. It must not invent missing success criteria.
+
+### Run blocks as written
+
+Add `run` after the language of a block that the step runs exactly as written, every time:
+
+````markdown
+```bash run
+wanaku mcp tool list --uri "${MCP_SERVER_URI}" --plain
+```
+````
+
+The worker runs the `run` blocks of a unit in document order, in the shared shell session, before it asks the model. The model then gets their evidence with the action and the expected results. It assesses the unit in its first request when the evidence is enough. It can still use every tool, for example to do the rest of the action. A `run` block saves one model request for each unit, and the model cannot change the command.
+
+The worker stops running the `run` blocks of a unit at a block that does not exit normally: a timeout, a cancellation, or a shell session that ended or was lost. A non-zero exit code does not stop it, because a negative test can expect a failure. The model is told which blocks did not run.
+
+Do not mark a block that runs only under a condition, a block that the action uses as data, or a block that must run as a separate script. Leave these blocks unmarked: the model runs them when the action tells it to.
 
 ## Prerequisites, setup, and cleanup
 

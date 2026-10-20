@@ -694,6 +694,9 @@ components:
       properties:
         language: { type: string }
         code: { type: string }
+        run:
+          type: boolean
+          description: The info string marks the block to run as written; the worker runs it before it asks the model.
         location: { $ref: "#/components/schemas/SourceLocation" }
     ProcedureRef:
       type: object

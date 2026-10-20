@@ -26,7 +26,8 @@ conversion breaks a rule, the conversion is not correct, also when
 1. **Do not change a command.** Copy each fenced code block exactly. Do not
    fix typos. Do not change quotes. Do not merge or split blocks. Do not add
    commands. You can move a block to a different location (see "Content
-   that does not run"). Do not change its contents.
+   that does not run"). Do not change its contents. You can add `run` to the
+   info string of a block (see "Blocks that run as written").
 2. **Do not invent success criteria.** An expected result must state only
    what the original plan checks or says. If the original plan states
    nothing, write the weakest criterion that the command itself shows. Mark
@@ -196,6 +197,26 @@ these cases. With `--strict`, the check fails.
   criteria. A list item or a paragraph in it becomes a criterion. The
   parser ignores a fenced block or a block quote in it. Move notes, block
   quotes and `**Expected output:**` samples before the marker.
+
+### Blocks that run as written
+
+The word `run` after the language (```` ```bash run ````) tells the worker
+to run the block before it asks the model. This saves one model request
+for each unit. Add `run` to a block when all of these conditions are true:
+
+- The block is a top-level command of the action, in `bash`, `sh` or
+  `shell`. `saci check` rejects `run` on other languages.
+- The action runs the block every time, exactly as written. For example,
+  "Run:" or a block without a condition.
+- The block runs in the shared session. A block that the action runs as a
+  separate script must stay unmarked.
+
+Do not add `run` to a block that runs only under a condition (for
+example, "if the route exists, run ..."), to one of several alternatives,
+or to a block that is data or an example. The model runs unmarked blocks
+when the action tells it to. Mark all blocks of a unit, or the first
+blocks in document order: the worker runs the marked blocks before the
+model runs any other block.
 
 ### Setup units
 

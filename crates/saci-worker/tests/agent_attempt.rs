@@ -48,6 +48,36 @@ Run `false`.
 **Expected result:**
 
 - The command succeeds.
+
+### Step 1.3: Prepared
+
+```bash run
+echo prepared
+```
+
+Then, if needed:
+
+```bash
+echo by the model
+```
+
+**Expected result:**
+
+- The output is `prepared`.
+
+### Step 1.4: Stops
+
+```bash run
+exit 4
+```
+
+```bash run
+echo never
+```
+
+**Expected result:**
+
+- The first block ends the shell.
 ";
 
 struct Harness {
@@ -452,5 +482,69 @@ async fn a_refused_connection_cannot_pass_a_step() {
     assert!(
         refusal.contains("the cited evidence holds no answer from the target (`ev-1`: the request got no response"),
         "{refusal}"
+    );
+}
+
+/// The user prompt and offered tool names of request `index`.
+fn request(h: &Harness, index: usize) -> (String, Vec<String>) {
+    let body = &h.model.requests()[index].body;
+    let prompt = body["messages"][1]["content"].to_string();
+    let tools = body["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tool| tool["function"]["name"].as_str().unwrap().to_owned())
+        .collect();
+    (prompt, tools)
+}
+
+#[tokio::test]
+async fn marked_blocks_run_before_the_model_which_keeps_its_tools() {
+    let script = vec![assess("passed", "satisfied", &["ev-1"])];
+    let mut h = harness(script, ExecutionLimits::default()).await;
+    let result = h.run(2, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+    assert_eq!(h.model.requests().len(), 1, "the model only assessed");
+    let (prompt, tools) = request(&h, 0);
+    assert!(prompt.contains("Saci already ran"), "{prompt}");
+    assert!(prompt.contains("Evidence ev-1 (shell") && prompt.contains("prepared"));
+    assert!(!prompt.contains("did not run"), "{prompt}");
+    assert!(tools.contains(&"shell".to_owned()), "{tools:?}");
+    let stdout = shell_stdout(&h.drain());
+    assert_eq!(
+        stdout,
+        ["prepared\n"],
+        "the unmarked block is left to the model"
+    );
+}
+
+#[tokio::test]
+async fn marked_blocks_stop_at_one_that_does_not_exit_normally() {
+    let script = vec![assess("passed", "satisfied", &["ev-1"])];
+    let mut h = harness(script, ExecutionLimits::default()).await;
+    let result = h.run(3, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+    let (prompt, _) = request(&h, 0);
+    assert!(prompt.contains("1 marked block(s) did not run"), "{prompt}");
+    assert_eq!(
+        shell_stdout(&h.drain()).len(),
+        1,
+        "`echo never` did not run"
+    );
+}
+
+#[tokio::test]
+async fn marked_blocks_count_against_the_tool_call_limit() {
+    let limits = ExecutionLimits {
+        tool_calls_per_step: 0,
+        ..ExecutionLimits::default()
+    };
+    let h = harness(vec![], limits).await;
+    let result = h.run(2, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Error, "{result:?}");
+    assert_eq!(result.error.unwrap().kind, ErrorKind::LimitExceeded);
+    assert!(
+        h.model.requests().is_empty(),
+        "no model request after the limit"
     );
 }
