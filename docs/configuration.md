@@ -43,10 +43,41 @@ for OpenRouter and Ollama settings, retries and error messages.
 
 | Setting | Default | Meaning |
 |---------|---------|---------|
-| `base_url` | required | OpenAI-compatible API base URL including any prefix (`/v1`, `/api/v1`). `chat/completions` is appended once. |
+| `base_url` | required | OpenAI-compatible API base URL including any prefix (`/v1`, `/api/v1`), or `env:NAME`. `chat/completions` is appended once. |
 | `model` | required | Explicit tool-capable model identifier. |
-| `api_key_env` | none | Environment variable holding the credential. When omitted no `Authorization` header is sent. When set, a missing variable is an error. |
-| `api_key_secret.name`, `.key` | none | Kubernetes Secret key that supplies `api_key_env` to worker Jobs. |
+| `api_key` | none | The API credential, or `env:NAME`. When omitted no `Authorization` header is sent. |
+| `api_key_secret.name`, `.key` | none | Kubernetes Secret key that supplies the credential to worker Jobs. Requires `api_key: env:NAME`; the pod receives the key as `NAME`. |
+
+### Values from the environment
+
+`base_url` and `api_key` accept a value or an `env:NAME` reference. With
+`env:NAME`, the backend reads the value from the environment variable `NAME`.
+Any other value is used as written. Use a reference to keep an internal
+hostname or a credential out of the configuration file:
+
+```yaml
+llm:
+  base_url: env:MODEL_URL
+  model: your-tool-capable-model
+  api_key: env:SACI_LLM_API_KEY
+```
+
+```sh
+export MODEL_URL=http://model.internal.example:8000/v1
+export SACI_LLM_API_KEY=...
+saci backend start --config saci.yaml
+```
+
+- `base_url`: the backend reads `NAME` when it loads the configuration. If
+  `NAME` is not set, the configuration is invalid. Workers receive the
+  resulting URL from the backend.
+- `api_key`: the backend reads `NAME` when it starts a worker. If `NAME` is
+  not set, the run fails to start. The worker receives the key as `NAME`.
+- `api_key` written as a value: the worker receives it as `SACI_LLM_API_KEY`.
+  Do not commit a file that contains a real key.
+
+In each case the key never goes into the run specification, reports or
+evidence.
 
 Spending budgets and quotas are managed by the provider; Saci has no budget
 setting.
@@ -75,7 +106,7 @@ Named target environments. Names use letters, digits, `-` and `_`.
 | Setting | Default | Meaning |
 |---------|---------|---------|
 | `description` | none | Free text. |
-| `parameters` | `{}` | Non-secret values exported to the worker shell as variables and listed to the model. Keys must be shell variable names, must not start with `SACI_`, and must not equal `llm.api_key_env` (the same applies to `secrets`). |
+| `parameters` | `{}` | Non-secret values exported to the worker shell as variables and listed to the model. Keys must be shell variable names, must not start with `SACI_`, and must not equal the variable that carries `llm.api_key` (the same applies to `secrets`). |
 | `secrets` | `{}` | Values exported to the worker shell as variables, by name. Each is `{ env: VAR }` (a backend environment variable) or `{ secret: name, key: key }` (a Kubernetes Secret). The model sees only the names; values are redacted from evidence. A name cannot also be a parameter. See [credentials and redaction](security.md). |
 | `limits` | `{}` | Overrides of the top-level `limits`. |
 | `worker.cpu`, `worker.memory` | none | Worker container resource limits, in the runtime's notation (`"1"`, `500m`, `1g`, `512Mi`). |

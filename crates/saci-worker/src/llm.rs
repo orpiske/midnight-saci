@@ -186,7 +186,7 @@ fn api_key(
     match lookup(variable) {
         Some(key) if !key.is_empty() => Ok(Some(key)),
         _ => Err(invalid(format!(
-            "llm.api_key_env names `{variable}`, which is not set in the worker environment"
+            "the LLM key variable `{variable}` is not set in the worker environment"
         ))),
     }
 }
@@ -236,7 +236,7 @@ fn status_message(status: u16, body: &str) -> String {
     let lower = body.to_ascii_lowercase();
     match status {
         401 | 403 => format!(
-            "the model provider rejected the credentials (HTTP {status}); check llm.api_key_env: {detail}"
+            "the model provider rejected the credentials (HTTP {status}); check llm.api_key: {detail}"
         ),
         402 => format!("the model provider quota or credit is exhausted (HTTP 402): {detail}"),
         429 if is_quota(&lower) => {

@@ -43,7 +43,7 @@ podman run --detach --name=saci-run-1a2b… \
   [--network=<worker.network>] [--add-host=<entry>]… \
   [--cpus=<cpu>] [--memory=<memory>] \
   --env SACI_BACKEND_URL --env SACI_RUN_ID --env SACI_WORKER_TOKEN \
-  [--env <llm.api_key_env>] [--env SACI_SECRET_<NAME>]… \
+  [--env <llm.api_key variable>] [--env SACI_SECRET_<NAME>]… \
   <worker.image>
 ```
 

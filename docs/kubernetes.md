@@ -17,7 +17,7 @@ worker:
     service_account: saci-worker # default: none, see Identities
     image_pull_policy: IfNotPresent
 llm:
-  api_key_env: SACI_LLM_API_KEY
+  api_key: env:SACI_LLM_API_KEY
   api_key_secret: { name: saci-llm, key: api-key }
 environments:
   same-namespace:

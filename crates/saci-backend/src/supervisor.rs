@@ -189,7 +189,7 @@ pub async fn launch(
     let token = issue_token(backend, run).await.map_err(|error| {
         LaunchError::new(format!("cannot issue the worker token: {:?}", error.code()))
     })?;
-    let lookup = |name: &str| std::env::var(name).ok();
+    let lookup = |name: &str| backend.credential(name);
     let assignment = launcher::assignment(&backend.config, &record.spec, &token, lookup)?;
     launcher.launch(&assignment).await?;
     tracing::info!(%run, "worker started");
@@ -351,7 +351,7 @@ async fn last_output(backend: &Backend, launcher: &Launcher, run: &RunId) -> Str
         return String::new();
     };
     let logs = launcher.logs(run).await;
-    let redactor = backend_redactor(&record.spec, |name| std::env::var(name).ok());
+    let redactor = backend_redactor(&record.spec, |name| backend.credential(name));
     let redacted = redactor.redact(&logs);
     let lines: Vec<&str> = redacted
         .lines()

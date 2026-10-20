@@ -5,7 +5,7 @@ use super::*;
 const CONFIG: &str = "llm:
   base_url: http://model:11434/v1
   model: test-model
-  api_key_env: LLM_KEY
+  api_key: env:LLM_KEY
 limits:
   step_timeout_secs: 300
 environments:
