@@ -14,6 +14,7 @@ use blocks::{Block, BlockKind, Paragraph};
 
 use crate::plan::{
     CodeBlock, Criterion, Phase, Plan, ProcedureRef, SourceLocation, Unit, UnitKind,
+    is_shell_language,
 };
 
 /// Whether a document is the plan entry point or an invoked procedure.
@@ -101,8 +102,9 @@ pub fn code_blocks(document: &str, source: &str) -> Vec<CodeBlock> {
     let lines = Lines::new(source);
     blocks::code_blocks(source)
         .into_iter()
-        .map(|(language, code, offset)| CodeBlock {
+        .map(|(language, run, code, offset)| CodeBlock {
             language,
+            run,
             code,
             location: SourceLocation::new(document, lines.line(offset)),
         })
@@ -416,12 +418,27 @@ impl<'a> State<'a> {
             return;
         }
         let ignored = open.part == UnitPart::Expected
-            && matches!(block.kind, BlockKind::Code { .. } | BlockKind::Other);
+            && matches!(block.kind, BlockKind::Code(_) | BlockKind::Other);
         open.content(block, location);
+        self.check_run_language(block);
         if ignored {
             self.warn(
                 block.range.start,
                 "this block comes after `**Expected result:**`, which holds only criteria, so it is ignored: move it before the marker",
+            );
+        }
+    }
+
+    /// Rejects a `run` block in a language the worker cannot run.
+    fn check_run_language(&mut self, block: &Block) {
+        if let BlockKind::Code(fence) = &block.kind
+            && fence.run
+            && !is_shell_language(&fence.language)
+        {
+            let language = &fence.language;
+            self.error(
+                block.range.start,
+                format!("a `run` block must be in a shell language (bash, sh or shell), not `{language}`: write ```` ```bash run ````"),
             );
         }
     }
@@ -437,11 +454,11 @@ impl<'a> State<'a> {
                     );
                 }
             }
-            BlockKind::Code { .. } if self.section == Section::Phase => self.warn(
+            BlockKind::Code(_) if self.section == Section::Phase => self.warn(
                 block.range.start,
                 "this fenced command is inside a phase but outside any test or step, so it does not run: move it into a unit",
             ),
-            BlockKind::Code { .. } if self.section == Section::Prerequisites => self.warn(
+            BlockKind::Code(_) if self.section == Section::Prerequisites => self.warn(
                 block.range.start,
                 "this fenced command in Prerequisites is context for the model, not a step, so it does not run: if the run needs it, move it into a setup step",
             ),
@@ -570,10 +587,11 @@ impl OpenUnit {
 
     fn content(&mut self, block: &Block, location: SourceLocation) {
         match (&block.kind, self.part) {
-            (BlockKind::Code { language, code }, UnitPart::Action) => {
+            (BlockKind::Code(fence), UnitPart::Action) => {
                 self.unit.commands.push(CodeBlock {
-                    language: language.clone(),
-                    code: code.clone(),
+                    language: fence.language.clone(),
+                    run: fence.run,
+                    code: fence.code.clone(),
                     location,
                 });
             }

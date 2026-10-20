@@ -17,7 +17,7 @@ Adapt this plan to describe the behavior you want to test.
 
 Request the health endpoint and print the response status:
 
-```bash
+```bash run
 curl -sS -w '\nstatus %{http_code}\n' "$SERVICE_URL/health"
 ```
 

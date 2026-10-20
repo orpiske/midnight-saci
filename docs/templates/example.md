@@ -16,7 +16,7 @@ keeps state between steps in the shell, and cleans up after itself.
 
 ### Test 1.1: The service reports healthy
 
-```bash
+```bash run
 curl -sS -w '\nstatus %{http_code}\n' "${SERVICE_URL}/health"
 ```
 
@@ -29,7 +29,7 @@ curl -sS -w '\nstatus %{http_code}\n' "${SERVICE_URL}/health"
 
 ### Step 2.1: Create a note
 
-```bash
+```bash run
 NOTE_ID=$(curl -sf -X POST \
   -H "Authorization: Bearer ${SERVICE_TOKEN}" \
   -H 'Content-Type: application/json' \
@@ -47,7 +47,7 @@ echo "created ${NOTE_ID}"
 
 Read the note created in step 2.1 without credentials:
 
-```bash
+```bash run
 curl -sS -o /dev/null -w 'status %{http_code}\n' "${SERVICE_URL}/notes/${NOTE_ID}"
 ```
 
@@ -57,7 +57,7 @@ curl -sS -o /dev/null -w 'status %{http_code}\n' "${SERVICE_URL}/notes/${NOTE_ID
 
 ### Test 2.3: The note can be read back
 
-```bash
+```bash run
 curl -sf -H "Authorization: Bearer ${SERVICE_TOKEN}" "${SERVICE_URL}/notes/${NOTE_ID}"
 ```
 
@@ -74,7 +74,7 @@ Record the full response body.
 
 ### Step 3.1: Delete the note
 
-```bash
+```bash run
 curl -sf -X DELETE -H "Authorization: Bearer ${SERVICE_TOKEN}" "${SERVICE_URL}/notes/${NOTE_ID}"
 ```
 

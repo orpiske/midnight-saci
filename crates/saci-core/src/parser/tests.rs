@@ -157,3 +157,31 @@ fn code_blocks_are_found_at_any_depth() {
         ]
     );
 }
+
+#[test]
+fn a_run_word_in_the_info_string_marks_a_shell_block_to_run() {
+    let source = PLAN.replace("```bash\n", "```bash run\n");
+    let unit = parse(&source).units().next().unwrap().clone();
+    assert_eq!(
+        (unit.commands[0].language.as_str(), unit.commands[0].run),
+        ("bash", true)
+    );
+    assert!(!parse(PLAN).units().next().unwrap().commands[0].run);
+    let json = serde_json::to_value(&parse(PLAN).units().next().unwrap().commands[0]).unwrap();
+    assert!(
+        json.get("run").is_none(),
+        "unmarked blocks keep their shape"
+    );
+}
+
+#[test]
+fn a_run_block_must_be_in_a_shell_language() {
+    let source = PLAN.replace("```bash\n", "```python run\n");
+    let error = parse_document("plan.md", &source, DocumentRole::Entry).unwrap_err();
+    assert!(
+        error.to_string().contains("plan.md:13")
+            && error.to_string().contains("shell language")
+            && error.to_string().contains("`python`"),
+        "{error}"
+    );
+}

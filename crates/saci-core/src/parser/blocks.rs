@@ -20,8 +20,17 @@ pub enum BlockKind {
     Heading { level: u8, text: String },
     Paragraph(Paragraph),
     List { items: Vec<(Range<usize>, String)> },
-    Code { language: String, code: String },
+    Code(Fence),
     Other,
+}
+
+/// A fenced or indented code block.
+#[derive(Debug, Clone)]
+pub struct Fence {
+    pub language: String,
+    pub code: String,
+    /// The info string marks the block to run as written.
+    pub run: bool,
 }
 
 /// A paragraph with the details the plan conventions look at.
@@ -88,18 +97,28 @@ fn classify(tag: &Tag<'_>, inner: &[Spanned<'_>]) -> BlockKind {
         Tag::List(_) => BlockKind::List {
             items: list_items(inner),
         },
-        Tag::CodeBlock(kind) => BlockKind::Code {
-            language: match kind {
-                CodeBlockKind::Fenced(info) => info
-                    .split_whitespace()
-                    .next()
-                    .unwrap_or_default()
-                    .to_owned(),
-                CodeBlockKind::Indented => String::new(),
-            },
-            code: plain_text(inner),
-        },
+        Tag::CodeBlock(kind) => {
+            let (language, run) = info(kind);
+            BlockKind::Code(Fence {
+                language,
+                code: plain_text(inner),
+                run,
+            })
+        }
         _ => BlockKind::Other,
+    }
+}
+
+/// The language of a code block and whether its info string marks it to
+/// run as written: ```` ```bash run ````.
+fn info(kind: &CodeBlockKind<'_>) -> (String, bool) {
+    match kind {
+        CodeBlockKind::Fenced(info) => {
+            let mut words = info.split_whitespace();
+            let language = words.next().unwrap_or_default().to_owned();
+            (language, words.any(|word| word == "run"))
+        }
+        CodeBlockKind::Indented => (String::new(), false),
     }
 }
 
@@ -185,25 +204,19 @@ fn list_items(inner: &[Spanned<'_>]) -> Vec<(Range<usize>, String)> {
 }
 
 /// Every code block in `source` at any depth, including inside lists and
-/// block quotes, as (language, code, byte offset), in document order.
-pub fn code_blocks(source: &str) -> Vec<(String, String, usize)> {
+/// block quotes, as (language, run mark, code, byte offset), in document
+/// order.
+pub fn code_blocks(source: &str) -> Vec<(String, bool, String, usize)> {
     let mut found = Vec::new();
-    let mut open: Option<(String, String, usize)> = None;
+    let mut open: Option<(String, bool, String, usize)> = None;
     for (event, range) in Parser::new_ext(source, Options::empty()).into_offset_iter() {
         match event {
             Event::Start(Tag::CodeBlock(kind)) => {
-                let language = match kind {
-                    CodeBlockKind::Fenced(info) => info
-                        .split_whitespace()
-                        .next()
-                        .unwrap_or_default()
-                        .to_owned(),
-                    CodeBlockKind::Indented => String::new(),
-                };
-                open = Some((language, String::new(), range.start));
+                let (language, run) = info(&kind);
+                open = Some((language, run, String::new(), range.start));
             }
             Event::Text(text) => {
-                if let Some((_, code, _)) = open.as_mut() {
+                if let Some((_, _, code, _)) = open.as_mut() {
                     code.push_str(&text);
                 }
             }

@@ -514,6 +514,8 @@ export interface components {
         CodeBlock: {
             language: string;
             code: string;
+            /** @description The info string marks the block to run as written; the worker runs it before it asks the model. */
+            run?: boolean;
             location: components["schemas"]["SourceLocation"];
         };
         ProcedureRef: {

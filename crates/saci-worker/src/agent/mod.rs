@@ -25,6 +25,7 @@ use rig::tool::DynamicTool;
 use saci_core::assessment::Assessment;
 use saci_core::bundle::ExecutionUnit;
 use saci_core::event::EventKind;
+use saci_core::evidence::{EvidenceRecord, Termination};
 use saci_core::run::{AttemptTiming, ErrorKind, ExecutionError};
 use saci_core::spec::ExecutionLimits;
 use saci_core::status::Outcome;
@@ -217,17 +218,53 @@ impl Executor {
             Ok(tools) => tools,
             Err(error) => return AttemptResult::failed(error),
         };
+        let ran = Box::pin(self.run_marked(&state, request.unit)).await;
         let text = prompt::unit(
             request.unit,
             request.attempt,
             request.context,
             &self.environment,
+            &ran,
         );
         let run = self.start(&state, tools, text);
         let ending = Box::pin(self.run_agent(&state, run, request.cancel)).await;
         let mut result = self.conclude(&state, ending, request.cancel);
         result.timing = Some(state.timing());
         result
+    }
+
+    /// Runs the unit's `run` blocks as written, in order, before the model is
+    /// asked. Stops at a block that did not exit normally, or when the
+    /// attempt is interrupted or out of tool calls; the model then sees what
+    /// ran and what did not.
+    async fn run_marked(&self, state: &AttemptState, unit: &ExecutionUnit) -> prompt::Ran {
+        let marked: Vec<_> = unit
+            .unit
+            .commands
+            .iter()
+            .filter(|block| block.run)
+            .collect();
+        let mut ran = prompt::Ran::default();
+        for block in &marked {
+            if state.check_interrupted().is_err() || state.count_tool_call().is_err() {
+                break;
+            }
+            let _running = state.running();
+            let mut session = self.shell.lock().await;
+            let deadline = state.operation_deadline();
+            let result = session.run(&block.code, deadline, &state.cancel).await;
+            let Ok(run) = result.map_err(|error| state.halt(error)) else {
+                break;
+            };
+            let exited = run.evidence.termination == Termination::Exited;
+            let evidence = state.record(run.duration, EvidenceRecord::Shell(run.evidence));
+            ran.evidence.push(render::evidence(&evidence));
+            if !exited {
+                break;
+            }
+        }
+        ran.not_run = marked.len() - ran.evidence.len();
+        ran
     }
 
     fn tools(&self, state: &Arc<AttemptState>) -> Result<Vec<DynamicTool>, ExecutionError> {
