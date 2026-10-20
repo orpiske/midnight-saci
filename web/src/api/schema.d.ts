@@ -765,7 +765,17 @@ export interface components {
             /** @description Cleanup units that did not run. */
             cleanup_not_run: string[];
             evidence: components["schemas"]["Evidence"][];
+            worker_image?: components["schemas"]["WorkerImage"];
             last_seq: number;
+        };
+        /** @description The container image that ran the worker (see docs/launchers.md#worker-image). Absent until the backend launches the worker. */
+        WorkerImage: {
+            /** @description The configured `worker.image`, with its tag. */
+            reference: string;
+            /** @description Registry digest, `sha256:<hex>`. Absent for an image that did not come from a registry. */
+            digest?: string;
+            /** @description Local image ID, `sha256:<hex>`, when the runtime reports one. */
+            id?: string;
         };
         /**
          * @default pending_approval

@@ -12,6 +12,7 @@ use std::time::Duration;
 
 use saci_core::config::{Runtime, WorkerConfig};
 use saci_core::ids::RunId;
+use saci_core::run::WorkerImage;
 use tokio::process::Command;
 
 use super::{Assignment, LaunchError, MANAGED_LABEL, RUN_LABEL, WorkerState, run_of, worker_name};
@@ -256,6 +257,31 @@ impl ContainerLauncher {
         }
     }
 
+    /// The image the container runs: the configured reference, with the
+    /// image ID and registry digest the runtime reports. Values the runtime
+    /// cannot give are left out.
+    pub async fn image(&self, run: &RunId) -> WorkerImage {
+        let mut image = WorkerImage {
+            reference: self.image.clone(),
+            digest: None,
+            id: None,
+        };
+        let name = worker_name(run);
+        let args = ["inspect", "--type=container", "--format={{.Image}}", &name];
+        match self.run(&args, COMMAND_TIMEOUT).await {
+            Ok(output) => image.id = image_id(&output),
+            Err(error) => tracing::debug!(%run, %error, "cannot read the worker's image"),
+        }
+        if let Some(id) = &image.id {
+            let args = ["image", "inspect", "--format={{json .RepoDigests}}", id];
+            match self.run(&args, COMMAND_TIMEOUT).await {
+                Ok(output) => image.digest = repo_digest(&self.image, &output),
+                Err(error) => tracing::debug!(%run, %error, "cannot read the image digests"),
+            }
+        }
+        image
+    }
+
     /// Sends SIGTERM, then SIGKILL after `grace`.
     ///
     /// # Errors
@@ -388,6 +414,48 @@ fn is_missing(message: &str) -> bool {
         || lower.contains("no container with name")
 }
 
+/// The image ID in `inspect` output, as `sha256:<hex>`. Docker gives the
+/// prefix and Podman does not.
+fn image_id(output: &str) -> Option<String> {
+    let id = output.trim();
+    if id.is_empty() || id.contains(char::is_whitespace) {
+        return None;
+    }
+    Some(if id.contains(':') {
+        id.to_owned()
+    } else {
+        format!("sha256:{id}")
+    })
+}
+
+/// The registry digest of `reference` in the image's `RepoDigests` (JSON,
+/// entries `<repository>@<digest>`): the entry of the same repository, or
+/// else the first one.
+fn repo_digest(reference: &str, output: &str) -> Option<String> {
+    let entries: Vec<String> = serde_json::from_str(output.trim()).ok()?;
+    let wanted = repository(reference);
+    let entry = entries
+        .iter()
+        .find(|entry| {
+            entry
+                .split_once('@')
+                .is_some_and(|(repo, _)| repo == wanted)
+        })
+        .or_else(|| entries.first())?;
+    entry.split_once('@').map(|(_, digest)| digest.to_owned())
+}
+
+/// `reference` without its tag or digest.
+fn repository(reference: &str) -> &str {
+    let name = reference
+        .split_once('@')
+        .map_or(reference, |(name, _)| name);
+    match name.rsplit_once(':') {
+        Some((repo, tag)) if !tag.contains('/') => repo,
+        _ => name,
+    }
+}
+
 fn parse_state(output: &str) -> WorkerState {
     let mut parts = output.split_whitespace();
     let status = parts.next().unwrap_or_default();
@@ -417,5 +485,40 @@ mod tests {
         assert!(is_missing(
             "Error: no container with name or ID \"saci-run-1\" found: no such container"
         ));
+    }
+
+    #[test]
+    fn image_ids_of_both_runtimes_are_understood() {
+        let hex = "4b2f8e0c1d3a";
+        assert_eq!(
+            image_id(&format!("sha256:{hex}\n")),
+            Some(format!("sha256:{hex}"))
+        );
+        assert_eq!(image_id(&format!("{hex}\n")), Some(format!("sha256:{hex}")));
+        assert_eq!(image_id("\n"), None);
+        assert_eq!(image_id("running 0"), None);
+    }
+
+    #[test]
+    fn the_digest_of_the_configured_repository_is_chosen() {
+        let digests = r#"["docker.io/library/other@sha256:aaa","quay.io/saci/worker@sha256:bbb"]"#;
+        let digest = |reference| repo_digest(reference, digests);
+        assert_eq!(
+            digest("quay.io/saci/worker:1.2"),
+            Some("sha256:bbb".to_owned())
+        );
+        assert_eq!(digest("quay.io/saci/worker"), Some("sha256:bbb".to_owned()));
+        assert_eq!(
+            digest("quay.io/saci/worker@sha256:bbb"),
+            Some("sha256:bbb".to_owned())
+        );
+        assert_eq!(
+            digest("localhost:5000/worker:1"),
+            Some("sha256:aaa".to_owned())
+        );
+        assert_eq!(repository("localhost:5000/worker"), "localhost:5000/worker");
+        // A local build has no registry digest.
+        assert_eq!(repo_digest("localhost/saci-worker:latest", "[]\n"), None);
+        assert_eq!(repo_digest("localhost/saci-worker:latest", "null\n"), None);
     }
 }

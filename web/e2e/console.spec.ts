@@ -28,6 +28,8 @@ test("a failed run shows its criteria and the evidence they cite", async ({ page
   await page.goto(`/ui/runs/${fx.RUN}`);
   await expect(page.getByRole("heading", { name: "Service health" })).toBeVisible();
   await expect(page.getByText("Cleanup did not run")).toBeVisible();
+  await expect(page.getByText("quay.io/saci/saci-worker:0.3.0")).toBeVisible();
+  await expect(page.getByTitle(fx.report.worker_image?.digest ?? "")).toHaveText("sha256:9f86d081884c…");
   const detail = page.getByRole("region", { name: "Test 1.2: List orders" });
   await expect(detail.getByText("Contradicted")).toBeVisible();
   await expect(detail.getByText("Mechanical check")).toBeVisible();

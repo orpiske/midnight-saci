@@ -17,6 +17,7 @@ use saci_core::config::{Config, Runtime};
 use saci_core::event::{EventKind, RunEvent};
 use saci_core::ids::RunId;
 use saci_core::redaction::Redactor;
+use saci_core::run::WorkerImage;
 use saci_core::status::{Lifecycle, Outcome};
 use serde_json::{Value, json};
 
@@ -27,6 +28,7 @@ const PLAN: &str = "# Test Plan: Supervised\n\n## Phase 1: Main\n\n### Test 1.1:
 /// "<status> <exit code>", written atomically so that a concurrent
 /// `inspect` never reads a partial file. Marker files make the next launch time out
 /// with (`launch-slow`) or without (`launch-lost`) creating the container.
+/// Every container runs image ID `4b2f8e0c1d3a`, pulled from a registry.
 const FAKE_RUNTIME: &str = r#"#!/bin/sh
 D='@DIR@'
 echo "$*" >> "$D/calls"
@@ -41,7 +43,9 @@ case "$1" in
     if [ -e "$D/launch-slow" ]; then rm "$D/launch-slow"; sleep 3; fi
     echo 0123456789ab;;
   inspect)
-    if [ -e "$D/state-$last" ]; then cat "$D/state-$last"; else echo "Error: no such container $last" >&2; exit 125; fi;;
+    if [ ! -e "$D/state-$last" ]; then echo "Error: no such container $last" >&2; exit 125; fi
+    case "$*" in *'{{.Image}}'*) echo 4b2f8e0c1d3a;; *) cat "$D/state-$last";; esac;;
+  image) echo '["localhost/saci-worker@sha256:feed"]';;
   stop)
     if [ -e "$D/state-$last" ]; then echo "exited 143" > "$D/tmp-$last" && mv "$D/tmp-$last" "$D/state-$last"; else echo "Error: no such container $last" >&2; exit 125; fi;;
   rm) rm -f "$D/state-$last";;
@@ -257,6 +261,32 @@ async fn a_finished_run_s_worker_is_removed_once_it_exits() {
         "the worker's own end is kept"
     );
     assert_eq!(harness.calls("run "), 1);
+}
+
+#[tokio::test]
+async fn the_report_names_the_worker_s_image_after_the_worker_is_gone() {
+    let harness = Harness::start("").await;
+    let run = submit(&harness.url).await;
+    exists(&harness.container(&run), true).await;
+    harness.set_state(&run, "exited 2");
+    exists(&harness.container(&run), false).await;
+    let report = harness.backend.store.run(&run).await.unwrap().report;
+    assert_eq!(report.lifecycle, Lifecycle::Finished);
+    let image = WorkerImage {
+        reference: harness.backend.config.worker.image.clone(),
+        digest: Some("sha256:feed".to_owned()),
+        id: Some("sha256:4b2f8e0c1d3a".to_owned()),
+    };
+    assert_eq!(
+        report.worker_image,
+        Some(image),
+        "the report names the image"
+    );
+    assert_eq!(
+        harness.calls("image inspect"),
+        1,
+        "a known image is not asked again"
+    );
 }
 
 #[tokio::test]

@@ -11,7 +11,7 @@
 use std::time::Duration;
 
 use saci_core::ids::RunId;
-use saci_core::run::ContractError;
+use saci_core::run::{ContractError, WorkerImage};
 use saci_core::status::{Lifecycle, Outcome};
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
@@ -208,7 +208,12 @@ enum Stopping {
 async fn watch(backend: &Backend, launcher: &Launcher, run: &RunId, timing: Timing) {
     let mut changes = backend.subscribe();
     let mut stopping = Stopping::No;
+    let mut image = None;
     loop {
+        // Before the worker can be removed, which ends what the runtime knows.
+        if !image.as_ref().is_some_and(WorkerImage::is_resolved) {
+            image = Box::pin(record_image(backend, launcher, run, image)).await;
+        }
         let Some(progress) = Box::pin(progress(backend, run, timing)).await else {
             tracing::error!(%run, "cannot read the run; no longer watching it");
             return;
@@ -228,6 +233,30 @@ async fn watch(backend: &Backend, launcher: &Launcher, run: &RunId, timing: Timi
         tokio::select! {
             _ = changes.changed() => {}
             () = tokio::time::sleep(timing.poll) => {}
+        }
+    }
+}
+
+/// Records the worker's image in the report when it differs from `known`,
+/// the image recorded before. Returns the image now recorded.
+async fn record_image(
+    backend: &Backend,
+    launcher: &Launcher,
+    run: &RunId,
+    known: Option<WorkerImage>,
+) -> Option<WorkerImage> {
+    let image = launcher.image(run).await;
+    if known.as_ref() == Some(&image) {
+        return known;
+    }
+    match backend.store.set_worker_image(run, image.clone()).await {
+        Ok(()) => {
+            backend.notify();
+            Some(image)
+        }
+        Err(error) => {
+            tracing::warn!(%run, %error, "cannot record the worker's image");
+            known
         }
     }
 }

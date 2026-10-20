@@ -16,6 +16,7 @@ use reqwest::header::CONTENT_TYPE;
 use reqwest::{Method, StatusCode};
 use saci_core::config::WorkerConfig;
 use saci_core::ids::RunId;
+use saci_core::run::WorkerImage;
 use serde_json::{Value, json};
 
 use super::{Assignment, LaunchError, MANAGED_LABEL, RUN_LABEL, WorkerState, run_of, worker_name};
@@ -225,6 +226,21 @@ impl KubernetesLauncher {
         text
     }
 
+    /// The image the worker's pod runs: the configured reference, with the
+    /// digest the kubelet reports once the container has started.
+    pub async fn image(&self, run: &RunId) -> WorkerImage {
+        let pod = self.pod_of(run).await.unwrap_or_else(|error| {
+            tracing::debug!(%run, %error, "cannot read the worker's pod");
+            None
+        });
+        let (digest, id) = pod.as_ref().map_or((None, None), pod_image);
+        WorkerImage {
+            reference: self.image.clone(),
+            digest,
+            id,
+        }
+    }
+
     /// Removes `run`'s Job; Kubernetes then removes its pod and Secret.
     ///
     /// # Errors
@@ -369,6 +385,20 @@ fn conditions(job: &Value) -> impl Iterator<Item = &str> {
         .flatten()
         .filter(|condition| condition["status"] == "True")
         .filter_map(|condition| condition["type"].as_str())
+}
+
+/// The registry digest and the image ID of the worker container, from its
+/// `imageID`: `<repository>@<digest>` (some runtimes add a scheme such as
+/// `docker-pullable://`) or a bare image ID.
+fn pod_image(pod: &Value) -> (Option<String>, Option<String>) {
+    let image_id = pod["status"]["containerStatuses"][0]["imageID"]
+        .as_str()
+        .unwrap_or_default();
+    match image_id.rsplit_once('@') {
+        Some((_, digest)) => (Some(digest.to_owned()), None),
+        None if image_id.is_empty() => (None, None),
+        None => (None, Some(image_id.to_owned())),
+    }
 }
 
 /// Why the worker container has not started, for example an image that
@@ -549,7 +579,7 @@ fn hint(status: StatusCode) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{WorkerState, job_state};
+    use super::{WorkerState, job_state, pod_image};
     use serde_json::json;
 
     #[test]
@@ -573,6 +603,30 @@ mod tests {
         assert_eq!(
             job_state(&json!({"status": {"succeeded": 1}}), None),
             WorkerState::Exited(0)
+        );
+    }
+
+    #[test]
+    fn pod_images_name_the_digest_or_the_image_id() {
+        let pod =
+            |image_id: &str| json!({"status": {"containerStatuses": [{"imageID": image_id}]}});
+        let digest = Some("sha256:bbb".to_owned());
+        assert_eq!(
+            pod_image(&pod("quay.io/saci/worker@sha256:bbb")),
+            (digest.clone(), None)
+        );
+        assert_eq!(
+            pod_image(&pod("docker-pullable://saci/worker@sha256:bbb")),
+            (digest, None)
+        );
+        assert_eq!(
+            pod_image(&pod("sha256:ccc")),
+            (None, Some("sha256:ccc".to_owned()))
+        );
+        // Not started yet: the kubelet has not reported the image.
+        assert_eq!(
+            pod_image(&json!({"status": {"phase": "Pending"}})),
+            (None, None)
         );
     }
 }

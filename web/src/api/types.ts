@@ -9,6 +9,7 @@ export type Outcome = Schemas["Outcome"];
 export type RunSummary = Schemas["RunSummary"];
 export type OutcomeCounts = Schemas["OutcomeCounts"];
 export type RunReport = Schemas["RunReport"];
+export type WorkerImage = Schemas["WorkerImage"];
 export type UnitReport = Schemas["UnitReport"];
 export type Attempt = Schemas["Attempt"];
 export type Assessment = Schemas["Assessment"];

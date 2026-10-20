@@ -69,6 +69,33 @@ report its end, then SIGKILL if it has not exited. Once the run has ended
 the worker is removed with `<runtime> rm --force`. See
 [supervision](supervision.md) for deadlines, lost workers and restarts.
 
+## Worker image
+
+The backend records the image of each worker in the run report, as
+`worker_image`. The web console shows it on the run page. It has these
+fields:
+
+| Field | Value |
+|-------|-------|
+| `reference` | The configured `worker.image`, with its tag. |
+| `digest` | The registry digest, `sha256:<hex>`. It is absent for an image that you built locally and did not push. |
+| `id` | The local image ID, `sha256:<hex>`. |
+
+The backend gets these values from the runtime after it starts the worker,
+and before it removes the worker:
+
+- **Podman and Docker.** `<runtime> inspect --format={{.Image}}` gives the
+  image ID. `<runtime> image inspect --format={{json .RepoDigests}}` gives
+  the registry digest of the configured repository, or else the first
+  digest in the list.
+- **Kubernetes.** The `imageID` of the worker container in the pod status
+  gives the registry digest. The kubelet reports it when the container
+  starts, so the report has only `reference` while the pod is pending.
+
+If the runtime cannot give a value, the report does not include it. A tag
+such as `latest` can point to a different image later, so use the digest
+or the image ID to identify the exact image that ran.
+
 ## Networking
 
 A worker needs three connections, all configured explicitly:
