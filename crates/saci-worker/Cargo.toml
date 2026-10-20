@@ -11,6 +11,12 @@ repository.workspace = true
 name = "saci-worker"
 path = "src/main.rs"
 
+# The init blocks signals and reaps every child of the process, so its
+# test runs alone in its own process, without the test harness.
+[[test]]
+name = "worker_init"
+harness = false
+
 [lints]
 workspace = true
 
