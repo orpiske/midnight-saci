@@ -10,14 +10,14 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
-use saci_core::config::{Runtime, WorkerConfig};
+use saci_core::config::{PullPolicy, Runtime, WorkerConfig};
 use saci_core::ids::RunId;
 use saci_core::run::WorkerImage;
 use tokio::process::Command;
 
 use super::{Assignment, LaunchError, MANAGED_LABEL, RUN_LABEL, WorkerState, run_of, worker_name};
 
-/// How long `run` may take, including pulling a missing image.
+/// How long `run` may take, including pulling the image.
 const LAUNCH_TIMEOUT: Duration = Duration::from_secs(300);
 /// How long any other runtime command may take.
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
@@ -50,6 +50,7 @@ pub struct ContainerLauncher {
     image: String,
     network: Option<String>,
     add_hosts: Vec<String>,
+    pull_policy: Option<PullPolicy>,
     launch_timeout: Duration,
 }
 
@@ -126,6 +127,7 @@ impl ContainerLauncher {
             image: worker.image.clone(),
             network: worker.network.clone(),
             add_hosts: worker.add_hosts.clone(),
+            pull_policy: worker.image_pull_policy,
             launch_timeout: LAUNCH_TIMEOUT,
         }
     }
@@ -182,14 +184,7 @@ impl ContainerLauncher {
             format!("--label={RUN_LABEL}={}", assignment.run),
             "--security-opt=no-new-privileges".to_owned(),
         ];
-        if let Some(network) = &self.network {
-            args.push(format!("--network={network}"));
-        }
-        args.extend(
-            self.add_hosts
-                .iter()
-                .map(|host| format!("--add-host={host}")),
-        );
+        args.extend(self.runtime_options());
         if let Some(cpu) = &assignment.cpu {
             args.push(format!("--cpus={cpu}"));
         }
@@ -202,6 +197,22 @@ impl ContainerLauncher {
         }
         args.push(self.image.clone());
         args
+    }
+
+    /// The `run` options from the worker settings: pull policy and network.
+    fn runtime_options(&self) -> impl Iterator<Item = String> + '_ {
+        let pull = self
+            .pull_policy
+            .map(|policy| format!("--pull={}", policy.container()));
+        let network = self
+            .network
+            .iter()
+            .map(|network| format!("--network={network}"));
+        let hosts = self
+            .add_hosts
+            .iter()
+            .map(|host| format!("--add-host={host}"));
+        pull.into_iter().chain(network).chain(hosts)
     }
 
     /// Starts the worker container.

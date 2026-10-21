@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use saci_backend::launcher::container::{ContainerLauncher, Kind};
 use saci_backend::launcher::{Assignment, Launcher, WorkerState, assignment, worker_name};
-use saci_core::config::{Config, Runtime, WorkerConfig};
+use saci_core::config::{Config, PullPolicy, Runtime, WorkerConfig};
 use saci_core::ids::RunId;
 use saci_core::spec::{JudgeSettings, RunSpec};
 
@@ -468,5 +468,30 @@ mod real {
              environments:\n  local: {{}}\n",
             data.display()
         )
+    }
+}
+
+#[test]
+fn the_pull_policy_becomes_the_pull_option() {
+    let dir = tempfile::tempdir().unwrap();
+    fake_runtime(dir.path(), "podman", false);
+    let path = dir.path().as_os_str();
+    let pull = |worker: &WorkerConfig| {
+        let launcher = ContainerLauncher::resolve(Runtime::Podman, path, worker).unwrap();
+        launcher
+            .run_arguments(&sample_assignment())
+            .into_iter()
+            .filter(|arg| arg.starts_with("--pull"))
+            .collect::<Vec<_>>()
+    };
+    let mut worker = worker_config();
+    assert!(pull(&worker).is_empty(), "unset: the runtime default");
+    for (policy, expected) in [
+        (PullPolicy::Always, "--pull=always"),
+        (PullPolicy::IfNotPresent, "--pull=missing"),
+        (PullPolicy::Never, "--pull=never"),
+    ] {
+        worker.image_pull_policy = Some(policy);
+        assert_eq!(pull(&worker), [expected]);
     }
 }

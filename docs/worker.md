@@ -105,7 +105,8 @@ make image-check                         # runs a fixture-backed plan in the ima
 CI publishes `quay.io/orpiske/saci-worker:latest` and a tag with the full
 commit SHA after a successful push to `main`. Each tag is a multi-arch
 manifest for Linux x86_64 (`amd64`) and AArch64 (`arm64`). Set `worker.image`
-to this image to use it. For Helm, set
+to this image to use it. Set `worker.image_pull_policy: Always` to pull the
+latest image before each run. For Helm, set
 `--set image.repository=quay.io/orpiske/saci-worker --set image.tag=latest`.
 
 To enable publication, configure the repository secrets `QUAY_USERNAME`
