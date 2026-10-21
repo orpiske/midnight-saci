@@ -17,10 +17,12 @@ test:
 
 RUNTIME ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo docker)
 IMAGE ?= localhost/saci-worker:latest
+# The commit embedded in the binaries; the image build has no .git.
+BUILD_COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null)
 
 ## Build the worker image.
 image:
-	$(RUNTIME) build -f Containerfile -t $(IMAGE) .
+	$(RUNTIME) build -f Containerfile --build-arg SACI_BUILD_COMMIT="$(BUILD_COMMIT)" -t $(IMAGE) .
 
 ## Run a fixture-backed plan inside the worker image, directly and launched by the backend.
 image-check: image

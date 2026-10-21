@@ -18,6 +18,7 @@ use saci_core::status::{Outcome, summarize};
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::{AttemptRequest, AttemptResult, Executor, prompt};
+use crate::environment;
 
 /// How a run ended.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,7 +66,8 @@ impl Stop {
 pub async fn run(executor: &Executor, plan: RunPlan<'_>, cancel: &CancellationToken) -> RunEnding {
     let events = executor.recorder().events();
     let model = plan.model.to_owned();
-    events.emit(None, None, EventKind::RunStarted { model });
+    let environment = Some(Box::new(environment::collect().await));
+    events.emit(None, None, EventKind::RunStarted { model, environment });
     let mut progress = Progress {
         context: prompt::plan_context(&plan.plan.plan),
         done: Vec::new(),

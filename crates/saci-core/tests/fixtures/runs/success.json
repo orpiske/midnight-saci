@@ -82,7 +82,14 @@
       "seq": 1,
       "at": "2026-10-17T10:00:01Z",
       "type": "run_started",
-      "model": "test-model"
+      "model": "test-model",
+      "environment": {
+        "saci": { "version": "0.1.0", "commit": "0123456789abcdef0123456789abcdef01234567" },
+        "os": "Fedora Linux 44 (Container Image)",
+        "kernel": "Linux 6.12.0",
+        "arch": "x86_64",
+        "tools": [{ "name": "curl", "version": "curl 8.15.0 (x86_64-redhat-linux-gnu)" }]
+      }
     },
     {
       "run_id": "run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c",

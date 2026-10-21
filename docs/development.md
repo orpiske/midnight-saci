@@ -29,6 +29,28 @@ its `worker-image` job.
 `Cargo.lock` is committed so a fresh checkout resolves the same dependency
 versions. Use `cargo build --locked` to verify that.
 
+## Build commit
+
+Every Saci binary contains the commit that it was built from. The run
+report and the web console show it, so you can identify the build that ran
+a run ([environment details](worker.md#environment-details)).
+
+`crates/saci-core/build.rs` gets the commit as follows:
+
+1. If the `SACI_BUILD_COMMIT` environment variable is set, the build uses
+   its value.
+2. Otherwise, the build uses the `HEAD` commit that `git` reports. Cargo
+   builds again when `HEAD` or the current branch changes.
+3. If neither is available, the commit is unknown and the report does not
+   include it.
+
+The image build context does not contain `.git`. Thus `make image` and CI
+give the commit to the `Containerfile` as a build argument:
+
+```sh
+podman build -f Containerfile --build-arg SACI_BUILD_COMMIT="$(git rev-parse HEAD)" -t localhost/saci-worker:latest .
+```
+
 ## Workspace layout
 
 | Crate | Kind | Owns |

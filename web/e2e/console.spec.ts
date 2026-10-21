@@ -46,6 +46,21 @@ test("a failed run shows its criteria and the evidence they cite", async ({ page
   await expect(page.getByRole("region", { name: /ev-2 · HTTP request/ })).toBeVisible();
 });
 
+test("the environment view names the builds and the worker's tools", async ({ page }, testInfo) => {
+  await mockBackend(page);
+  await page.goto(`/ui/runs/${fx.RUN}?tab=environment`);
+  const builds = page.getByRole("region", { name: "Saci builds" });
+  await expect(builds.getByRole("row", { name: /Worker/ })).toContainText("1e81188c0a5f");
+  await expect(builds.getByRole("row", { name: /Backend/ })).toContainText("0.3.0");
+  await expect(page.getByText("Different builds")).toHaveCount(0);
+  const worker = page.getByRole("region", { name: "Worker container" });
+  await expect(worker.getByText("Fedora Linux 44 (Container Image)")).toBeVisible();
+  await expect(worker.getByText("quay.io/saci/saci-worker:0.3.0")).toBeVisible();
+  const tools = page.getByRole("region", { name: "Tools" });
+  await expect(tools.getByRole("row", { name: /curl/ })).toContainText("curl 8.15.0");
+  await accessible(page, testInfo, "run-environment");
+});
+
 test("the activity view follows a live run until it finishes", async ({ page }, testInfo) => {
   await mockBackend(page);
   await page.goto(`/ui/runs/${fx.LIVE}?tab=activity`);

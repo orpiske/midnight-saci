@@ -92,6 +92,17 @@ export const report: RunReport = {
   environment: "local",
   policy: "review",
   model: "test-model",
+  backend_build: { version: "0.3.0", commit: "1e81188c0a5f1ba58741b9d6e5f4a3b2c1d0e9f8" },
+  worker_environment: {
+    saci: { version: "0.3.0", commit: "1e81188c0a5f1ba58741b9d6e5f4a3b2c1d0e9f8" },
+    os: "Fedora Linux 44 (Container Image)",
+    kernel: "Linux 6.12.0",
+    arch: "x86_64",
+    tools: [
+      { name: "bash", version: "GNU bash, version 5.2.37(1)-release (x86_64-redhat-linux-gnu)" },
+      { name: "curl", version: "curl 8.15.0 (x86_64-redhat-linux-gnu)" },
+    ],
+  },
   worker_image: {
     reference: "quay.io/saci/saci-worker:0.3.0",
     digest: "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",

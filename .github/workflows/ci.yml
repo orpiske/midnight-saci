@@ -114,7 +114,7 @@ jobs:
       - name: Install the pinned toolchain
         run: rustup toolchain install
       - name: Build the worker image
-        run: docker build -f Containerfile -t localhost/saci-worker:ci .
+        run: docker build -f Containerfile --build-arg SACI_BUILD_COMMIT=${{ github.sha }} -t localhost/saci-worker:ci .
       - name: Run a fixture-backed plan in the image
         env:
           SACI_WORKER_IMAGE: localhost/saci-worker:ci
@@ -188,7 +188,7 @@ jobs:
       - name: Install the pinned toolchain
         run: rustup toolchain install
       - name: Build the worker image
-        run: docker build -f Containerfile -t localhost/saci-worker:ci .
+        run: docker build -f Containerfile --build-arg SACI_BUILD_COMMIT=${{ github.sha }} -t localhost/saci-worker:ci .
       - name: Create a kind cluster
         uses: helm/kind-action@v1.12.0
         with:

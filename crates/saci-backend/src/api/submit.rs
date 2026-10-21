@@ -2,6 +2,7 @@
 //! specification and the initial report.
 
 use saci_core::api::{ErrorCode, SubmitRun};
+use saci_core::build_info::BuildInfo;
 use saci_core::bundle::expand;
 use saci_core::config::{Config, DEFAULT_POLICY};
 use saci_core::ids::RunId;
@@ -56,8 +57,10 @@ pub fn prepare(
     let header = header(&spec, &expanded.plan.title);
     let units = expanded.units.into_iter().map(|u| u.identity).collect();
     let idempotency = idempotency_key.map(|key| (key, request_hash(request)));
+    let mut report = RunReport::new(header, units);
+    report.backend_build = Some(BuildInfo::current());
     Ok(NewRun {
-        report: RunReport::new(header, units),
+        report,
         spec,
         idempotency,
         actions,

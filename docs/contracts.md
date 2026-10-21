@@ -91,6 +91,11 @@ attempt's, or a skip of a unit that was attempted. Each unit's identity
 carries its authored `criteria` for this. A rejected event leaves the
 report unchanged.
 
+`run_started` also carries `environment`: the worker's Saci build, operating
+system, kernel, architecture and tool versions
+([environment details](worker.md#environment-details)). The report keeps it
+as `worker_environment`. Workers that do not send it leave the field absent.
+
 `attempt_finished` also carries `timing`: `model_requests` (the model
 requests sent), `model_ms` (the time spent on model requests, retries
 included), `tool_ms` (the time spent in tool calls), and the token counts

@@ -27,7 +27,7 @@ says how to build it; the API is unaffected.
   (their limits and outcome actions are shown), and start. Plan problems
   come back with their file and line and are marked in the source.
 - **A run**: its outcome and reason, progress, environment, policy, model,
-  worker image and times, and four views. The worker image shows its
+  worker image and times, and five views. The worker image shows its
   reference with the tag, and the digest or image ID that identifies the
   exact image ([worker image](launchers.md#worker-image)).
   - *Results*: each unit grouped by phase, nested under the procedure
@@ -41,6 +41,10 @@ says how to build it; the API is unaffected.
     the time spent in tool calls.
   - *Plan*: the documents retained with the run and the units the backend
     expanded from them.
+  - *Environment*: the Saci version and commit of the backend and the
+    worker, and the worker container: image, operating system, kernel,
+    architecture and tool versions
+    ([environment details](worker.md#environment-details)).
   - *Outcome actions*: the run's actions and their delivery.
   The selected view, unit, attempt and evidence are part of the address, so
   a link opens the same place.

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
 use crate::assessment::{Assessment, Recorded};
+use crate::build_info::BuildInfo;
 use crate::event::{EventKind, RunEvent};
 use crate::evidence::Evidence;
 use crate::ids::{EvidenceId, RunId, UnitKey};
@@ -250,6 +251,33 @@ impl WorkerImage {
     }
 }
 
+/// Where a run's worker executed, as the worker reports it in `run_started`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkerEnvironment {
+    /// The worker's Saci build.
+    pub saci: BuildInfo,
+    /// Operating system name and version, such as `Fedora Linux 44`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub os: Option<String>,
+    /// Kernel name and release, such as `Linux 6.12.0`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kernel: Option<String>,
+    /// CPU architecture, such as `x86_64`.
+    pub arch: String,
+    /// Versions of the tools found on the worker's `PATH`.
+    #[serde(default)]
+    pub tools: Vec<ToolVersion>,
+}
+
+/// The version a tool reports about itself.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolVersion {
+    /// Command name.
+    pub name: String,
+    /// First line of the tool's version output.
+    pub version: String,
+}
+
 /// The durable, redacted report of a run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunReport {
@@ -282,6 +310,12 @@ pub struct RunReport {
     /// All recorded evidence.
     #[serde(default)]
     pub evidence: Vec<Evidence>,
+    /// The backend build that accepted the run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backend_build: Option<BuildInfo>,
+    /// Where the worker executed, once it has started.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worker_environment: Option<Box<WorkerEnvironment>>,
     /// The worker's container image, once the backend has launched it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worker_image: Option<WorkerImage>,
@@ -348,6 +382,8 @@ impl RunReport {
             units: units.into_iter().map(UnitReport::pending).collect(),
             cleanup_not_run: Vec::new(),
             evidence: Vec::new(),
+            backend_build: None,
+            worker_environment: None,
             worker_image: None,
             last_seq: 0,
         }
@@ -407,7 +443,9 @@ impl RunReport {
 
     fn apply_kind(&mut self, event: &RunEvent) -> Result<(), ContractError> {
         match &event.kind {
-            EventKind::RunStarted { .. } => self.start(event.at),
+            EventKind::RunStarted { environment, .. } => {
+                self.start(event.at, environment.as_deref())
+            }
             EventKind::CancellationRequested => self.stop(),
             EventKind::RunFinished { outcome, reason } => {
                 self.finish(*outcome, reason, event.at);
@@ -421,12 +459,17 @@ impl RunReport {
         }
     }
 
-    fn start(&mut self, at: OffsetDateTime) -> Result<(), ContractError> {
+    fn start(
+        &mut self,
+        at: OffsetDateTime,
+        environment: Option<&WorkerEnvironment>,
+    ) -> Result<(), ContractError> {
         if self.lifecycle == Lifecycle::Accepted {
             self.transition(Lifecycle::Starting)?;
         }
         self.transition(Lifecycle::Running)?;
         self.started_at = Some(at);
+        self.worker_environment = environment.cloned().map(Box::new);
         Ok(())
     }
 

@@ -81,6 +81,22 @@ fn successful_run_passes_every_unit() {
 }
 
 #[test]
+fn the_report_keeps_the_environment_the_worker_reported_at_start() {
+    let report = check("success.json");
+    let environment = report.worker_environment.expect("environment");
+    assert_eq!(
+        environment.saci.commit.as_deref(),
+        Some("0123456789abcdef0123456789abcdef01234567")
+    );
+    assert_eq!(environment.arch, "x86_64");
+    assert_eq!(environment.tools[0].name, "curl");
+    assert_eq!(
+        check("failure.json").worker_environment,
+        None,
+        "older workers report none"
+    );
+}
+#[test]
 fn failed_run_stops_and_reports_cleanup_not_run() {
     let report = check("failure.json");
     assert!(

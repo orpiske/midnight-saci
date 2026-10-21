@@ -32,7 +32,7 @@ pub fn event(event: &RunEvent) -> String {
         .map(|n| format!("attempt {n} "))
         .unwrap_or_default();
     let what = match &event.kind {
-        EventKind::RunStarted { model } => format!("run started with model {model}"),
+        EventKind::RunStarted { model, .. } => format!("run started with model {model}"),
         EventKind::AttemptStarted => "started".to_owned(),
         EventKind::Observation { evidence } => format!("  {}", observation(evidence)),
         EventKind::AttemptFinished {

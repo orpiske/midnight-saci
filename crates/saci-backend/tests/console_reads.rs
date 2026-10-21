@@ -211,16 +211,15 @@ async fn fail(api: &TestBackend, run: &RunId) {
         source: None,
         kind,
     };
-    let events = vec![
-        event(1, EventKind::RunStarted { model: "m".into() }),
-        event(
-            2,
-            EventKind::RunFinished {
-                outcome: Outcome::Failed,
-                reason: "a test failed".into(),
-            },
-        ),
-    ];
+    let started = EventKind::RunStarted {
+        model: "m".into(),
+        environment: None,
+    };
+    let finished = EventKind::RunFinished {
+        outcome: Outcome::Failed,
+        reason: "a test failed".into(),
+    };
+    let events = vec![event(1, started), event(2, finished)];
     api.backend
         .store
         .append_events(run, events, Redactor::new())

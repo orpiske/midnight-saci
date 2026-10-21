@@ -317,7 +317,7 @@ async fn first(lines: &mut tokio::io::Lines<BufReader<ChildStdout>>, count: usiz
 #[tokio::test]
 async fn follow_survives_lost_connections_without_gaps_or_repeats() {
     let harness = Harness::start().await;
-    harness.emit(None, None, EventKind::RunStarted { model: "m".into() });
+    harness.emit(None, None, started());
     harness.unit(0, Outcome::Passed);
     harness.deliver().await;
     let run = harness.run.to_string();
@@ -347,7 +347,7 @@ async fn follow_survives_lost_connections_without_gaps_or_repeats() {
 #[tokio::test]
 async fn follow_resumes_after_a_given_event_and_prints_json_lines() {
     let harness = Harness::start().await;
-    harness.emit(None, None, EventKind::RunStarted { model: "m".into() });
+    harness.emit(None, None, started());
     harness.unit(0, Outcome::Passed);
     harness.unit(1, Outcome::Passed);
     harness.finish(Outcome::Passed, "all units passed");
@@ -370,7 +370,7 @@ async fn follow_resumes_after_a_given_event_and_prints_json_lines() {
 #[tokio::test]
 async fn status_shows_a_running_run_and_exits_8() {
     let harness = Harness::start().await;
-    harness.emit(None, None, EventKind::RunStarted { model: "m".into() });
+    harness.emit(None, None, started());
     harness.unit(0, Outcome::Passed);
     harness.emit(Some(1), Some(1), EventKind::AttemptStarted);
     harness.deliver().await;
@@ -387,7 +387,7 @@ async fn status_shows_a_running_run_and_exits_8() {
 #[tokio::test]
 async fn the_report_shows_units_criteria_evidence_and_errors() {
     let harness = Harness::start().await;
-    harness.emit(None, None, EventKind::RunStarted { model: "m".into() });
+    harness.emit(None, None, started());
     harness.unit(0, Outcome::Passed);
     harness.emit(Some(1), Some(1), EventKind::AttemptStarted);
     let error = ExecutionError::new(ErrorKind::Provider, "the provider rejected the API key");
@@ -428,7 +428,7 @@ impl Harness {
     /// A run whose first unit is executing.
     async fn running() -> Self {
         let harness = Self::start().await;
-        harness.emit(None, None, EventKind::RunStarted { model: "m".into() });
+        harness.emit(None, None, started());
         harness.emit(Some(0), Some(1), EventKind::AttemptStarted);
         harness.deliver().await;
         harness
@@ -503,7 +503,7 @@ async fn unknown_runs_and_listing() {
 #[tokio::test]
 async fn following_a_finished_run_prints_every_page() {
     let harness = Harness::start().await;
-    harness.emit(None, None, EventKind::RunStarted { model: "m".into() });
+    harness.emit(None, None, started());
     harness.emit(Some(0), Some(1), EventKind::AttemptStarted);
     // More observations than one page of events holds.
     for _ in 0..70 {
@@ -532,4 +532,11 @@ async fn following_a_finished_run_prints_every_page() {
         text(&output.stderr)
     );
     assert!(last > 70, "{last}");
+}
+
+fn started() -> EventKind {
+    EventKind::RunStarted {
+        model: "m".into(),
+        environment: None,
+    }
 }

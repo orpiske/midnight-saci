@@ -31,6 +31,7 @@ fn started(run: &RunId, seq: u64) -> RunEvent {
         seq,
         EventKind::RunStarted {
             model: "test-model".into(),
+            environment: None,
         },
     )
 }

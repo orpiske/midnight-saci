@@ -668,6 +668,7 @@ export interface components {
             /** @constant */
             type: "run_started";
             model: string;
+            environment?: components["schemas"]["WorkerEnvironment"];
         } | {
             /** @constant */
             type: "attempt_started";
@@ -787,8 +788,32 @@ export interface components {
             /** @description Cleanup units that did not run. */
             cleanup_not_run: string[];
             evidence: components["schemas"]["Evidence"][];
+            backend_build?: components["schemas"]["BuildInfo"];
+            worker_environment?: components["schemas"]["WorkerEnvironment"];
             worker_image?: components["schemas"]["WorkerImage"];
             last_seq: number;
+        };
+        /** @description A Saci build (see docs/development.md#build-commit). */
+        BuildInfo: {
+            /** @description The package version. */
+            version: string;
+            /** @description The commit the binary was built from. Absent when the build did not know it. */
+            commit?: string;
+        };
+        /** @description Where the worker executed (see docs/worker.md#environment-details). Absent until the worker starts, and for workers that do not report it. */
+        WorkerEnvironment: {
+            saci: components["schemas"]["BuildInfo"];
+            /** @description The operating system name and version, for example `Fedora Linux 44`. */
+            os?: string;
+            /** @description The kernel name and release, for example `Linux 6.12.0`. */
+            kernel?: string;
+            /** @description The CPU architecture, for example `x86_64`. */
+            arch: string;
+            /** @description The tools found on the worker's PATH, with the first line of their version output. */
+            tools: {
+                name: string;
+                version: string;
+            }[];
         };
         /** @description The container image that ran the worker (see docs/launchers.md#worker-image). Absent until the backend launches the worker. */
         WorkerImage: {

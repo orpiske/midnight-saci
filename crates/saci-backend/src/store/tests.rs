@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::pin::Pin;
 
 use saci_core::event::RunEvent;
 use saci_core::plan::PlanBundle;
@@ -85,11 +86,14 @@ impl Seeded {
     }
 }
 
-async fn created(store: &Store, run: NewRun) -> RunRecord {
-    match store.create_run(run).await.unwrap() {
-        Created::New(record) => *record,
-        Created::Existing(_) => panic!("expected a new run"),
-    }
+// Boxed: a run record is too large to keep on the caller's stack.
+fn created(store: &Store, run: NewRun) -> Pin<Box<impl Future<Output = RunRecord> + '_>> {
+    Box::pin(async move {
+        match store.create_run(run).await.unwrap() {
+            Created::New(record) => *record,
+            Created::Existing(_) => panic!("expected a new run"),
+        }
+    })
 }
 
 #[tokio::test]

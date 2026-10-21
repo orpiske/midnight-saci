@@ -149,7 +149,13 @@ fn assessment() -> Assessment {
 
 fn kinds() -> Vec<(Option<&'static str>, EventKind)> {
     let mut kinds = vec![
-        (None, EventKind::RunStarted { model: "m".into() }),
+        (
+            None,
+            EventKind::RunStarted {
+                model: "m".into(),
+                environment: None,
+            },
+        ),
         (Some("1.1"), EventKind::AttemptStarted),
     ];
     for (index, record) in (1..).zip(records()) {
