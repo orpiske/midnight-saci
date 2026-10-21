@@ -84,7 +84,7 @@ setting.
 
 ## `judge`
 
-Optional. When it is set, the worker asks a TypeSafe System One model to
+Optional. When it is set, the worker asks a TypeSafe System One (Jev) model to
 judge a step before it asks the `llm` model. The judge uses the
 [Noul](https://docs.typesafe.ai/primitives/noul) primitive: for each expected
 result, it gives the probability that the evidence shows the result holds.
@@ -103,6 +103,22 @@ judge:
   api_key: env:TYPESAFE_API_KEY
   threshold_percent: 90
 ```
+
+### Judge through OpenRouter
+
+OpenRouter also serves the judge models, at its Decisions API
+(see the [OpenRouter Jev tutorial](https://openrouter.ai/docs/guides/community/jev-tutorial)).
+Set `endpoint` and `model` to use it:
+
+```yaml
+judge:
+  api_key: env:OPENROUTER_API_KEY
+  endpoint: https://openrouter.ai/api/alpha/decisions
+  model: ~typesafe/jev-latest
+```
+
+The judge can use the same variable as `llm.api_key`, for example one
+OpenRouter key for both. The worker then receives the key one time.
 
 The worker asks the judge only for a step that has expected results and
 whose code blocks are all marked `run`, when each of these blocks ran and

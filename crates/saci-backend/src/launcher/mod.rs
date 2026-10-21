@@ -169,7 +169,10 @@ fn credentials(
         };
         key.add(kubernetes, lookup, &mut credentials)?;
     }
-    if let Some(judge) = &spec.judge {
+    // A judge that shares the LLM key variable needs no second copy.
+    if let Some(judge) = &spec.judge
+        && spec.llm.api_key_env.as_ref() != Some(&judge.api_key_env)
+    {
         let name = &judge.api_key_env;
         let secret = judge.api_key_secret.as_ref();
         let key = Key {

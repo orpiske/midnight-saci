@@ -260,16 +260,21 @@ fn assignments_name_what_cannot_be_provided() {
     assert!(error.message.contains("backend.worker_url"));
 }
 
-#[test]
-fn assignments_carry_the_judge_key() {
+fn with_judge(key: &str) -> (Config, RunSpec) {
     let (config, mut spec) = configured("      TARGET_TOKEN:\n        env: TOKEN_SOURCE\n");
     spec.judge = Some(Box::new(JudgeSettings {
         endpoint: "https://judge/v1/systemone".into(),
         model: "jev-latest".into(),
-        api_key_env: "JUDGE_KEY".into(),
+        api_key_env: key.into(),
         api_key_secret: None,
         threshold_percent: 90,
     }));
+    (config, spec)
+}
+
+#[test]
+fn assignments_carry_the_judge_key() {
+    let (config, spec) = with_judge("JUDGE_KEY");
     let assigned = assignment(&config, &spec, "t", |name| Some(format!("{name}-value"))).unwrap();
     assert!(
         assigned
@@ -285,6 +290,19 @@ fn assignments_carry_the_judge_key() {
         "{}",
         missing.message
     );
+}
+
+#[test]
+fn a_judge_key_shared_with_the_llm_is_forwarded_once() {
+    // For example, one OpenRouter key for the model and the judge.
+    let (config, spec) = with_judge("MODEL_KEY");
+    let assigned = assignment(&config, &spec, "t", |name| Some(format!("{name}-value"))).unwrap();
+    let keys = assigned
+        .environment
+        .iter()
+        .filter(|(name, _)| name == "MODEL_KEY")
+        .count();
+    assert_eq!(keys, 1);
 }
 
 fn real_runtime() -> Option<(String, String)> {
