@@ -131,6 +131,7 @@ export const report: RunReport = {
           number: 1,
           started_at: "2026-10-17T10:00:03Z",
           finished_at: "2026-10-17T10:00:12Z",
+          timing: { model_requests: 2, model_ms: 6400, tool_ms: 900, input_tokens: 5200, cached_tokens: 4096, output_tokens: 310 },
           outcome: "passed",
           evidence: ["ev-1"],
           assessment: {
@@ -164,6 +165,7 @@ export const report: RunReport = {
           number: 1,
           started_at: "2026-10-17T10:00:20Z",
           finished_at: "2026-10-17T10:00:40Z",
+          timing: { model_requests: 3, model_ms: 16200, tool_ms: 2100, input_tokens: 8100, output_tokens: 620 },
           outcome: "failed",
           evidence: ["ev-2"],
           assessment: {

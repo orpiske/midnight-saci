@@ -89,4 +89,12 @@ describe("design token contrast", () => {
   ])("non-text %s on %s (placeholders, focus ring, active marker)", (color, surface) => {
     expect(contrast(rgb(token(color)), rgb(token(surface)))).toBeGreaterThanOrEqual(LARGE_OR_UI);
   });
+
+  it.each(
+    ["ms-running", "ms-glow", "ms-text-muted", "ms-text-faint"].flatMap((series) =>
+      ["ms-surface", "ms-raised"].map((surface) => [series, surface]),
+    ),
+  )("chart series %s on %s (plan performance bars and swatches)", (series, surface) => {
+    expect(contrast(rgb(token(series)), rgb(token(surface)))).toBeGreaterThanOrEqual(LARGE_OR_UI);
+  });
 });

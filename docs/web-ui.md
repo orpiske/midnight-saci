@@ -27,7 +27,7 @@ says how to build it; the API is unaffected.
   (their limits and outcome actions are shown), and start. Plan problems
   come back with their file and line and are marked in the source.
 - **A run**: its outcome and reason, progress, environment, policy, model,
-  worker image and times, and five views. The worker image shows its
+  worker image and times, and six views. The worker image shows its
   reference with the tag, and the digest or image ID that identifies the
   exact image ([worker image](launchers.md#worker-image)).
   - *Results*: each unit grouped by phase, nested under the procedure
@@ -39,6 +39,23 @@ says how to build it; the API is unaffected.
     scroll away or pause it, and keeps the newest 500 on screen. A finished
     attempt shows its model requests, the time and tokens spent on them, and
     the time spent in tool calls.
+  - *Plan performance*: where the run spent its time, to show which phases
+    and steps to make faster. The view uses the attempt times and timing in
+    the report (see `AttemptTiming` in [contracts](contracts.md)) and has
+    three parts:
+    - *Where the time went*: the run time, and how much of it went to model
+      requests, tool calls, other time in units (worker and assessment) and
+      time between units (worker start, sequencing, shutdown). It also
+      shows the model requests, the mean time per request, the tokens and
+      the attempts.
+    - *Timeline*: each phase and its units on the run's time axis. Each
+      attempt is a bar, split into model, tool and other time. A striped bar
+      is an attempt that still runs, or that has no timing because an older
+      worker image ran it. Select a unit to open it in *Results*.
+    - *Slowest units*: the 10 units that took the longest, with their share
+      of the run, model, tool and other time, model requests, output tokens
+      and attempts. *Show all* lists every unit that ran.
+    While the run is active, the values are the values so far.
   - *Plan*: the documents retained with the run and the units the backend
     expanded from them.
   - *Environment*: the Saci version and commit of the backend and the
