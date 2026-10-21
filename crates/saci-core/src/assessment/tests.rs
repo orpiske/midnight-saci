@@ -167,9 +167,10 @@ fn submissions_parse_strictly() {
         1,
     );
     assert!(serde_json::from_str::<Assessment>(&extra).is_err());
-    assert_eq!(
-        schema(2)["properties"]["criteria"]["items"]["properties"]["criterion"]["maximum"],
-        1
+    let criterion = &schema()["properties"]["criteria"]["items"]["properties"]["criterion"];
+    assert!(
+        criterion.get("maximum").is_none(),
+        "no per-unit bound: {criterion}"
     );
 }
 

@@ -59,8 +59,9 @@ impl AgentHook for Controls {
     }
 
     async fn on_outcome(&self, _ctx: &HookContext, event: OutcomeEvent<'_>) -> OutcomeAction {
-        if event.completion().is_some() {
+        if let Some(response) = event.completion() {
             self.state.model_answered();
+            self.state.model_usage(&response.usage);
         }
         if event.tool_result().is_none() {
             return OutcomeAction::proceed();

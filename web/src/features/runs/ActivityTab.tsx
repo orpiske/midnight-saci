@@ -21,7 +21,16 @@ export const RENDERED_EVENTS = 500;
 function timingNote(timing?: AttemptTiming): string {
   if (!timing) return "";
   const requests = timing.model_requests === 1 ? "request" : "requests";
-  return ` (model: ${timing.model_requests} ${requests}, ${timing.model_ms} ms; tools: ${timing.tool_ms} ms)`;
+  return ` (model: ${timing.model_requests} ${requests}, ${timing.model_ms} ms${tokensNote(timing)}; tools: ${timing.tool_ms} ms)`;
+}
+
+/** The token counts of an attempt; empty when the provider reported none. */
+function tokensNote(timing: AttemptTiming): string {
+  const input = timing.input_tokens ?? 0;
+  const output = timing.output_tokens ?? 0;
+  if (input === 0 && output === 0) return "";
+  const cached = timing.cached_tokens === undefined ? "" : ` (${timing.cached_tokens} cached)`;
+  return `, tokens: ${input} in${cached}, ${output} out`;
 }
 
 /** What one event says, in plain words. */

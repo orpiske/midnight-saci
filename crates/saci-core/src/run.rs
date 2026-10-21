@@ -91,6 +91,16 @@ pub struct AttemptTiming {
     pub model_ms: u64,
     /// Time spent in tool calls.
     pub tool_ms: u64,
+    /// Input tokens of the model requests, as the provider reported them.
+    #[serde(default)]
+    pub input_tokens: u64,
+    /// The part of `input_tokens` read from the provider's prompt cache;
+    /// absent when the provider does not report it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cached_tokens: Option<u64>,
+    /// Output tokens of the model requests, reasoning included.
+    #[serde(default)]
+    pub output_tokens: u64,
 }
 
 /// The planned identity of one execution unit, known before execution.

@@ -93,8 +93,11 @@ report unchanged.
 
 `attempt_finished` also carries `timing`: `model_requests` (the model
 requests sent), `model_ms` (the time spent on model requests, retries
-included) and `tool_ms` (the time spent in tool calls). The report keeps it
-on the attempt. Use it to find where a run spends its time.
+included), `tool_ms` (the time spent in tool calls), and the token counts
+that the provider reported: `input_tokens`, `cached_tokens` (the part of
+the input read from the provider's prompt cache, absent when the provider
+does not report it) and `output_tokens`. The report keeps it on the
+attempt. Use it to find where a run spends its time.
 
 Examples of complete event streams live in
 `crates/saci-core/tests/fixtures/runs/` (success, failure with stop, and a

@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
+use rig::completion::Usage;
 use saci_core::assessment::Assessment;
 use saci_core::evidence::{Evidence, EvidenceRecord, RejectedCall};
 use saci_core::plan::Criterion;
@@ -43,6 +44,9 @@ struct Clock {
     /// When the model request in flight was sent.
     model_since: Option<Instant>,
     tool: Duration,
+    input_tokens: u64,
+    cached_tokens: Option<u64>,
+    output_tokens: u64,
 }
 
 impl Clock {
@@ -220,6 +224,16 @@ impl AttemptState {
         lock(&self.timing).settle_model();
     }
 
+    /// Adds the token usage the provider reported for a model response.
+    pub fn model_usage(&self, usage: &Usage) {
+        let mut clock = lock(&self.timing);
+        clock.input_tokens += usage.input_tokens.unwrap_or_default();
+        clock.output_tokens += usage.output_tokens.unwrap_or_default();
+        if let Some(cached) = usage.cached_input_tokens {
+            *clock.cached_tokens.get_or_insert(0) += cached;
+        }
+    }
+
     /// Where the attempt spent its time. A request still in flight (one that
     /// failed or was interrupted) counts until now.
     pub fn timing(&self) -> AttemptTiming {
@@ -229,6 +243,9 @@ impl AttemptState {
             model_requests: clock.model_requests,
             model_ms: millis(clock.model),
             tool_ms: millis(clock.tool),
+            input_tokens: clock.input_tokens,
+            cached_tokens: clock.cached_tokens,
+            output_tokens: clock.output_tokens,
         }
     }
 
