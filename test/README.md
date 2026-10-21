@@ -44,6 +44,11 @@ saci run test/plans/backend-api.md --environment saci-under-test --follow
 saci run test/plans/cli-runs.md --environment saci-under-test --follow
 ```
 
+A coding agent can do these steps with the `saci-run-test-plan` skill
+([command line](../docs/cli.md#saci-skill)). Tell it to start the backend
+from `test/` with `saci.yaml`, and to use the `saci-under-test`
+environment. Start the Saci under test yourself first.
+
 `saci.yaml`'s default policy continues after a failed test, so one failure
 does not hide the others. Run the plans one at a time: `backend-api.md`
 and `cli-runs.md` both submit runs to the Saci under test and look at its

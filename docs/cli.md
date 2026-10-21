@@ -110,9 +110,16 @@ saci skill install --all --dir <dir>
 ```
 
 Saci contains skills for coding agents. A skill teaches an agent to do a
-Saci task, for example to convert existing test plans
-(`saci-convert-test-plan`). The skills use the `SKILL.md` format that most
-coding agents read. These commands work offline.
+Saci task. The skills use the `SKILL.md` format that most coding agents
+read. These commands work offline.
+
+| Skill | Teaches the agent to |
+| --- | --- |
+| `saci-convert-test-plan` | Convert an existing Markdown test plan to the Saci format, with all commands unchanged. |
+| `saci-start-backend` | Start a local backend in the background if no backend answers at the backend URL, and wait until it answers. The skill contains the bash script `ensure-backend.sh`. |
+| `saci-run-test-plan` | Validate a plan, start the backend with `saci-start-backend` if necessary, submit the run, follow it to the end and summarize the report. |
+
+Install `saci-run-test-plan` and `saci-start-backend` together.
 
 `saci skill list` shows the name and description of each skill.
 

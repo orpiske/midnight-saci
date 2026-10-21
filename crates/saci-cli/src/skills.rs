@@ -16,13 +16,35 @@ pub struct Skill {
 /// The skills shipped with Saci. Each one lives in `skills/<name>/` at the
 /// repository root; add new ones here. Names start with `saci-` so they do
 /// not clash with other skills in the same agent directory.
-pub const SKILLS: &[Skill] = &[Skill {
-    name: "saci-convert-test-plan",
-    files: &[(
-        "SKILL.md",
-        include_str!("../../../skills/saci-convert-test-plan/SKILL.md"),
-    )],
-}];
+pub const SKILLS: &[Skill] = &[
+    Skill {
+        name: "saci-convert-test-plan",
+        files: &[(
+            "SKILL.md",
+            include_str!("../../../skills/saci-convert-test-plan/SKILL.md"),
+        )],
+    },
+    Skill {
+        name: "saci-run-test-plan",
+        files: &[(
+            "SKILL.md",
+            include_str!("../../../skills/saci-run-test-plan/SKILL.md"),
+        )],
+    },
+    Skill {
+        name: "saci-start-backend",
+        files: &[
+            (
+                "SKILL.md",
+                include_str!("../../../skills/saci-start-backend/SKILL.md"),
+            ),
+            (
+                "ensure-backend.sh",
+                include_str!("../../../skills/saci-start-backend/ensure-backend.sh"),
+            ),
+        ],
+    },
+];
 
 /// Coding agents and the directories where they look for skills.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
