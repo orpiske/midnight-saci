@@ -135,11 +135,37 @@ async fn deadlines_kill_descendants_and_keep_the_session() {
 }
 
 #[tokio::test]
+async fn a_loop_inside_the_shell_is_stopped_and_the_session_kept() {
+    let mut shell = Fixture::new();
+    shell
+        .run("KEEP=yes; helper() { echo helper; }; poll() { while :; do sleep 1; done; }")
+        .await;
+    let short = Duration::from_secs(1);
+    for command in [
+        "until false; do sleep 1; done",
+        "while :; do :; done",
+        "while :; do poll; done; echo leaked >leaked.txt",
+    ] {
+        let result = shell.run_for(command, short).await;
+        assert_eq!(result.termination, Termination::TimedOut, "{command}");
+        assert!(!result.session_lost, "{command}");
+        let after = shell
+            .run("helper; echo $KEEP; shopt -q extdebug && echo extdebug; trap -p DEBUG")
+            .await;
+        assert!(!after.restarted, "{command}");
+        assert_eq!(after.stdout.text, "helper\nyes\n", "{command}");
+        assert!(!shell.workspace.path().join("leaked.txt").exists());
+    }
+}
+
+#[tokio::test]
 async fn a_shell_that_cannot_be_interrupted_is_replaced_explicitly() {
     let mut shell = Fixture::new();
     shell.run("KEEP=yes; touch kept.txt").await;
     let short = Duration::from_secs(1);
-    let stuck = shell.run_for("while :; do :; done", short).await;
+    let stuck = shell
+        .run_for("trap '' USR2; while :; do :; done", short)
+        .await;
     assert_eq!(stuck.termination, Termination::TimedOut);
     assert!(stuck.session_lost);
     let next = shell.run("echo \"[${KEEP:-unset}]\"; ls").await;

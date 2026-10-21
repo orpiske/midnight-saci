@@ -88,6 +88,20 @@ echo judged
 **Expected result:**
 
 - The output is `judged`.
+
+### Step 1.6: After a lost session
+
+```bash run
+echo first
+```
+
+```bash run
+echo second
+```
+
+**Expected result:**
+
+- The output is `second`.
 ";
 
 struct Harness {
@@ -706,4 +720,25 @@ async fn the_judge_is_not_asked_when_the_model_must_act() {
     let result = h.run(3, 1, &CancellationToken::new()).await;
     assert!(judge.requests().is_empty(), "step 1.4 stopped at `exit 4`");
     assert_ne!(result.outcome, Outcome::Passed);
+}
+
+#[tokio::test]
+async fn marked_blocks_stop_after_a_lost_session_and_the_judge_is_not_asked() {
+    let script = vec![
+        assess("passed", "satisfied", &["ev-1"]),
+        assess("blocked", "undetermined", &["ev-2"]),
+    ];
+    let (mut h, judge) = judged_harness(script, vec![judge_reply(&[0.99])]).await;
+    h.run(3, 1, &CancellationToken::new()).await;
+    let result = h.run(5, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Blocked, "{result:?}");
+    assert!(judge.requests().is_empty(), "the session was replaced");
+    let (prompt, _) = request(&h, 1);
+    assert!(prompt.contains("ran in a new session"), "{prompt}");
+    assert!(prompt.contains("1 marked block(s) did not run"), "{prompt}");
+    assert_eq!(
+        shell_stdout(&h.drain()),
+        ["", "first\n"],
+        "`echo second` did not run"
+    );
 }

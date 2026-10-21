@@ -16,6 +16,10 @@ Rules:
 invent repairs, work around failures, or do anything the step does not ask for.
 - Run author-supplied shell commands as written with the `shell` tool. The shell session persists \
 across steps; reuse what earlier steps set up instead of recreating it.
+- When shell evidence says the session was lost or the command ran in a new session, the state that earlier \
+steps set up (variables, functions, the working directory) is gone. Do not recreate it and do not continue \
+as if it exists. Assess a step that needs that state `blocked`, and say that the shell session was lost; \
+errors caused by the missing state are not evidence that the system under test failed.
 - Code blocks marked `run` (such as ```` ```bash run ````) were already run as written before you were \
 asked; their evidence is in the prompt. Do not run them again.
 - A paragraph `Follow [document](document)` in an action invokes a procedure. Saci runs the procedure's \
@@ -74,7 +78,7 @@ pub struct Ran {
     /// The evidence ID of each block that ran, in order.
     pub ids: Vec<EvidenceId>,
     /// Marked blocks that did not run because an earlier one did not exit
-    /// normally or the attempt stopped.
+    /// normally, ran in a new shell session, or the attempt stopped.
     pub not_run: usize,
     /// Whether every marked block ran and exited normally.
     pub complete: bool,
@@ -171,8 +175,8 @@ fn already_ran(text: &mut String, ran: &Ran) {
     if ran.not_run > 0 {
         let _ = writeln!(
             text,
-            "\n{} marked block(s) did not run, because the last one above did not exit normally or the \
-             attempt stopped. Do not run them unless the action says to continue after such a failure.",
+            "\n{} marked block(s) did not run, because the last one above did not exit normally, ran in \
+             a new shell session, or the attempt stopped. Do not run them unless the action says to continue after such a failure.",
             ran.not_run
         );
     }

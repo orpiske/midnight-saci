@@ -36,7 +36,7 @@ status (`$?` of its last command) and how it ended:
 | `termination` | Meaning | Session afterwards |
 |---------------|---------|--------------------|
 | `exited` | The command returned. A nonzero `exit_code` is evidence, not an error. | Kept. |
-| `timed_out` | `limits.operation_timeout_secs` expired. | Kept when killing the command's processes ended it; lost (`session_lost: true`) when the command ran inside the shell itself, such as a `while` loop of builtins. |
+| `timed_out` | `limits.operation_timeout_secs` expired. | Kept when the command stops within 2 seconds, which includes a loop that runs inside the shell. Lost (`session_lost: true`) when it does not, for example when the command ignores `SIGUSR2`. |
 | `cancelled` | The run was cancelled. | As for `timed_out`. |
 | `session_ended` | The command ended the shell, for example with `exit 3`; `exit_code` is the shell's status. | Lost. |
 | `session_lost` | The shell died or closed its output. | Lost. |
@@ -47,10 +47,23 @@ no `/proc`, such as macOS with `saci-worker --spec`. A process that detaches com
 re-parented) escapes this; the worker container's removal at the end of the
 run stops it.
 
+The worker also sends `SIGUSR2` to the shell. The shell's trap for it
+returns from the command, including every function the command called, so
+a loop that runs inside the shell (for example `until curl ...; do sleep 5;
+done`) stops, and the commands after it do not run. The worker repeats the
+kill and the signal for up to 2 seconds. Variables, functions and the
+working directory stay as the command left them. To do this, the worker
+sets the `SIGUSR2` trap before each command, and sets a `DEBUG` trap and
+the `extdebug` option only while it stops a command. Commands must not use
+these for their own purposes.
+
 When a session is lost, the next shell call starts a new one and its
 evidence has `restarted: true`: variables, functions and the working
 directory are gone, files in the workspace remain. Saci never presents a new
-session as the old one.
+session as the old one. The model is told to assess a step that needs the
+lost state as `blocked`, not `failed`, and not to recreate the state. The
+worker does not run the other `run` blocks of a unit after a block that ran
+in a new session.
 
 A command that permanently redirects the shell's own output (`exec >file`)
 hides the end of every later command, which then times out.
