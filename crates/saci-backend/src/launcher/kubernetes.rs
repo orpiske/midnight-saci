@@ -67,7 +67,11 @@ impl KubernetesLauncher {
         Ok(Self {
             api,
             image: worker.image.clone(),
-            pull_policy: settings.image_pull_policy.clone(),
+            pull_policy: settings.image_pull_policy.clone().or_else(|| {
+                worker
+                    .image_pull_policy
+                    .map(|policy| policy.kubernetes().to_owned())
+            }),
             service_account: settings.service_account.clone(),
         })
     }
@@ -579,7 +583,8 @@ fn hint(status: StatusCode) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{WorkerState, job_state, pod_image};
+    use super::{KubernetesLauncher, WorkerState, job_state, pod_image};
+    use saci_core::config::{PullPolicy, WorkerConfig};
     use serde_json::json;
 
     #[test]
@@ -627,6 +632,28 @@ mod tests {
         assert_eq!(
             pod_image(&json!({"status": {"phase": "Pending"}})),
             (None, None)
+        );
+    }
+
+    #[test]
+    fn the_job_pull_policy_falls_back_to_the_worker_policy() {
+        let mut worker = WorkerConfig::default();
+        worker.kubernetes.api_url = Some("http://127.0.0.1:8001".to_owned());
+        worker.kubernetes.namespace = Some("tests".to_owned());
+        let policy = |worker: &WorkerConfig| {
+            KubernetesLauncher::from_config(worker)
+                .unwrap()
+                .pull_policy
+                .clone()
+        };
+        assert_eq!(policy(&worker), None, "unset: the cluster default");
+        worker.image_pull_policy = Some(PullPolicy::Always);
+        assert_eq!(policy(&worker).as_deref(), Some("Always"));
+        worker.kubernetes.image_pull_policy = Some("Never".to_owned());
+        assert_eq!(
+            policy(&worker).as_deref(),
+            Some("Never"),
+            "the Job setting wins"
         );
     }
 }

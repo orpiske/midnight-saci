@@ -30,9 +30,10 @@ Complete examples:
 | `image` | `localhost/saci-worker:latest` | Worker image reference; see [the worker image](worker.md#the-image). |
 | `network` | none | Local runtimes: container network passed as `--network`; see [networking](launchers.md#networking). |
 | `add_hosts` | `[]` | Local runtimes: `name:address` entries passed as `--add-host`. |
+| `image_pull_policy` | runtime default | When to pull the worker image: `Always`, `IfNotPresent` or `Never`. Podman and Docker receive it as `--pull`; see [what a worker is started with](launchers.md#what-a-worker-is-started-with). Kubernetes Jobs use it as `imagePullPolicy` when `kubernetes.image_pull_policy` is not set. |
 | `kubernetes.namespace` | backend namespace | Namespace for worker Jobs. |
 | `kubernetes.service_account` | none | Service account of worker Jobs, separate from the backend's. Without it, workers run as the namespace's `default` account with no API token mounted. |
-| `kubernetes.image_pull_policy` | cluster default | Image pull policy of worker Jobs. |
+| `kubernetes.image_pull_policy` | `image_pull_policy` | Image pull policy of worker Jobs. It overrides `image_pull_policy`. |
 | `kubernetes.api_url` | none | API URL for a backend outside the cluster, such as `kubectl proxy`; inside a pod the backend uses its service account. See [Kubernetes Jobs](kubernetes.md#connecting-to-the-api). |
 
 ## `llm`

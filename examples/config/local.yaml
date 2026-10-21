@@ -13,6 +13,9 @@ worker:
   runtime: auto            # podman if found in PATH, otherwise docker
   image: localhost/saci-worker:latest
   network: host
+  # Pull the worker image before each run so a moved tag is followed.
+  # Requires an image from a registry. Default: pull only if missing.
+  # image_pull_policy: Always
 
 llm:
   # OpenRouter. For a host-local Ollama use

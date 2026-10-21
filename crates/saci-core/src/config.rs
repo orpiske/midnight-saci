@@ -260,6 +260,9 @@ pub struct WorkerConfig {
     /// Extra `host:address` entries (`--add-host`), for local runtimes.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub add_hosts: Vec<String>,
+    /// When to pull the worker image; the runtime's default when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_pull_policy: Option<PullPolicy>,
     /// Kubernetes launcher settings.
     #[serde(default)]
     pub kubernetes: KubernetesWorkerConfig,
@@ -272,6 +275,7 @@ impl Default for WorkerConfig {
             image: default_image(),
             network: None,
             add_hosts: Vec::new(),
+            image_pull_policy: None,
             kubernetes: KubernetesWorkerConfig::default(),
         }
     }
@@ -279,6 +283,39 @@ impl Default for WorkerConfig {
 
 fn default_image() -> String {
     "localhost/saci-worker:latest".to_owned()
+}
+
+/// When the worker image is pulled, with the Kubernetes names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PullPolicy {
+    /// Pull before each run, so a moved tag is followed.
+    Always,
+    /// Pull only when the image is not present locally.
+    IfNotPresent,
+    /// Never pull; the image must be present locally.
+    Never,
+}
+
+impl PullPolicy {
+    /// The Kubernetes `imagePullPolicy` value.
+    #[must_use]
+    pub const fn kubernetes(self) -> &'static str {
+        match self {
+            Self::Always => "Always",
+            Self::IfNotPresent => "IfNotPresent",
+            Self::Never => "Never",
+        }
+    }
+
+    /// The `--pull` value of `podman run` and `docker run`.
+    #[must_use]
+    pub const fn container(self) -> &'static str {
+        match self {
+            Self::Always => "always",
+            Self::IfNotPresent => "missing",
+            Self::Never => "never",
+        }
+    }
 }
 
 /// Kubernetes launcher settings.
@@ -291,7 +328,8 @@ pub struct KubernetesWorkerConfig {
     /// Service account the worker Jobs run as (not the backend's).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub service_account: Option<String>,
-    /// Image pull policy for worker Jobs.
+    /// Image pull policy for worker Jobs; overrides
+    /// [`WorkerConfig::image_pull_policy`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_pull_policy: Option<String>,
     /// Kubernetes API URL for a backend outside the cluster, for example
@@ -1083,6 +1121,21 @@ mod tests {
         let nested = format!("{MINIMAL}limits:\n  step_timeout: 5\n");
         let error = Config::from_yaml(&nested, "t.yaml").unwrap_err();
         assert!(error.to_string().contains("step_timeout"), "{error}");
+    }
+
+    #[test]
+    fn the_image_pull_policy_uses_the_kubernetes_names() {
+        let config = Config::from_yaml(MINIMAL, "t.yaml").unwrap();
+        assert_eq!(config.worker.image_pull_policy, None);
+        let yaml = format!("{MINIMAL}worker:\n  image_pull_policy: IfNotPresent\n");
+        let config = Config::from_yaml(&yaml, "t.yaml").unwrap();
+        assert_eq!(
+            config.worker.image_pull_policy,
+            Some(PullPolicy::IfNotPresent)
+        );
+        let yaml = format!("{MINIMAL}worker:\n  image_pull_policy: latest\n");
+        let error = Config::from_yaml(&yaml, "t.yaml").unwrap_err();
+        assert!(error.to_string().contains("IfNotPresent"), "{error}");
     }
 
     #[test]

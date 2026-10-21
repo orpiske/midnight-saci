@@ -39,7 +39,7 @@ a shell:
 ```text
 podman run --detach --name=saci-run-1a2b… \
   --label=io.saci.managed=true --label=io.saci.run=run-1a2b… \
-  --security-opt=no-new-privileges \
+  --security-opt=no-new-privileges [--pull=<policy>] \
   [--network=<worker.network>] [--add-host=<entry>]… \
   [--cpus=<cpu>] [--memory=<memory>] \
   --env SACI_BACKEND_URL --env SACI_RUN_ID --env SACI_WORKER_TOKEN \
@@ -62,6 +62,14 @@ podman run --detach --name=saci-run-1a2b… \
   and dies with the container.
 - **Resources.** `environments.<env>.worker.cpu` and `.memory` become
   `--cpus` and `--memory`, in the runtime's own syntax (`1.5`, `2g`).
+- **Image pull.** `worker.image_pull_policy` becomes `--pull`: `Always` is
+  `--pull=always`, `IfNotPresent` is `--pull=missing` and `Never` is
+  `--pull=never`. When the setting is not set, the backend does not add
+  `--pull`, and the runtime pulls the image only if it is missing. Thus a
+  moved tag such as `latest` does not update a local copy. Set `Always` to
+  pull the image before each run. With `Always`, the image must be in a
+  registry: a local build such as `localhost/saci-worker:latest` cannot be
+  pulled, and the launch fails.
 
 Cancelling a run, or a run overrunning its deadline, stops its worker with
 `<runtime> stop --time=30`: SIGTERM, which makes the worker cancel and
