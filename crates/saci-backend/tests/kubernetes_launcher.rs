@@ -147,7 +147,10 @@ where
 
 fn finished_events(reason: &str) -> Vec<EventKind> {
     vec![
-        EventKind::RunStarted { model: "m".into() },
+        EventKind::RunStarted {
+            model: "m".into(),
+            environment: None,
+        },
         EventKind::RunFinished {
             outcome: Outcome::Passed,
             reason: reason.into(),

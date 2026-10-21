@@ -61,6 +61,7 @@ async fn start_run(api: &TestBackend, run: &RunId) {
             None,
             EventKind::RunStarted {
                 model: "test-model".into(),
+                environment: None,
             },
         ),
         event(run, 2, Some("1.1"), EventKind::AttemptStarted),
@@ -148,6 +149,23 @@ async fn a_valid_submission_is_stored_and_handed_to_the_supervisor() {
     );
     let report = api.get(&format!("/api/v1/runs/{id}/report")).await;
     assert_eq!(report.body["units"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn the_report_names_the_backend_build_that_accepted_the_run() {
+    let api = TestBackend::start(ClientAuth::Open).await;
+    let answer = api.post("/api/v1/runs", &submission(PLAN)).await;
+    let id = answer.body["id"].as_str().unwrap().to_owned();
+    let report = api.get(&format!("/api/v1/runs/{id}/report")).await;
+    assert_eq!(
+        report.body["backend_build"],
+        serde_json::to_value(saci_core::build_info::BuildInfo::current()).unwrap()
+    );
+    assert_eq!(report.body["backend_build"]["version"], saci_core::VERSION);
+    assert!(
+        report.body.get("worker_environment").is_none(),
+        "not started yet"
+    );
 }
 
 #[tokio::test]

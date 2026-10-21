@@ -232,7 +232,10 @@ async fn exists(path: &Path, wanted: bool) {
 }
 
 fn started() -> EventKind {
-    EventKind::RunStarted { model: "m".into() }
+    EventKind::RunStarted {
+        model: "m".into(),
+        environment: None,
+    }
 }
 
 fn run_finished(outcome: Outcome, reason: &str) -> EventKind {

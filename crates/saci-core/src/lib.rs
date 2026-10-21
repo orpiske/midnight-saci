@@ -7,6 +7,7 @@
 pub mod action;
 pub mod api;
 pub mod assessment;
+pub mod build_info;
 pub mod bundle;
 pub mod config;
 pub mod event;

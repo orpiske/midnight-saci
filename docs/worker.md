@@ -83,6 +83,33 @@ Thus `ps` in a worker container shows two `saci-worker` processes. You do
 not need `--init` or a separate init such as `tini`. When the worker is not
 PID 1 (for example, `saci-worker --spec` on a host), it runs directly.
 
+## Environment details
+
+When the run starts, the worker reports where it executes in the
+`run_started` event. The backend keeps this in the run report as
+`worker_environment`. The web console shows it in the *Environment* view of
+the run page, together with the worker image and the backend build.
+
+| Field | Value |
+|-------|-------|
+| `saci` | The worker's Saci `version` and the `commit` it was built from ([build commit](development.md#build-commit)). |
+| `os` | `PRETTY_NAME` from `/etc/os-release`, or the `sw_vers` product name and version on macOS. |
+| `kernel` | The output of `uname -sr`. |
+| `arch` | The CPU architecture, for example `x86_64` or `aarch64`. |
+| `tools` | The `name` and `version` of each known tool on `PATH`. |
+
+The known tools are `bash`, `curl`, `git`, `jq`, `ssh`, `nc`, `dig`,
+`kubectl`, `oc`, `helm`, `podman`, `docker`, `java`, `mvn`, `jbang`, `node`
+and `python3`. The list is `TOOLS` in `crates/saci-worker/src/environment.rs`.
+The worker runs the version command of each tool at the same time, with
+only `PATH` and `HOME` from its environment. It records the first line of
+the output. It does not record a tool that is not installed, that fails, or
+that does not reply in 5 seconds.
+
+The backend records its own build in the report as `backend_build` when it
+accepts the run. If the backend and the worker were built from different
+commits, the console shows a warning.
+
 ## The image
 
 [`Containerfile`](../Containerfile) builds `saci-worker` in a Rust stage and

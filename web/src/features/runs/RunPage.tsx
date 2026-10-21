@@ -16,17 +16,19 @@ import { Link, setSearch, useLocation } from "../../lib/router";
 import { OUTCOME, runLook } from "../../lib/status";
 import { useClient } from "../connection/connection";
 import { ActivityTab } from "./ActivityTab";
+import { EnvironmentTab } from "./EnvironmentTab";
 import { type FollowState, follow } from "./follow";
 import { PlanTab } from "./PlanTab";
 import { completed } from "./progress";
 import { ResultsTab } from "./ResultsTab";
 
-type TabKey = "results" | "activity" | "plan" | "actions";
+type TabKey = "results" | "activity" | "plan" | "environment" | "actions";
 
 const TABS: readonly { key: TabKey; label: string }[] = [
   { key: "results", label: "Results" },
   { key: "activity", label: "Activity" },
   { key: "plan", label: "Plan" },
+  { key: "environment", label: "Environment" },
   { key: "actions", label: "Outcome actions" },
 ];
 
@@ -177,6 +179,8 @@ export function RunPage({ id }: { id: string }) {
           <ActivityTab activity={activity} />
         ) : tab === "plan" ? (
           <PlanTab plan={plan} search={search} />
+        ) : tab === "environment" ? (
+          <EnvironmentTab report={report} />
         ) : (
           <RunActionsTab run={run} />
         )}

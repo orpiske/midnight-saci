@@ -23,6 +23,9 @@ COPY docs/templates/ /src/docs/templates/
 RUN npm run build
 
 FROM ${RUST_IMAGE} AS build
+# The commit the binaries report (docs/development.md#build-commit). The
+# build context has no .git, so pass it: --build-arg SACI_BUILD_COMMIT=...
+ARG SACI_BUILD_COMMIT=
 WORKDIR /src
 COPY . .
 COPY --from=web /src/web/dist /src/web/dist

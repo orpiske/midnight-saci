@@ -4,6 +4,7 @@
 pub mod agent;
 pub mod bootstrap;
 pub mod credentials;
+pub mod environment;
 pub mod events;
 pub mod http;
 pub mod init;

@@ -7,7 +7,7 @@ use crate::assessment::Assessment;
 use crate::evidence::Evidence;
 use crate::ids::{RunId, UnitKey};
 use crate::plan::SourceLocation;
-use crate::run::{AttemptTiming, ExecutionError};
+use crate::run::{AttemptTiming, ExecutionError, WorkerEnvironment};
 use crate::status::Outcome;
 
 /// One progress event. `seq` starts at 1 and increases by one per event of a
@@ -43,6 +43,9 @@ pub enum EventKind {
     RunStarted {
         /// Configured model identifier.
         model: String,
+        /// Where the worker executes; absent from workers that predate it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        environment: Option<Box<WorkerEnvironment>>,
     },
     /// An attempt of a unit began.
     AttemptStarted,

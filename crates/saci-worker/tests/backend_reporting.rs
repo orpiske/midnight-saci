@@ -105,7 +105,7 @@ async fn delivered_events_are_acknowledged_and_outlive_the_worker() {
     let served = serve().await;
     let client = client(&served).await;
     let (sink, events) = EventSink::new(client.run().clone());
-    sink.emit(None, None, EventKind::RunStarted { model: "m".into() });
+    sink.emit(None, None, started());
     sink.emit(
         None,
         None,
@@ -129,7 +129,7 @@ async fn resent_events_are_not_duplicated() {
     let served = serve().await;
     let client = client(&served).await;
     let (sink, mut events) = EventSink::new(client.run().clone());
-    sink.emit(None, None, EventKind::RunStarted { model: "m".into() });
+    sink.emit(None, None, started());
     sink.emit(None, None, EventKind::CancellationRequested);
     let batch = vec![events.recv().await.unwrap(), events.recv().await.unwrap()];
     assert_eq!(client.send(batch.clone()).await.unwrap(), 2);
@@ -223,7 +223,7 @@ async fn a_large_backlog_is_split_and_an_oversized_observation_cut_to_fit() {
     let plan = saci_core::bundle::expand(&spec.bundle).unwrap();
     let unit = &plan.units[0].identity;
     let (sink, events) = EventSink::new(client.run().clone());
-    sink.emit(None, None, EventKind::RunStarted { model: "m".into() });
+    sink.emit(None, None, started());
     sink.emit(Some(unit), Some(1), EventKind::AttemptStarted);
     // Well past the 2 MiB a default request body allows, in many events.
     for index in 1..=60 {
@@ -245,4 +245,11 @@ async fn a_large_backlog_is_split_and_an_oversized_observation_cut_to_fit() {
     assert!(shell.stdout.truncated);
     assert_eq!(shell.stdout.total_bytes, oversized as u64);
     assert!(shell.stdout.text.len() < saci_core::api::MAX_EVENT_BATCH_BYTES);
+}
+
+fn started() -> EventKind {
+    EventKind::RunStarted {
+        model: "m".into(),
+        environment: None,
+    }
 }

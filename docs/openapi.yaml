@@ -893,6 +893,7 @@ components:
               properties:
                 type: { type: string, const: run_started }
                 model: { type: string }
+                environment: { $ref: "#/components/schemas/WorkerEnvironment" }
             - type: object
               required: [type]
               properties:
@@ -1032,8 +1033,35 @@ components:
         evidence:
           type: array
           items: { $ref: "#/components/schemas/Evidence" }
+        backend_build: { $ref: "#/components/schemas/BuildInfo" }
+        worker_environment: { $ref: "#/components/schemas/WorkerEnvironment" }
         worker_image: { $ref: "#/components/schemas/WorkerImage" }
         last_seq: { type: integer }
+    BuildInfo:
+      type: object
+      description: A Saci build (see docs/development.md#build-commit).
+      required: [version]
+      properties:
+        version: { type: string, description: The package version. }
+        commit: { type: string, description: The commit the binary was built from. Absent when the build did not know it. }
+    WorkerEnvironment:
+      type: object
+      description: Where the worker executed (see docs/worker.md#environment-details). Absent until the worker starts, and for workers that do not report it.
+      required: [saci, arch, tools]
+      properties:
+        saci: { $ref: "#/components/schemas/BuildInfo" }
+        os: { type: string, description: "The operating system name and version, for example `Fedora Linux 44`." }
+        kernel: { type: string, description: "The kernel name and release, for example `Linux 6.12.0`." }
+        arch: { type: string, description: "The CPU architecture, for example `x86_64`." }
+        tools:
+          type: array
+          description: The tools found on the worker's PATH, with the first line of their version output.
+          items:
+            type: object
+            required: [name, version]
+            properties:
+              name: { type: string }
+              version: { type: string }
     WorkerImage:
       type: object
       description: The container image that ran the worker (see docs/launchers.md#worker-image). Absent until the backend launches the worker.
