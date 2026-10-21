@@ -70,7 +70,9 @@ fn successful_run_passes_every_unit() {
         model_requests: 2,
         model_ms: 2400,
         tool_ms: 15,
+        ..AttemptTiming::default()
     };
+    // The fixture predates token counts, which default to none.
     assert_eq!(report.units[0].attempts[0].timing, Some(timing));
     assert_eq!(
         report.units[1].attempts[0].timing, None,

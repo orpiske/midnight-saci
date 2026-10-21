@@ -30,3 +30,21 @@ describe("describeEvent", () => {
     expect(describeEvent(finished({})).text).toBe("Attempt 1 passed");
   });
 });
+
+describe("describeEvent token counts", () => {
+  it("shows the tokens the provider counted, cached ones included", () => {
+    const event = finished({
+      timing: {
+        model_requests: 2,
+        model_ms: 3120,
+        tool_ms: 12,
+        input_tokens: 5200,
+        cached_tokens: 4096,
+        output_tokens: 310,
+      },
+    });
+    expect(describeEvent(event).text).toBe(
+      "Attempt 1 passed (model: 2 requests, 3120 ms, tokens: 5200 in (4096 cached), 310 out; tools: 12 ms)",
+    );
+  });
+});

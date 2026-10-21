@@ -225,22 +225,22 @@ pub const fn attempt_outcome(assessment: Option<&Assessment>, error: bool) -> Ou
     }
 }
 
-/// JSON schema of the step-assessment tool for a unit with
-/// `criteria` expected results.
+/// JSON schema of the step-assessment tool. It is the same for every unit, so
+/// the tool definitions stay a stable, cacheable prompt prefix; [`validate`]
+/// checks the criteria of the unit.
 #[must_use]
-pub fn schema(criteria: usize) -> Value {
-    let last = criteria.saturating_sub(1);
+pub fn schema() -> Value {
     json!({
         "type": "object",
         "properties": {
             "outcome": {"type": "string", "enum": ["passed", "failed", "blocked", "inconclusive"]},
             "criteria": {
                 "type": "array",
-                "description": format!("One result per expected result, criterion 0 to {last}"),
+                "description": "One result per expected result of the step, by its index",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "criterion": {"type": "integer", "minimum": 0, "maximum": last},
+                        "criterion": {"type": "integer", "minimum": 0},
                         "status": {"type": "string", "enum": ["satisfied", "contradicted", "undetermined"]},
                         "basis": {"type": "string", "enum": ["mechanical", "model_judgment"]},
                         "evidence": {"type": "array", "items": {"type": "string", "pattern": "^ev-[0-9]+$"}},

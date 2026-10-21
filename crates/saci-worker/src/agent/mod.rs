@@ -55,7 +55,8 @@ pub struct Executor {
     mcp_servers: Mutex<Vec<McpServer>>,
     recorder: Recorder,
     limits: ExecutionLimits,
-    environment: String,
+    /// The system prompt, the same for every attempt of the run.
+    system: String,
 }
 
 impl std::fmt::Debug for Executor {
@@ -161,7 +162,7 @@ impl Executor {
             mcp_servers: Mutex::new(Vec::new()),
             recorder: toolbox.recorder,
             limits,
-            environment: toolbox.environment,
+            system: prompt::system(&toolbox.environment),
         }
     }
 
@@ -223,13 +224,7 @@ impl Executor {
         };
         let mut ran = Box::pin(self.run_marked(&state, request.unit)).await;
         ran.procedures = request.procedures.to_vec();
-        let text = prompt::unit(
-            request.unit,
-            request.attempt,
-            request.context,
-            &self.environment,
-            &ran,
-        );
+        let text = prompt::unit(request.unit, request.attempt, request.context, &ran);
         let run = self.start(&state, tools, text);
         let ending = Box::pin(self.run_agent(&state, run, request.cancel)).await;
         let mut result = self.conclude(&state, ending, request.cancel);
@@ -287,7 +282,7 @@ impl Executor {
     /// Builds the attempt's agent and starts its run.
     fn start(&self, state: &Arc<AttemptState>, tools: Vec<DynamicTool>, text: String) -> AgentRun {
         let agent = AgentBuilder::new(self.llm.model())
-            .preamble(prompt::PREAMBLE)
+            .preamble(&self.system)
             .dynamic_tools(tools)
             .build();
         // The hook stops the run at the model-call limit; Rig's own turn

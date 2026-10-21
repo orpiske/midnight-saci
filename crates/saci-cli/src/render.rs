@@ -74,13 +74,29 @@ fn attempt_ending(
 fn timing_note(timing: Option<&AttemptTiming>) -> String {
     timing.map_or_else(String::new, |t| {
         format!(
-            " (model: {} request{}, {} ms; tools: {} ms)",
+            " (model: {} request{}, {} ms{}; tools: {} ms)",
             t.model_requests,
             if t.model_requests == 1 { "" } else { "s" },
             t.model_ms,
+            tokens_note(t),
             t.tool_ms
         )
     })
+}
+
+/// The token counts of an attempt; empty when the provider reported none.
+fn tokens_note(t: &AttemptTiming) -> String {
+    if t.input_tokens == 0 && t.output_tokens == 0 {
+        return String::new();
+    }
+    let cached = t
+        .cached_tokens
+        .map(|cached| format!(" ({cached} cached)"))
+        .unwrap_or_default();
+    format!(
+        ", tokens: {} in{cached}, {} out",
+        t.input_tokens, t.output_tokens
+    )
 }
 
 /// What one observation shows, in a line.

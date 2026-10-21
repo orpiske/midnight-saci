@@ -631,6 +631,12 @@ export interface components {
             model_ms: number;
             /** @description Time spent in tool calls. */
             tool_ms: number;
+            /** @description Input tokens of the model requests */
+            input_tokens?: number;
+            /** @description The part of input_tokens read from the provider's prompt cache. Absent when the provider does not report it. */
+            cached_tokens?: number;
+            /** @description Output tokens of the model requests */
+            output_tokens?: number;
         };
         UnitReport: {
             key: string;

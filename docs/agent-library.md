@@ -70,10 +70,10 @@ run (`Executor::attempt`):
    call and is recorded as evidence. It stops at a block that does not
    exit normally (timeout, cancellation, or a lost or ended session).
 2. It builds an agent on the configured chat model with the system prompt
-   (`agent::prompt::PREAMBLE`), registers `shell`, `http` and `assess` as
+   (`agent::prompt::system`: the rules in `PREAMBLE`, then the environment
+   parameters and secret names), registers `shell`, `http` and `assess` as
    `DynamicTool`s, and prompts it with the plan context, earlier results
-   (with the evidence IDs that each assessment cites),
-   environment parameters and secret names, the unit's action, notes on
+   (with the evidence IDs that each assessment cites), the unit's action, notes on
    code blocks in unsupported languages, the results of the procedures
    that the unit follows (which ran before it, with the evidence IDs
    that their assessments cite), the evidence of the `run` blocks
@@ -104,7 +104,15 @@ run (`Executor::attempt`):
 
 The attempt emits `attempt_started`, one `observation` per recorded
 evidence, and `attempt_finished`. The hook measures each model request from
-its dispatch to its answer, and the recorder adds up the tool durations;
-`attempt_finished` reports both as `timing`. Every observation goes through
-the run's `Recorder`, which numbers evidence across the run, redacts it with
-the run's credentials, and reports it.
+its dispatch to its answer and adds up the token usage of each response,
+and the recorder adds up the tool durations; `attempt_finished` reports
+them as `timing`. Every observation goes through the run's `Recorder`,
+which numbers evidence across the run, redacts it with the run's
+credentials, and reports it.
+
+The tool definitions and the system prompt are the same for every attempt
+of a run, and the user prompt starts with the plan context and the earlier
+results, which only grow. Providers that cache prompt prefixes can reuse
+that prefix from one request to the next. Keep it that way: do not put
+unit-specific values, such as the number of criteria, into a tool schema
+or the system prompt.

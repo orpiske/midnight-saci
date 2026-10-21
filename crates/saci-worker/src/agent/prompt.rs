@@ -6,7 +6,7 @@ use std::fmt::Write as _;
 use saci_core::bundle::ExecutionUnit;
 use saci_core::plan::{Plan, is_shell_language};
 
-/// The system prompt of every attempt.
+/// The fixed rules of the system prompt.
 pub const PREAMBLE: &str = "\
 You are Saci, a test engineer executing one authored test plan step by step.
 
@@ -36,6 +36,18 @@ exact string); `model_judgment` when it needs your interpretation.
 - A command failure can be the expected result of a negative test, and a successful command can show a \
 failure. A printed PASS or a zero exit code alone does not establish an expected result unless that is \
 exactly what it states.";
+
+/// The system prompt of every attempt of a run: [`PREAMBLE`] and what the
+/// model is told about the environment. It is the same for the whole run, so
+/// providers can cache it with the tool definitions.
+#[must_use]
+pub fn system(environment: &str) -> String {
+    if environment.trim().is_empty() {
+        PREAMBLE.to_owned()
+    } else {
+        format!("{PREAMBLE}\n\n{}", environment.trim())
+    }
+}
 
 /// Plan-level context shared by every unit of a run.
 #[must_use]
@@ -69,17 +81,8 @@ pub struct Ran {
 /// `environment` describes parameters and secret names; `ran` is what the
 /// worker already ran for the unit.
 #[must_use]
-pub fn unit(
-    unit: &ExecutionUnit,
-    attempt: u32,
-    context: &str,
-    environment: &str,
-    ran: &Ran,
-) -> String {
+pub fn unit(unit: &ExecutionUnit, attempt: u32, context: &str, ran: &Ran) -> String {
     let mut text = format!("{}\n", context.trim());
-    if !environment.trim().is_empty() {
-        let _ = write!(text, "\n{}\n", environment.trim());
-    }
     heading(&mut text, unit, attempt);
     let _ = write!(text, "\nAction:\n{}\n", unit.unit.action.trim());
     text.push_str(&languages(unit));

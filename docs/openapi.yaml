@@ -851,6 +851,9 @@ components:
         model_requests: { type: integer, minimum: 0, description: Model requests sent. }
         model_ms: { type: integer, minimum: 0, description: Time spent on model requests, retries included. }
         tool_ms: { type: integer, minimum: 0, description: Time spent in tool calls. }
+        input_tokens: { type: integer, minimum: 0, description: Input tokens of the model requests, as the provider reported them. }
+        cached_tokens: { type: integer, minimum: 0, description: "The part of input_tokens read from the provider's prompt cache. Absent when the provider does not report it." }
+        output_tokens: { type: integer, minimum: 0, description: Output tokens of the model requests, reasoning included. }
     UnitReport:
       type: object
       required: [key, id, kind, title, phase, location, cleanup, attempts]

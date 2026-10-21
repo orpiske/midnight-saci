@@ -146,7 +146,7 @@ async fn run_http(state: &AttemptState, tool: &HttpTool, args: Value) -> ToolRes
 pub fn assess(state: Arc<AttemptState>) -> Result<DynamicTool, ExecutionError> {
     let description = "Submit the final assessment of this step, once. It records the verdict and does \
         nothing to the target. Every expected result needs one entry citing evidence IDs from tool results.";
-    let schema = assessment::schema(state.criteria.len());
+    let schema = assessment::schema();
     Ok(DynamicTool::new(
         tool_name(ASSESS)?,
         description,

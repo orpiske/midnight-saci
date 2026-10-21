@@ -16,7 +16,7 @@ use saci_core::run::ErrorKind;
 use saci_core::spec::{EnvironmentSpec, ExecutionLimits, LlmSettings};
 use saci_core::status::Outcome;
 use saci_testkit::{FakeModel, Reply, text_reply, tool_calls_reply};
-use saci_worker::agent::{AttemptRequest, AttemptResult, Executor, Toolbox};
+use saci_worker::agent::{AttemptRequest, AttemptResult, Executor, Toolbox, prompt};
 use saci_worker::credentials::Credentials;
 use saci_worker::events::{EventReceiver, EventSink, Recorder};
 use saci_worker::http::HttpTool;
@@ -548,4 +548,62 @@ async fn marked_blocks_count_against_the_tool_call_limit() {
         h.model.requests().is_empty(),
         "no model request after the limit"
     );
+}
+
+/// `reply` with the token usage a caching provider reports.
+fn with_usage(mut reply: Value) -> Reply {
+    reply["usage"] = json!({
+        "prompt_tokens": 1000, "completion_tokens": 50, "total_tokens": 1050,
+        "prompt_tokens_details": {"cached_tokens": 800}
+    });
+    Reply::ok(&reply)
+}
+
+#[tokio::test]
+async fn an_attempt_reports_the_tokens_the_provider_counted() {
+    let args = assessment("passed", "satisfied", &["ev-1"]).to_string();
+    let script = vec![
+        with_usage(tool_calls_reply(&[(
+            "c1",
+            "shell",
+            r#"{"command":"echo hello"}"#,
+        )])),
+        with_usage(tool_calls_reply(&[("a1", "assess", &args)])),
+    ];
+    let h = harness(script, ExecutionLimits::default()).await;
+    let result = h.run(0, 1, &CancellationToken::new()).await;
+    let timing = result.timing.unwrap();
+    assert_eq!(
+        (
+            timing.input_tokens,
+            timing.cached_tokens,
+            timing.output_tokens
+        ),
+        (2000, Some(1600), 100)
+    );
+}
+
+#[tokio::test]
+async fn every_unit_gets_the_same_system_prompt_and_tools() {
+    let script = vec![
+        assess("passed", "satisfied", &["ev-1"]),
+        assess("passed", "satisfied", &["ev-2"]),
+    ];
+    let h = harness(script, ExecutionLimits::default()).await;
+    h.run(2, 1, &CancellationToken::new()).await;
+    h.run(3, 1, &CancellationToken::new()).await;
+    let requests = h.model.requests();
+    let prefix = |i: usize| {
+        let body = &requests[i].body;
+        (body["tools"].clone(), body["messages"][0].clone())
+    };
+    assert_eq!(prefix(0), prefix(1), "the cacheable prefix is stable");
+}
+
+#[test]
+fn the_environment_is_part_of_the_system_prompt() {
+    let environment = "Environment parameters (also exported to the shell):\n- REGION = eu\n";
+    let system = prompt::system(environment);
+    assert!(system.starts_with(prompt::PREAMBLE) && system.ends_with("- REGION = eu"));
+    assert_eq!(prompt::system(""), prompt::PREAMBLE);
 }
