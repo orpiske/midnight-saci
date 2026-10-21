@@ -29,7 +29,8 @@ fn shell(shell: &ShellEvidence) -> String {
     if shell.restarted {
         text.push_str(
             "WARNING: the previous shell session was lost; this command ran in a new session, \
-             so earlier variables, functions and directory changes are gone.\n",
+             so earlier variables, functions and directory changes are gone. If this step needs \
+             that state, assess it blocked.\n",
         );
     }
     if let Some(ending) = ending(shell.termination) {

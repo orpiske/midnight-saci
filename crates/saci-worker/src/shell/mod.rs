@@ -6,10 +6,12 @@
 //! from `/dev/null`; a marker carrying `$?` then ends its output on each
 //! stream. Nothing is added to the command text itself.
 //!
-//! On a deadline or cancellation every descendant of the shell is killed.
-//! When that ends the command, the session survives; when the command runs
-//! inside the shell itself (a builtin loop), the shell is killed too and the
-//! loss is recorded. A session that was lost or ended is replaced on the next
+//! On a deadline or cancellation every descendant of the shell is killed and
+//! the shell gets `SIGUSR2`, whose trap unwinds the sourced command, so a
+//! loop that runs inside the shell stops too and nothing after it runs. This repeats until the
+//! command returns, and the session survives. When the command does not
+//! return within the grace period (for example, it ignores `SIGUSR2`), the
+//! shell is killed too and the loss is recorded. A session that was lost or ended is replaced on the next
 //! call, and that call's evidence says so. So is a session whose command was
 //! abandoned mid-way (its future dropped), since its state is then unknown.
 
@@ -30,6 +32,17 @@ use scan::Stream;
 
 /// How long a command may take to return after its descendants are killed.
 const GRACE: Duration = Duration::from_secs(2);
+
+/// The shell's `SIGUSR2` trap, quoted. It returns from the current function
+/// or sourced file, and a `DEBUG` trap (with `extdebug`, which makes it
+/// return) then returns from every outer one until the command's source
+/// returns. At the next top-level command the `DEBUG` trap removes itself,
+/// so the session continues as it was.
+const UNWIND: &str = r#"'builtin shopt -s extdebug; builtin trap "if (( \${#BASH_SOURCE[@]} )); then builtin return 2; fi; builtin trap - DEBUG; builtin shopt -u extdebug" DEBUG; builtin return 130 2>/dev/null'"#;
+
+/// How often a stopped command is killed and interrupted again within
+/// [`GRACE`].
+const NUDGE: Duration = Duration::from_millis(100);
 
 /// Settings of a shell session.
 #[derive(Debug, Clone)]
@@ -183,7 +196,7 @@ impl ShellSession {
         let quoted = script.display().to_string().replace('\'', r"'\''");
         let nonce = &self.nonce;
         format!(
-            "builtin source '{quoted}' </dev/null; builtin printf '\\036SACI-{nonce}:%s\\036' \"$?\"; builtin printf '\\036SACI-{nonce}:\\036' >&2\n"
+            "builtin trap {UNWIND} USR2; builtin source '{quoted}' </dev/null; builtin printf '\\036SACI-{nonce}:%s\\036' \"$?\"; builtin printf '\\036SACI-{nonce}:\\036' >&2\n"
         )
     }
 
@@ -289,8 +302,22 @@ impl Collector {
             () = tokio::time::sleep_until(deadline.into()) => Termination::TimedOut,
             () = cancel.cancelled() => Termination::Cancelled,
         };
-        process.kill_descendants();
-        let _ = tokio::time::timeout(GRACE, self.read(process)).await;
+        // A loop inside the shell starts new processes after each kill, so
+        // kill and interrupt again until the command returns or the grace
+        // period ends.
+        let until = Instant::now() + GRACE;
+        loop {
+            process.kill_descendants();
+            process.interrupt();
+            let next = (Instant::now() + NUDGE).min(until);
+            if tokio::time::timeout_at(next.into(), self.read(process))
+                .await
+                .is_ok()
+                || Instant::now() >= until
+            {
+                break;
+            }
+        }
         Ending::Stopped(stopped)
     }
 

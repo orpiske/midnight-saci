@@ -10,6 +10,10 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::mpsc;
 
+/// The signal that interrupts a command running inside the shell. It is not
+/// `SIGINT`, so traps that commands set for `SIGINT` keep working.
+const INTERRUPT: Signal = Signal::SIGUSR2;
+
 /// Chunks read from one pipe; closed at end of file.
 pub type Pipe = mpsc::Receiver<Vec<u8>>;
 
@@ -83,6 +87,12 @@ impl Process {
         for pid in descendants(self.pid) {
             let _ = kill(pid, Signal::SIGKILL);
         }
+    }
+
+    /// Sends [`INTERRUPT`] to `bash` itself, whose trap returns from the
+    /// running command.
+    pub fn interrupt(&self) {
+        let _ = kill(self.pid, INTERRUPT);
     }
 
     /// Kills `bash` and its process group and waits for it.

@@ -274,7 +274,8 @@ impl Executor {
     }
 
     /// Runs the unit's `run` blocks as written, in order, before the model is
-    /// asked. Stops at a block that did not exit normally, or when the
+    /// asked. Stops at a block that did not exit normally or ran in a new
+    /// shell session, or when the
     /// attempt is interrupted or out of tool calls; the model then sees what
     /// ran and what did not.
     async fn run_marked(&self, state: &AttemptState, unit: &ExecutionUnit) -> prompt::Ran {
@@ -293,8 +294,11 @@ impl Executor {
             let Some(evidence) = self.run_block(state, &block.code).await else {
                 break;
             };
+            // A block that ran in a new session ran without the state that
+            // later blocks may need, so it stops them too.
             exited = matches!(&evidence.record,
-                EvidenceRecord::Shell(shell) if shell.termination == Termination::Exited);
+                EvidenceRecord::Shell(shell)
+                    if shell.termination == Termination::Exited && !shell.restarted);
             ran.evidence.push(render::evidence(&evidence));
             ran.ids.push(evidence.id);
             if !exited {
