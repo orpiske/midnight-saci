@@ -75,6 +75,29 @@ test("the activity view follows a live run until it finishes", async ({ page }, 
   await expect(page).toHaveURL(/evidence=ev-1/);
 });
 
+test("the plan performance view shows where the run spent its time", async ({ page }, testInfo) => {
+  await mockBackend(page);
+  await page.goto(`/ui/runs/${fx.RUN}?tab=performance`);
+  const summary = page.getByRole("region", { name: "Where the time went" });
+  await expect(summary.getByText("1 min 28 s")).toBeVisible();
+  await expect(summary.getByText("22.6 s")).toBeVisible();
+  await expect(summary.getByText("Tokens 13,300 in (4,096 cached), 930 out")).toBeVisible();
+  const timeline = page.getByRole("region", { name: "Timeline" });
+  await expect(timeline.getByRole("group", { name: "Phase Main" })).toContainText("37.0 s");
+  await expect(timeline.getByRole("group", { name: "Phase Cleanup" })).toContainText("Did not run");
+  await expect(
+    timeline.getByRole("img", { name: "1.2 Attempt 1, failed, 20.0 s, model 16.2 s, tools 2.1 s, other 1.7 s" }),
+  ).toBeVisible();
+  const rows = page.getByRole("region", { name: "Slowest units" }).getByRole("row");
+  await expect(rows.nth(1)).toContainText("List orders");
+  await expect(rows.nth(2)).toContainText("Check health");
+  await accessible(page, testInfo, "run-performance");
+
+  await rows.nth(1).getByRole("button").click();
+  await expect(page).toHaveURL(/unit=1\.2/);
+  await expect(page.getByRole("region", { name: "Test 1.2: List orders" })).toBeVisible();
+});
+
 async function addPlan(page: Page) {
   await page.goto("/ui/runs/new");
   await page.locator('input[type="file"][accept]').setInputFiles({

@@ -1187,3 +1187,247 @@ details.authored > summary {
   padding: var(--s3) var(--s4);
   border-bottom: 1px solid var(--ms-border);
 }
+
+/* ---------- Plan performance ---------- */
+
+/* Chart series follow artwork/BRAND.md 6: Moonlit blue, Eye Glow, Dusk; no
+ * Cap Red. Each pairs with a legend and a text equivalent. */
+.perf-model {
+  background: var(--ms-running);
+}
+
+.perf-tools {
+  background: var(--ms-glow);
+}
+
+.perf-other {
+  background: var(--ms-text-muted);
+}
+
+.perf-outside {
+  background: var(--ms-text-faint);
+}
+
+.perf-running {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--ms-running) 0 4px,
+    color-mix(in srgb, var(--ms-running) 45%, var(--ms-surface)) 4px 8px
+  );
+}
+
+.table .num-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.perf-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s3);
+  margin: 0;
+}
+
+.perf-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s3);
+  border: 1px solid var(--ms-border);
+  border-radius: var(--ms-radius-sm);
+  background: var(--ms-raised);
+}
+
+.perf-tile dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.perf-tile dd {
+  margin: 0;
+}
+
+.perf-value {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+.perf-swatch {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.perf-breakdown {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--ms-raised);
+}
+
+.perf-breakdown > span {
+  flex-basis: 0;
+  min-width: 2px;
+}
+
+.perf-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s4);
+  color: var(--ms-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.perf-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.perf-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-x: auto;
+}
+
+.perf-row {
+  display: grid;
+  grid-template-columns: minmax(0, 280px) minmax(240px, 1fr) 88px;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 28px;
+}
+
+.perf-axis {
+  min-height: 20px;
+  color: var(--ms-text-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.perf-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.perf-tick:first-child {
+  transform: none;
+}
+
+.perf-tick:last-child {
+  transform: translateX(-100%);
+}
+
+.perf-phase + .perf-phase {
+  margin-top: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--ms-border);
+}
+
+.perf-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.perf-unit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 28px;
+  border: 0;
+  border-radius: var(--ms-radius-sm);
+  background: none;
+  color: var(--ms-text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.perf-unit:hover {
+  background: var(--ms-raised);
+  color: var(--ms-text);
+}
+
+.perf-unit svg {
+  flex: none;
+}
+
+.perf-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.perf-track {
+  position: relative;
+  height: 16px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ms-raised) 60%, var(--ms-surface));
+}
+
+.perf-axis .perf-track {
+  background: none;
+}
+
+.perf-bar,
+.perf-phase-bar {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  min-width: 2px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.perf-bar {
+  display: flex;
+}
+
+.perf-bar > span {
+  flex-basis: 0;
+}
+
+.perf-phase-bar {
+  top: 5px;
+  bottom: 5px;
+  background: var(--ms-text-faint);
+}
+
+.perf-duration {
+  text-align: right;
+  color: var(--ms-text-muted);
+}
+
+@media (max-width: 900px) {
+  .perf-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--s1) var(--s2);
+  }
+
+  .perf-row .perf-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .perf-axis > span:not(.perf-track) {
+    display: none;
+  }
+
+  .perf-tick.quarter {
+    display: none;
+  }
+}
