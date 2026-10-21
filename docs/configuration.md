@@ -1,6 +1,6 @@
 # Configuration reference
 
-Saci reads one YAML file, passed to the backend with `--config`. It has seven
+Saci reads one YAML file, passed to the backend with `--config`. It has eight
 sections. Unknown fields, missing required values and invalid values are
 rejected at startup with the setting's path, for example
 `limits.tool_calls_per_step: must be greater than 0`. There is no expression
@@ -81,6 +81,42 @@ evidence.
 
 Spending budgets and quotas are managed by the provider; Saci has no budget
 setting.
+
+## `judge`
+
+Optional. When it is set, the worker asks a TypeSafe System One model to
+judge a step before it asks the `llm` model. The judge uses the
+[Noul](https://docs.typesafe.ai/primitives/noul) primitive: for each expected
+result, it gives the probability that the evidence shows the result holds.
+When the section is omitted, the judge is off.
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `api_key` | required | `env:NAME`. The backend reads the credential from `NAME` when it starts a worker. The worker receives it as `NAME`. A value written in the file is not accepted. |
+| `api_key_secret.name`, `.key` | none | Kubernetes Secret key that supplies the credential to worker Jobs as `NAME`. |
+| `model` | `jev-latest` | The judge model identifier. |
+| `endpoint` | `https://api.typesafe.ai/v1/systemone` | The complete evaluation URL, or `env:NAME`. |
+| `threshold_percent` | `90` | The lowest probability, in percent (1 to 100), that each expected result must get. |
+
+```yaml
+judge:
+  api_key: env:TYPESAFE_API_KEY
+  threshold_percent: 90
+```
+
+The worker asks the judge only for a step that has expected results and
+whose code blocks are all marked `run`, when each of these blocks ran and
+exited normally (see [run blocks as written](test-plans.md#run-blocks-as-written)).
+The judge gets the step title, the action, the environment parameters and
+secret names, the procedure results and the evidence of the blocks.
+
+- If each expected result gets the threshold or more, the step passes. The
+  assessment cites the evidence of the blocks, with basis `model_judgment`,
+  and names the judge model and each probability. The `llm` model gets no
+  request for the attempt.
+- Otherwise the `llm` model assesses the step as usual. This includes a
+  failed judge request and a result below the threshold. The worker log
+  gives the reason. The judge never fails a step.
 
 ## `limits`
 

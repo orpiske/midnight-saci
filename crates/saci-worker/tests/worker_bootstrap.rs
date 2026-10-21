@@ -18,7 +18,8 @@ use saci_core::ids::RunId;
 use saci_core::plan::PlanBundle;
 use saci_core::run::{ReportHeader, RunReport};
 use saci_core::spec::{
-    EnvironmentSpec, ExecutionLimits, LlmSettings, RunPolicy, RunSpec, SCHEMA_VERSION, SecretRef,
+    EnvironmentSpec, ExecutionLimits, JudgeSettings, LlmSettings, RunPolicy, RunSpec,
+    SCHEMA_VERSION, SecretRef,
 };
 use saci_core::status::Outcome;
 use saci_testkit::{FakeModel, Reply, tool_calls_reply};
@@ -77,6 +78,7 @@ fn spec(run_id: RunId, model_url: String) -> RunSpec {
             api_key_env: None,
             api_key_secret: None,
         },
+        judge: None,
     }
 }
 
@@ -202,6 +204,24 @@ async fn a_missing_secret_or_unusable_workspace_is_rejected() {
         rejection(&events).contains("not a writable directory"),
         "{events:?}"
     );
+    assert!(model.requests().is_empty());
+}
+
+#[tokio::test]
+async fn a_missing_judge_key_is_rejected() {
+    let model = FakeModel::start(script()).await.unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let mut judged = spec(RunId::generate(), model.base_url());
+    judged.judge = Some(Box::new(JudgeSettings {
+        endpoint: "http://127.0.0.1:9/v1/systemone".into(),
+        model: "jev-latest".into(),
+        api_key_env: "JUDGE_KEY".into(),
+        api_key_secret: None,
+        threshold_percent: 90,
+    }));
+    let (output, events) = local(&judged, workspace.path(), &[]).await;
+    assert_eq!(output.status.code(), Some(2));
+    assert!(rejection(&events).contains("`JUDGE_KEY`"), "{events:?}");
     assert!(model.requests().is_empty());
 }
 

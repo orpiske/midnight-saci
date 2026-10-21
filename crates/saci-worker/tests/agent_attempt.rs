@@ -13,10 +13,10 @@ use saci_core::evidence::{EvidenceRecord, Termination};
 use saci_core::ids::RunId;
 use saci_core::plan::PlanBundle;
 use saci_core::run::ErrorKind;
-use saci_core::spec::{EnvironmentSpec, ExecutionLimits, LlmSettings};
+use saci_core::spec::{EnvironmentSpec, ExecutionLimits, JudgeSettings, LlmSettings};
 use saci_core::status::Outcome;
 use saci_testkit::{FakeModel, Reply, text_reply, tool_calls_reply};
-use saci_worker::agent::{AttemptRequest, AttemptResult, Executor, Toolbox, prompt};
+use saci_worker::agent::{AttemptRequest, AttemptResult, Executor, Judge, Toolbox, prompt};
 use saci_worker::credentials::Credentials;
 use saci_worker::events::{EventReceiver, EventSink, Recorder};
 use saci_worker::http::HttpTool;
@@ -78,6 +78,16 @@ echo never
 **Expected result:**
 
 - The first block ends the shell.
+
+### Step 1.5: Judged
+
+```bash run
+echo judged
+```
+
+**Expected result:**
+
+- The output is `judged`.
 ";
 
 struct Harness {
@@ -606,4 +616,94 @@ fn the_environment_is_part_of_the_system_prompt() {
     let system = prompt::system(environment);
     assert!(system.starts_with(prompt::PREAMBLE) && system.ends_with("- REGION = eu"));
     assert_eq!(prompt::system(""), prompt::PREAMBLE);
+}
+
+/// A fake judge whose replies give `scores` per criterion.
+fn judge_reply(scores: &[f64]) -> Reply {
+    let answers: serde_json::Map<String, Value> = scores
+        .iter()
+        .enumerate()
+        .map(|(i, noul)| {
+            (
+                format!("criterion_{i}"),
+                json!({"type": "noul", "noul": noul}),
+            )
+        })
+        .collect();
+    Reply::ok(&json!({"model": "jev-test", "answers": answers}))
+}
+
+async fn judged_harness(script: Vec<Reply>, judge: Vec<Reply>) -> (Harness, FakeModel) {
+    let limits = ExecutionLimits::default();
+    let mut h = harness(script, limits).await;
+    let fake = FakeModel::start(judge).await.unwrap();
+    let settings = JudgeSettings {
+        endpoint: format!("{}/systemone", fake.base_url()),
+        model: "jev-test".into(),
+        api_key_env: "JUDGE_KEY".into(),
+        api_key_secret: None,
+        threshold_percent: 90,
+    };
+    h.executor
+        .attach_judge(Judge::new(&settings, "judge-key-value", &limits).unwrap());
+    (h, fake)
+}
+
+#[tokio::test]
+async fn the_judge_passes_a_fully_run_step_without_the_model() {
+    let (h, judge) = judged_harness(vec![], vec![judge_reply(&[0.97])]).await;
+    let result = h.run(4, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+    assert!(h.model.requests().is_empty(), "the model is not asked");
+    assert_eq!(result.timing.unwrap().model_requests, 0);
+    let assessment = result.assessment.unwrap();
+    assert_eq!(assessment.criteria[0].evidence[0].as_str(), "ev-1");
+    assert!(assessment.criteria[0].explanation.contains("0.97"));
+    assert!(assessment.explanation.contains("jev-test"));
+    let requests = judge.requests();
+    assert_eq!(requests.len(), 1);
+    let request = &requests[0];
+    assert_eq!(request.path, "/v1/systemone");
+    assert_eq!(request.headers["authorization"], "Bearer judge-key-value");
+    assert_eq!(request.body["model"], "jev-test");
+    let question = &request.body["questions"]["criterion_0"];
+    assert_eq!(question["type"], "noul");
+    assert!(
+        question["instructions"]
+            .as_str()
+            .unwrap()
+            .contains("The output is `judged`.")
+    );
+    let evidence = request.body["state"]["evidence"][0].as_str().unwrap();
+    assert!(evidence.starts_with("Evidence ev-1 (shell") && evidence.contains("judged"));
+}
+
+#[tokio::test]
+async fn the_model_assesses_what_the_judge_does_not_pass() {
+    for reply in [judge_reply(&[0.89]), Reply::raw(500, "unavailable")] {
+        let script = vec![assess("passed", "satisfied", &["ev-1"])];
+        let (h, judge) = judged_harness(script, vec![reply]).await;
+        let result = h.run(4, 1, &CancellationToken::new()).await;
+        assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+        assert_eq!(judge.requests().len(), 1);
+        assert_eq!(h.model.requests().len(), 1, "the model assesses the step");
+        let assessment = result.assessment.unwrap();
+        assert!(!assessment.explanation.contains("jev-test"));
+    }
+}
+
+#[tokio::test]
+async fn the_judge_is_not_asked_when_the_model_must_act() {
+    let script = vec![assess("passed", "satisfied", &["ev-1"])];
+    let (h, judge) = judged_harness(script, vec![judge_reply(&[0.99])]).await;
+    let result = h.run(2, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+    assert!(
+        judge.requests().is_empty(),
+        "step 1.3 has an unmarked block"
+    );
+    let (h, judge) = judged_harness(vec![], vec![judge_reply(&[0.99])]).await;
+    let result = h.run(3, 1, &CancellationToken::new()).await;
+    assert!(judge.requests().is_empty(), "step 1.4 stopped at `exit 4`");
+    assert_ne!(result.outcome, Outcome::Passed);
 }

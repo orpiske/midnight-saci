@@ -9,6 +9,7 @@ whose secrets matter.
 | Credential | Configured as | Reaches the worker as | Used by | Never reaches |
 |------------|---------------|-----------------------|---------|---------------|
 | LLM API key | `llm.api_key` (and `llm.api_key_secret` on Kubernetes) | `NAME` for `api_key: env:NAME`, otherwise `SACI_LLM_API_KEY` | the model transport's `Authorization` header | the shell, HTTP and MCP tools, model messages, evidence |
+| Judge API key | `judge.api_key` (and `judge.api_key_secret` on Kubernetes) | `NAME` for `api_key: env:NAME` | the judge transport's `Authorization` header | the shell, HTTP and MCP tools, model messages, evidence |
 | Target secret `NAME` | `environments.<env>.secrets.NAME` | `SACI_SECRET_NAME` | the shell as `$NAME`; HTTP requests as `${NAME}` | model messages (only its name is listed), evidence |
 | Worker token | issued per run by the backend | `SACI_WORKER_TOKEN` | reporting to the backend | the shell and every tool, evidence |
 
@@ -26,7 +27,7 @@ built explicitly from:
 - the environment's `secrets`, under their configured names.
 
 Configuration rejects parameter or secret names that start with `SACI_` or
-equal the variable that carries `llm.api_key`, so a tool variable cannot carry a worker
+equal the variable that carries `llm.api_key` or `judge.api_key`, so a tool variable cannot carry a worker
 credential.
 
 The model is told parameter values and secret *names*. It refers to a
@@ -40,7 +41,7 @@ chosen the call. Only parameters and secrets can be substituted; any other
 Every observation is redacted before it is stored, reported to the backend
 or returned to the model:
 
-- Each known secret value (target secrets, the LLM key, the worker token) is
+- Each known secret value (target secrets, the LLM key, the judge key, the worker token) is
   replaced by `[REDACTED:NAME]` in commands, output, URLs, headers, bodies,
   MCP arguments and results, and error messages.
 - `Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`,
@@ -74,7 +75,7 @@ backend host, to the extent the container runtime does.
 Within a worker, the separation above is a matter of what Saci passes where,
 not a security boundary against hostile code. Commands the plan or model
 runs execute as the worker user and can read anything that user can,
-including `/proc/1/environ` of the worker process, which holds the LLM key
+including `/proc/1/environ` of the worker process, which holds the LLM key, the judge key
 and worker token. Treat the plans you run, and the targets they talk to, as
 trusted with the credentials of the environment you select. Use dedicated,
 least-privilege target credentials and a provider key with a spending limit.

@@ -22,6 +22,11 @@ llm:
   model: your-tool-capable-model
   api_key: env:SACI_LLM_API_KEY
 
+# Optional: let a TypeSafe System One judge pass steps whose code blocks are
+# all marked `run`, without a model request (docs/configuration.md#judge).
+# judge:
+#   api_key: env:TYPESAFE_API_KEY
+
 limits:
   step_timeout_secs: 300
 

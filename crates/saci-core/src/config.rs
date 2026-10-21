@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::action::{self, ActionDefinition};
 use crate::spec::{
-    EnvironmentSpec, ExecutionLimits, FailureAction, KubernetesSecretKey, LlmSettings,
-    McpServerSpec, McpTransport, RetryPolicy, RunPolicy, SecretRef, WorkerResources,
+    EnvironmentSpec, ExecutionLimits, FailureAction, JudgeSettings, KubernetesSecretKey,
+    LlmSettings, McpServerSpec, McpTransport, RetryPolicy, RunPolicy, SecretRef, WorkerResources,
 };
 
 /// Name of the policy used when a run names none.
@@ -79,6 +79,61 @@ impl LlmConfig {
     }
 }
 
+/// The optional TypeSafe System One judge, as written in the configuration
+/// file. Runs receive it as [`JudgeSettings`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JudgeConfig {
+    /// `env:NAME`: the judge credential is read from `NAME`.
+    pub api_key: String,
+    /// Kubernetes Secret key that supplies the credential to cluster workers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_secret: Option<KubernetesSecretKey>,
+    /// The judge model identifier.
+    #[serde(default = "default_judge_model")]
+    pub model: String,
+    /// The complete evaluation endpoint URL, or `env:NAME`.
+    #[serde(default = "default_judge_endpoint")]
+    pub endpoint: String,
+    /// Lowest probability, in percent, that each expected result holds for
+    /// the judge to pass a step without the model.
+    #[serde(default = "default_judge_threshold")]
+    pub threshold_percent: u8,
+}
+
+fn default_judge_model() -> String {
+    "jev-latest".to_owned()
+}
+
+fn default_judge_endpoint() -> String {
+    "https://api.typesafe.ai/v1/systemone".to_owned()
+}
+
+const fn default_judge_threshold() -> u8 {
+    90
+}
+
+impl JudgeConfig {
+    /// The variable that carries the credential.
+    #[must_use]
+    pub fn api_key_env(&self) -> &str {
+        self.api_key.strip_prefix(ENV_PREFIX).unwrap_or_default()
+    }
+
+    /// The judge runs receive. It names the credential variable and never
+    /// holds the credential itself.
+    #[must_use]
+    pub fn settings(&self) -> JudgeSettings {
+        JudgeSettings {
+            endpoint: self.endpoint.clone(),
+            model: self.model.clone(),
+            api_key_env: self.api_key_env().to_owned(),
+            api_key_secret: self.api_key_secret.clone(),
+            threshold_percent: self.threshold_percent,
+        }
+    }
+}
+
 /// The complete configuration file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -91,6 +146,9 @@ pub struct Config {
     pub worker: WorkerConfig,
     /// The backend-default model connection inherited by workers.
     pub llm: LlmConfig,
+    /// The optional System One judge; off when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub judge: Option<JudgeConfig>,
     /// Default execution limits; omitted values use built-in defaults.
     #[serde(default)]
     pub limits: LimitsOverride,
@@ -461,7 +519,7 @@ impl Config {
         }
     }
 
-    /// Replaces each `env:NAME` in `llm.base_url` and in environment
+    /// Replaces each `env:NAME` in `llm.base_url`, `judge.endpoint` and in environment
     /// parameters with the value `env` gives for `NAME`. Returns an issue
     /// for each variable that is not set.
     fn resolve_env_references(
@@ -470,6 +528,9 @@ impl Config {
     ) -> Vec<ConfigIssue> {
         let mut issues = Issues::default();
         resolve_env_reference(&mut self.llm.base_url, "llm.base_url", env, &mut issues);
+        if let Some(judge) = &mut self.judge {
+            resolve_env_reference(&mut judge.endpoint, "judge.endpoint", env, &mut issues);
+        }
         for (name, environment) in &mut self.environments {
             for (key, value) in &mut environment.parameters {
                 let path = format!("environments.{name}.parameters.{key}");
@@ -485,6 +546,7 @@ impl Config {
         let mut issues = Issues::default();
         validate_backend(&self.backend, &mut issues);
         validate_llm(&self.llm, &mut issues);
+        validate_judge(self.judge.as_ref(), &mut issues);
         validate_limits(
             "limits",
             self.limits.apply(ExecutionLimits::default()),
@@ -526,6 +588,15 @@ impl Config {
                 issues.push(
                     &format!("{path}.{key}"),
                     "carries llm.api_key; the LLM credential is never exported to tools",
+                );
+            } else if self
+                .judge
+                .as_ref()
+                .is_some_and(|judge| judge.api_key_env() == key)
+            {
+                issues.push(
+                    &format!("{path}.{key}"),
+                    "carries judge.api_key; the judge credential is never exported to tools",
                 );
             }
         }
@@ -636,6 +707,12 @@ impl Config {
                 Some((action, definition))
             })
             .collect())
+    }
+
+    /// The judge settings runs receive, when a judge is configured.
+    #[must_use]
+    pub fn judge_settings(&self) -> Option<Box<JudgeSettings>> {
+        self.judge.as_ref().map(|judge| Box::new(judge.settings()))
     }
 
     /// The policy called `name`. `default` exists even when not configured.
@@ -753,6 +830,28 @@ fn validate_llm(llm: &LlmConfig, issues: &mut Issues) {
     }
     if llm.api_key_secret.is_some() && key_variable.is_none() {
         issues.push("llm.api_key_secret", "requires llm.api_key: env:NAME");
+    }
+}
+
+fn validate_judge(judge: Option<&JudgeConfig>, issues: &mut Issues) {
+    let Some(judge) = judge else {
+        return;
+    };
+    if !judge
+        .api_key
+        .strip_prefix(ENV_PREFIX)
+        .is_some_and(is_variable_name)
+    {
+        issues.push("judge.api_key", "must be env:NAME");
+    }
+    if !is_http_url(&judge.endpoint) {
+        issues.push("judge.endpoint", "must be an http:// or https:// URL");
+    }
+    if judge.model.trim().is_empty() {
+        issues.push("judge.model", "must not be empty");
+    }
+    if !(1..=100).contains(&judge.threshold_percent) {
+        issues.push("judge.threshold_percent", "must be from 1 to 100");
     }
 }
 
@@ -1086,6 +1185,41 @@ mod tests {
         assert_eq!(
             llm.lookup("OTHER", env_value).as_deref(),
             Some("from-OTHER")
+        );
+    }
+
+    #[test]
+    fn the_judge_is_off_by_default_and_uses_typesafe_defaults() {
+        let config = Config::from_yaml(MINIMAL, "t.yaml").unwrap();
+        assert_eq!(config.judge_settings(), None);
+        let yaml = format!("{MINIMAL}judge:\n  api_key: env:TYPESAFE_KEY\n");
+        let settings = Config::from_yaml(&yaml, "t.yaml")
+            .unwrap()
+            .judge_settings()
+            .unwrap();
+        assert_eq!(settings.api_key_env, "TYPESAFE_KEY");
+        assert_eq!(settings.model, "jev-latest");
+        assert_eq!(settings.endpoint, "https://api.typesafe.ai/v1/systemone");
+        assert_eq!(settings.threshold_percent, 90);
+    }
+
+    #[test]
+    fn invalid_judge_settings_are_reported() {
+        let judge = "judge:\n  api_key: sk-literal\n  endpoint: ftp://x\n  model: ' '\n  \
+                     threshold_percent: 0\n";
+        let found = issues(&format!("{MINIMAL}{judge}"));
+        for path in ["api_key", "endpoint", "model", "threshold_percent"] {
+            let prefix = format!("judge.{path}:");
+            assert!(found.iter().any(|i| i.starts_with(&prefix)), "{found:?}");
+        }
+        let exported = format!(
+            "{MINIMAL}judge:\n  api_key: env:JUDGE_KEY\nenvironments:\n  e:\n    parameters:\n      \
+             JUDGE_KEY: x\n"
+        );
+        let found = issues(&exported);
+        assert!(
+            found.iter().any(|i| i.contains("carries judge.api_key")),
+            "{found:?}"
         );
     }
 

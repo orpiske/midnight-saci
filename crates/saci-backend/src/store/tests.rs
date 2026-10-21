@@ -44,6 +44,7 @@ fn new_run(fixture: &Fixture, run_id: RunId) -> NewRun {
             api_key_env: None,
             api_key_secret: None,
         },
+        judge: None,
     };
     NewRun {
         spec,
