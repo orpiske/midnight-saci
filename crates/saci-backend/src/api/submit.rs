@@ -51,6 +51,7 @@ pub fn prepare(
         policy,
         limits,
         llm: config.llm.settings(),
+        judge: config.judge_settings(),
     };
     let header = header(&spec, &expanded.plan.title);
     let units = expanded.units.into_iter().map(|u| u.identity).collect();

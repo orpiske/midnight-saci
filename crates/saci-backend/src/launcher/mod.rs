@@ -151,7 +151,7 @@ pub fn assignment(
 
 type Credentials = (Vec<(String, String)>, Vec<(String, KubernetesSecretKey)>);
 
-/// The LLM key and the target secrets, under the names the worker reads:
+/// The model keys and the target secrets, under the names the worker reads:
 /// values from the backend's environment, and (with `kubernetes`)
 /// references to Kubernetes Secrets the worker's pod reads itself.
 fn credentials(
@@ -161,22 +161,60 @@ fn credentials(
 ) -> Result<Credentials, LaunchError> {
     let mut credentials = (Vec::new(), Vec::new());
     if let Some(name) = &spec.llm.api_key_env {
-        match &spec.llm.api_key_secret {
-            Some(secret) if kubernetes => credentials.1.push((name.clone(), secret.clone())),
-            _ => {
-                let value = lookup(name).ok_or_else(|| {
-                    LaunchError::new(format!(
-                        "llm.api_key is env:{name}, but {name} is not set in the backend's environment"
-                    ))
-                })?;
-                credentials.0.push((name.clone(), value));
-            }
-        }
+        let secret = spec.llm.api_key_secret.as_ref();
+        let key = Key {
+            setting: "llm.api_key",
+            name,
+            secret,
+        };
+        key.add(kubernetes, lookup, &mut credentials)?;
+    }
+    if let Some(judge) = &spec.judge {
+        let name = &judge.api_key_env;
+        let secret = judge.api_key_secret.as_ref();
+        let key = Key {
+            setting: "judge.api_key",
+            name,
+            secret,
+        };
+        key.add(kubernetes, lookup, &mut credentials)?;
     }
     for (name, secret) in &spec.environment.secrets {
         target_secret(name, secret, kubernetes, lookup, &mut credentials)?;
     }
     Ok(credentials)
+}
+
+/// A model credential: the variable `setting` names, and the Kubernetes
+/// Secret that can supply it.
+struct Key<'a> {
+    setting: &'static str,
+    name: &'a str,
+    secret: Option<&'a KubernetesSecretKey>,
+}
+
+impl Key<'_> {
+    fn add(
+        &self,
+        kubernetes: bool,
+        lookup: &impl Fn(&str) -> Option<String>,
+        (values, refs): &mut Credentials,
+    ) -> Result<(), LaunchError> {
+        let name = self.name;
+        match self.secret {
+            Some(secret) if kubernetes => refs.push((name.to_owned(), secret.clone())),
+            _ => {
+                let value = lookup(name).ok_or_else(|| {
+                    LaunchError::new(format!(
+                        "{} is env:{name}, but {name} is not set in the backend's environment",
+                        self.setting
+                    ))
+                })?;
+                values.push((name.to_owned(), value));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Adds target secret `name` as `SACI_SECRET_<name>`.

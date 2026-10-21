@@ -91,7 +91,7 @@ wanaku mcp tool list --uri "${MCP_SERVER_URI}" --plain
 ```
 ````
 
-The worker runs the `run` blocks of a unit in document order, in the shared shell session, before it asks the model. The model then gets their evidence with the action and the expected results. It assesses the unit in its first request when the evidence is enough. It can still use every tool, for example to do the rest of the action. A `run` block saves one model request for each unit, and the model cannot change the command.
+The worker runs the `run` blocks of a unit in document order, in the shared shell session, before it asks the model. The model then gets their evidence with the action and the expected results. It assesses the unit in its first request when the evidence is enough. It can still use every tool, for example to do the rest of the action. A `run` block saves one model request for each unit, and the model cannot change the command. When every code block of a unit is marked `run` and an optional [judge](configuration.md#judge) is configured, the judge can pass the unit without a model request.
 
 The worker stops running the `run` blocks of a unit at a block that does not exit normally: a timeout, a cancellation, or a shell session that ended or was lost. A non-zero exit code does not stop it, because a negative test can expect a failure. The model is told which blocks did not run.
 

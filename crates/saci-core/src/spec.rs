@@ -37,6 +37,9 @@ pub struct RunSpec {
     pub limits: ExecutionLimits,
     /// The model connection.
     pub llm: LlmSettings,
+    /// The optional System One judge.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub judge: Option<Box<JudgeSettings>>,
 }
 
 /// Where a secret value comes from. Only the reference is ever stored.
@@ -154,6 +157,26 @@ pub struct LlmSettings {
     /// Kubernetes Secret key that supplies `api_key_env` to cluster workers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key_secret: Option<KubernetesSecretKey>,
+}
+
+/// The optional TypeSafe System One judge (`docs/configuration.md#judge`).
+/// When set, the worker asks it whether the evidence of a step whose blocks
+/// all ran satisfies each expected result, before it asks the model.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JudgeSettings {
+    /// The complete evaluation endpoint URL, including `/v1/systemone`.
+    pub endpoint: String,
+    /// The judge model identifier, for example `jev-latest`.
+    pub model: String,
+    /// Environment variable holding the judge credential.
+    pub api_key_env: String,
+    /// Kubernetes Secret key that supplies `api_key_env` to cluster workers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_secret: Option<KubernetesSecretKey>,
+    /// Lowest probability, in percent, that each expected result holds for
+    /// the judge to pass the step without the model.
+    pub threshold_percent: u8,
 }
 
 /// A key within a Kubernetes Secret.

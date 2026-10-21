@@ -82,6 +82,7 @@ async fn spec(plan: &str, service: &str) -> RunSpec {
             api_key_env: None,
             api_key_secret: None,
         },
+        judge: None,
     }
 }
 

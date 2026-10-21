@@ -4,6 +4,7 @@
 use std::fmt::Write as _;
 
 use saci_core::bundle::ExecutionUnit;
+use saci_core::ids::EvidenceId;
 use saci_core::plan::{Plan, is_shell_language};
 
 /// The fixed rules of the system prompt.
@@ -70,9 +71,13 @@ pub struct Ran {
     pub procedures: Vec<String>,
     /// The rendered evidence of each block that ran, in order.
     pub evidence: Vec<String>,
+    /// The evidence ID of each block that ran, in order.
+    pub ids: Vec<EvidenceId>,
     /// Marked blocks that did not run because an earlier one did not exit
     /// normally or the attempt stopped.
     pub not_run: usize,
+    /// Whether every marked block ran and exited normally.
+    pub complete: bool,
 }
 
 /// The user prompt of one attempt of `unit`.

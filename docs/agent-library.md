@@ -69,6 +69,12 @@ run (`Executor::attempt`):
    run's shell session, before any model request. Each counts as a tool
    call and is recorded as evidence. It stops at a block that does not
    exit normally (timeout, cancellation, or a lost or ended session).
+   When a [judge](configuration.md#judge) is configured, every code block
+   of the unit is marked `run`, and each block ran and exited normally,
+   `agent::judge::Judge` asks the judge with one Noul question per expected
+   result. If every probability is at or above the threshold, the attempt
+   ends with that passed assessment, without a model request. Otherwise the
+   attempt continues with step 2.
 2. It builds an agent on the configured chat model with the system prompt
    (`agent::prompt::system`: the rules in `PREAMBLE`, then the environment
    parameters and secret names), registers `shell`, `http` and `assess` as

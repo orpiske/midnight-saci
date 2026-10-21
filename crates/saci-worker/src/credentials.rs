@@ -89,6 +89,12 @@ impl Credentials {
         })
     }
 
+    /// Redacts the judge credential and keeps its variable out of the shell.
+    pub fn protect_judge_key(&mut self, variable: &str, key: &str) {
+        self.redactor.add("JUDGE_API_KEY", key);
+        self.shell.remove(variable);
+    }
+
     /// The complete environment of the shell session.
     #[must_use]
     pub const fn shell_environment(&self) -> &BTreeMap<String, String> {
@@ -260,5 +266,18 @@ mod tests {
     fn missing_secrets_are_errors() {
         let error = Credentials::project(&environment(), &llm(), Vec::new()).unwrap_err();
         assert!(error.message.contains("TARGET_TOKEN"), "{}", error.message);
+    }
+
+    #[test]
+    fn the_judge_key_is_redacted_and_kept_from_the_shell() {
+        let mut process = process();
+        process.push(("TMPDIR".to_owned(), "judge-key-value".to_owned()));
+        let mut credentials = Credentials::project(&environment(), &llm(), process).unwrap();
+        credentials.protect_judge_key("TMPDIR", "judge-key-value");
+        assert!(!credentials.shell_environment().contains_key("TMPDIR"));
+        assert_eq!(
+            credentials.redactor().redact("key judge-key-value"),
+            "key [REDACTED:JUDGE_API_KEY]"
+        );
     }
 }

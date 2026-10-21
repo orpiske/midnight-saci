@@ -85,10 +85,8 @@ pub async fn specification(
 }
 
 /// Redacts the secret values the backend itself knows (environment
-/// secrets read from its own variables and the LLM key), as a second line
-/// of defense behind the worker's redaction.
-/// Redacts the secrets the backend can resolve for `spec`: the target
-/// secrets from its environment and the LLM key.
+/// secrets read from its own variables, the LLM key and the judge key), as
+/// a second line of defense behind the worker's redaction.
 #[must_use]
 pub fn backend_redactor(spec: &RunSpec, lookup: impl Fn(&str) -> Option<String>) -> Redactor {
     let mut redactor = Redactor::new();
@@ -101,6 +99,9 @@ pub fn backend_redactor(spec: &RunSpec, lookup: impl Fn(&str) -> Option<String>)
     }
     if let Some(value) = spec.llm.api_key_env.as_deref().and_then(&lookup) {
         redactor.add("LLM_API_KEY", &value);
+    }
+    if let Some(value) = spec.judge.as_ref().and_then(|j| lookup(&j.api_key_env)) {
+        redactor.add("JUDGE_API_KEY", &value);
     }
     redactor
 }

@@ -13,7 +13,7 @@ use saci_backend::launcher::container::{ContainerLauncher, Kind};
 use saci_backend::launcher::{Assignment, Launcher, WorkerState, assignment, worker_name};
 use saci_core::config::{Config, Runtime, WorkerConfig};
 use saci_core::ids::RunId;
-use saci_core::spec::RunSpec;
+use saci_core::spec::{JudgeSettings, RunSpec};
 
 /// A fake runtime that records its arguments and environment in `dir` and
 /// answers like Podman.
@@ -206,6 +206,7 @@ fn configured(yaml_secrets: &str) -> (Config, RunSpec) {
         policy: config.policy("default").unwrap(),
         limits,
         llm: config.llm.settings(),
+        judge: None,
     };
     (config, spec)
 }
@@ -257,6 +258,33 @@ fn assignments_name_what_cannot_be_provided() {
     unreachable.backend.worker_url = None;
     let error = assignment(&unreachable, &spec, "t", |_| Some("k".to_owned())).unwrap_err();
     assert!(error.message.contains("backend.worker_url"));
+}
+
+#[test]
+fn assignments_carry_the_judge_key() {
+    let (config, mut spec) = configured("      TARGET_TOKEN:\n        env: TOKEN_SOURCE\n");
+    spec.judge = Some(Box::new(JudgeSettings {
+        endpoint: "https://judge/v1/systemone".into(),
+        model: "jev-latest".into(),
+        api_key_env: "JUDGE_KEY".into(),
+        api_key_secret: None,
+        threshold_percent: 90,
+    }));
+    let assigned = assignment(&config, &spec, "t", |name| Some(format!("{name}-value"))).unwrap();
+    assert!(
+        assigned
+            .environment
+            .contains(&("JUDGE_KEY".to_owned(), "JUDGE_KEY-value".to_owned()))
+    );
+    let missing = assignment(&config, &spec, "t", |name| {
+        (name != "JUDGE_KEY").then(|| "k".to_owned())
+    })
+    .unwrap_err();
+    assert!(
+        missing.message.contains("judge.api_key is env:JUDGE_KEY"),
+        "{}",
+        missing.message
+    );
 }
 
 fn real_runtime() -> Option<(String, String)> {

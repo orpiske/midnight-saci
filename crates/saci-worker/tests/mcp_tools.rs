@@ -76,6 +76,7 @@ fn spec(model_url: String, command: &str) -> RunSpec {
             api_key_env: None,
             api_key_secret: None,
         },
+        judge: None,
     }
 }
 

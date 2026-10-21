@@ -8,6 +8,7 @@
 //! assessment or the reason the attempt stopped.
 
 mod hook;
+pub mod judge;
 pub mod mcp;
 pub mod prompt;
 mod render;
@@ -25,13 +26,14 @@ use rig::tool::DynamicTool;
 use saci_core::assessment::Assessment;
 use saci_core::bundle::ExecutionUnit;
 use saci_core::event::EventKind;
-use saci_core::evidence::{EvidenceRecord, Termination};
+use saci_core::evidence::{Evidence, EvidenceRecord, Termination};
 use saci_core::run::{AttemptTiming, ErrorKind, ExecutionError};
 use saci_core::spec::ExecutionLimits;
 use saci_core::status::Outcome;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
+pub use judge::Judge;
 pub use render::evidence as render_evidence;
 use state::{AttemptState, Setup};
 
@@ -57,6 +59,9 @@ pub struct Executor {
     limits: ExecutionLimits,
     /// The system prompt, the same for every attempt of the run.
     system: String,
+    /// What the judge is told about the environment.
+    environment: String,
+    judge: Option<Judge>,
 }
 
 impl std::fmt::Debug for Executor {
@@ -163,7 +168,14 @@ impl Executor {
             recorder: toolbox.recorder,
             limits,
             system: prompt::system(&toolbox.environment),
+            environment: toolbox.environment,
+            judge: None,
         }
+    }
+
+    /// Asks `judge` before the model on steps whose blocks all ran.
+    pub fn attach_judge(&mut self, judge: Judge) {
+        self.judge = Some(judge);
     }
 
     /// The run's recorder.
@@ -224,12 +236,41 @@ impl Executor {
         };
         let mut ran = Box::pin(self.run_marked(&state, request.unit)).await;
         ran.procedures = request.procedures.to_vec();
-        let text = prompt::unit(request.unit, request.attempt, request.context, &ran);
-        let run = self.start(&state, tools, text);
-        let ending = Box::pin(self.run_agent(&state, run, request.cancel)).await;
-        let mut result = self.conclude(&state, ending, request.cancel);
-        result.timing = Some(state.timing());
-        result
+        let judged = Box::pin(self.judged(&state, request.unit, &ran)).await;
+        let result = match judged {
+            Some(assessment) => AttemptResult::assessed(assessment),
+            None => Box::pin(self.ask_model(&state, request, tools, &ran)).await,
+        };
+        AttemptResult {
+            timing: Some(state.timing()),
+            ..result
+        }
+    }
+
+    /// The judge's passed assessment, when a judge is configured and passes
+    /// the step.
+    async fn judged(
+        &self,
+        state: &AttemptState,
+        unit: &ExecutionUnit,
+        ran: &prompt::Ran,
+    ) -> Option<Assessment> {
+        let judge = self.judge.as_ref()?;
+        Box::pin(judge.assess(state, unit, &self.environment, ran)).await
+    }
+
+    /// Lets the model perform and assess the attempt.
+    async fn ask_model(
+        &self,
+        state: &Arc<AttemptState>,
+        request: AttemptRequest<'_>,
+        tools: Vec<DynamicTool>,
+        ran: &prompt::Ran,
+    ) -> AttemptResult {
+        let text = prompt::unit(request.unit, request.attempt, request.context, ran);
+        let run = self.start(state, tools, text);
+        let ending = Box::pin(self.run_agent(state, run, request.cancel)).await;
+        self.conclude(state, ending, request.cancel)
     }
 
     /// Runs the unit's `run` blocks as written, in order, before the model is
@@ -244,26 +285,36 @@ impl Executor {
             .filter(|block| block.run)
             .collect();
         let mut ran = prompt::Ran::default();
+        let mut exited = true;
         for block in &marked {
             if state.check_interrupted().is_err() || state.count_tool_call().is_err() {
                 break;
             }
-            let _running = state.running();
-            let mut session = self.shell.lock().await;
-            let deadline = state.operation_deadline();
-            let result = session.run(&block.code, deadline, &state.cancel).await;
-            let Ok(run) = result.map_err(|error| state.halt(error)) else {
+            let Some(evidence) = self.run_block(state, &block.code).await else {
                 break;
             };
-            let exited = run.evidence.termination == Termination::Exited;
-            let evidence = state.record(run.duration, EvidenceRecord::Shell(run.evidence));
+            exited = matches!(&evidence.record,
+                EvidenceRecord::Shell(shell) if shell.termination == Termination::Exited);
             ran.evidence.push(render::evidence(&evidence));
+            ran.ids.push(evidence.id);
             if !exited {
                 break;
             }
         }
         ran.not_run = marked.len() - ran.evidence.len();
+        ran.complete = exited && ran.not_run == 0;
         ran
+    }
+
+    /// Runs one `run` block in the shell and records its evidence. `None`
+    /// when the shell failed, which halts the attempt.
+    async fn run_block(&self, state: &AttemptState, code: &str) -> Option<Evidence> {
+        let _running = state.running();
+        let mut session = self.shell.lock().await;
+        let deadline = state.operation_deadline();
+        let result = session.run(code, deadline, &state.cancel).await;
+        let run = result.map_err(|error| state.halt(error)).ok()?;
+        Some(state.record(run.duration, EvidenceRecord::Shell(run.evidence)))
     }
 
     fn tools(&self, state: &Arc<AttemptState>) -> Result<Vec<DynamicTool>, ExecutionError> {
