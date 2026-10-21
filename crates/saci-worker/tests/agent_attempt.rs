@@ -634,11 +634,16 @@ fn judge_reply(scores: &[f64]) -> Reply {
 }
 
 async fn judged_harness(script: Vec<Reply>, judge: Vec<Reply>) -> (Harness, FakeModel) {
+    judged_at("/systemone", script, judge).await
+}
+
+/// A harness whose judge answers at `path` under the fake judge's `/v1`.
+async fn judged_at(path: &str, script: Vec<Reply>, judge: Vec<Reply>) -> (Harness, FakeModel) {
     let limits = ExecutionLimits::default();
     let mut h = harness(script, limits).await;
     let fake = FakeModel::start(judge).await.unwrap();
     let settings = JudgeSettings {
-        endpoint: format!("{}/systemone", fake.base_url()),
+        endpoint: format!("{}{path}", fake.base_url()),
         model: "jev-test".into(),
         api_key_env: "JUDGE_KEY".into(),
         api_key_secret: None,
@@ -706,4 +711,23 @@ async fn the_judge_is_not_asked_when_the_model_must_act() {
     let result = h.run(3, 1, &CancellationToken::new()).await;
     assert!(judge.requests().is_empty(), "step 1.4 stopped at `exit 4`");
     assert_ne!(result.outcome, Outcome::Passed);
+}
+
+#[tokio::test]
+async fn the_judge_works_through_the_openrouter_decisions_api() {
+    let reply = json!({
+        "id": "gen-1",
+        "model": "typesafe/jev-1.13-20261001",
+        "provider": "TypeSafe",
+        "answers": {"criterion_0": {"type": "noul", "noul": 0.96}},
+        "usage": {"input_tokens": 120, "output_tokens": 1, "cost": 0.0001}
+    });
+    let (h, judge) = judged_at("/alpha/decisions", vec![], vec![Reply::ok(&reply)]).await;
+    let result = h.run(4, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+    assert!(h.model.requests().is_empty(), "the model is not asked");
+    let request = &judge.requests()[0];
+    assert_eq!(request.path, "/v1/alpha/decisions");
+    assert_eq!(request.headers["authorization"], "Bearer judge-key-value");
+    assert_eq!(request.body["questions"]["criterion_0"]["type"], "noul");
 }

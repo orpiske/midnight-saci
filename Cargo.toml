@@ -30,7 +30,7 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 nix = { version = "0.31", default-features = false, features = ["signal", "process"] }
 clap = { version = "4.6", features = ["derive"] }
 # Agent library; see docs/agent-library.md. Pinned exactly: its API moves quickly.
-rig = { version = "=0.44.0", default-features = false, features = ["agent", "reqwest", "rustls", "rmcp", "typesafeai"] }
+rig = { version = "=0.44.0", default-features = false, features = ["agent", "reqwest", "rustls", "rmcp"] }
 serde = { version = "1.0", features = ["derive"] }
 sha2 = "0.10"
 serde_json = { version = "1.0", features = ["preserve_order"] }

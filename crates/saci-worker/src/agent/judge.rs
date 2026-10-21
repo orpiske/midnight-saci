@@ -1,23 +1,25 @@
-//! The optional System One judge: a TypeSafe Noul evaluation that decides
-//! whether the evidence of a step whose blocks all ran satisfies each
-//! expected result, without a model request.
+//! The optional System One judge: a Jev Noul evaluation, from TypeSafe or
+//! through OpenRouter, that decides whether the evidence of a step whose
+//! blocks all ran satisfies each expected result, without a model request.
 //!
 //! The judge only passes steps. When a result scores below the threshold,
 //! or the judge fails, the model assesses the step as usual.
+//!
+//! Both services take `{model, state, questions}` and answer with
+//! `answers.<question>.noul`. Saci reads only the answers, so the rest of
+//! each service's reply (its `usage` and cost fields differ) does not matter.
 
-use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use rig::http_client::ReqwestClient;
-use rig::typesafeai::types::{Answer, Question};
-use rig::typesafeai::{DynamicQuery, Evaluate, Jev, JevConfig};
+use rig::rig_reqwest::reqwest::Client;
+use rig::rig_reqwest::reqwest::header::CONTENT_TYPE;
 use saci_core::assessment::{self, Assessment, Basis, CriterionResult, CriterionStatus};
 use saci_core::bundle::ExecutionUnit;
 use saci_core::plan::Criterion;
 use saci_core::run::{ErrorKind, ExecutionError};
 use saci_core::spec::{ExecutionLimits, JudgeSettings};
 use saci_core::status::Outcome;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 use super::prompt::Ran;
 use super::state::AttemptState;
@@ -30,9 +32,14 @@ const SATISFIED: &str =
 const NOT_SATISFIED: &str =
     "The recorded evidence does not show the expected result, contradicts it, or is missing.";
 
+/// Longest part of a failed judge reply quoted in the log.
+const BODY_EXCERPT: usize = 300;
+
 /// A connection to the configured judge.
 pub struct Judge {
-    jev: Jev,
+    http: Client,
+    endpoint: String,
+    key: String,
     model: String,
     threshold_percent: u8,
 }
@@ -40,6 +47,7 @@ pub struct Judge {
 impl std::fmt::Debug for Judge {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Judge")
+            .field("endpoint", &self.endpoint)
             .field("model", &self.model)
             .field("threshold_percent", &self.threshold_percent)
             .finish_non_exhaustive()
@@ -57,7 +65,7 @@ impl Judge {
         key: &str,
         limits: &ExecutionLimits,
     ) -> Result<Self, ExecutionError> {
-        let http = rig::rig_reqwest::reqwest::Client::builder()
+        let http = Client::builder()
             .timeout(Duration::from_secs(limits.model_request_timeout_secs))
             .connect_timeout(Duration::from_secs(10))
             .build()
@@ -67,12 +75,10 @@ impl Judge {
                     crate::llm::client_build_error(&error),
                 )
             })?;
-        let jev = JevConfig::new(key)
-            .model(settings.model.clone())
-            .with_endpoint(settings.endpoint.clone())
-            .connect(ReqwestClient::from(http));
         Ok(Self {
-            jev,
+            http,
+            endpoint: settings.endpoint.clone(),
+            key: key.to_owned(),
             model: settings.model.clone(),
             threshold_percent: settings.threshold_percent,
         })
@@ -123,32 +129,55 @@ impl Judge {
         ran: &Ran,
     ) -> Result<Vec<f64>, String> {
         let expected = &unit.unit.expected;
-        let query = questions(expected)?;
-        let state = json!({
-            "step": unit.unit.title,
-            "action": unit.unit.action,
-            "environment": environment,
-            "procedures": ran.procedures,
-            "evidence": ran.evidence,
+        let body = json!({
+            "model": self.model,
+            "state": {
+                "step": unit.unit.title,
+                "action": unit.unit.action,
+                "environment": environment,
+                "procedures": ran.procedures,
+                "evidence": ran.evidence,
+            },
+            "questions": questions(expected),
         });
-        let result = self
-            .jev
-            .evaluation()
-            .evaluate(&state, query)
-            .await
-            .map_err(|error| format!("the judge failed: {error}"))?;
+        let reply = self.ask(&body).await?;
         expected
             .iter()
-            .map(
-                |criterion| match result.answers.get(&question_id(criterion.index)) {
-                    Some(Answer::Noul { noul }) => Ok(*noul),
-                    _ => Err(format!(
-                        "the judge gave no probability for criterion {}",
-                        criterion.index
-                    )),
-                },
-            )
+            .map(|criterion| {
+                reply["answers"][question_id(criterion.index)]["noul"]
+                    .as_f64()
+                    .filter(|noul| (0.0..=1.0).contains(noul))
+                    .ok_or_else(|| {
+                        format!(
+                            "the judge gave no probability for criterion {}",
+                            criterion.index
+                        )
+                    })
+            })
             .collect()
+    }
+
+    /// Sends one evaluation request and returns the JSON reply.
+    async fn ask(&self, body: &Value) -> Result<Value, String> {
+        let response = self
+            .http
+            .post(&self.endpoint)
+            .bearer_auth(&self.key)
+            .header(CONTENT_TYPE, "application/json")
+            .body(body.to_string())
+            .send()
+            .await
+            .map_err(|error| format!("the judge request failed: {error}"))?;
+        let status = response.status();
+        let text = response
+            .text()
+            .await
+            .map_err(|error| format!("the judge reply could not be read: {error}"))?;
+        if !status.is_success() {
+            let excerpt: String = text.chars().take(BODY_EXCERPT).collect();
+            return Err(format!("the judge answered HTTP {status}: {excerpt}"));
+        }
+        serde_json::from_str(&text).map_err(|error| format!("the judge reply is not JSON: {error}"))
     }
 
     /// The passed assessment, or why the scores do not pass the step.
@@ -192,25 +221,21 @@ impl Judge {
 }
 
 /// One Noul question per expected result.
-fn questions(expected: &[Criterion]) -> Result<DynamicQuery, String> {
-    let questions = expected
+fn questions(expected: &[Criterion]) -> Map<String, Value> {
+    expected
         .iter()
         .map(|criterion| {
-            let question = Question::Noul {
-                instructions: Value::String(format!(
+            let question = json!({
+                "type": "noul",
+                "instructions": format!(
                     "Does the recorded evidence show that this expected result holds: {}",
                     criterion.text
-                )),
-                criteria: Some(BTreeMap::from([
-                    ("true".to_owned(), Value::String(SATISFIED.to_owned())),
-                    ("false".to_owned(), Value::String(NOT_SATISFIED.to_owned())),
-                ])),
-            };
+                ),
+                "criteria": {"true": SATISFIED, "false": NOT_SATISFIED},
+            });
             (question_id(criterion.index), question)
         })
-        .collect();
-    DynamicQuery::new(questions)
-        .map_err(|error| format!("the judge questions are invalid: {error}"))
+        .collect()
 }
 
 fn question_id(criterion: usize) -> String {
