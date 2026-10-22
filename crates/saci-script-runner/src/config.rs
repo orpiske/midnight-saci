@@ -69,10 +69,9 @@ pub struct ServerConfig {
     /// MCP endpoint path. Default `/mcp`.
     #[serde(default = "default_endpoint")]
     pub endpoint: String,
-    /// Name of the environment variable that holds the bearer token. When
-    /// set, every MCP request must send `Authorization: Bearer <token>`.
+    /// Client authentication. Default: none.
     #[serde(default)]
-    pub auth_token_env: Option<String>,
+    pub auth: Option<AuthConfig>,
     /// Accepted `Host` header values. Default: `localhost`, `127.0.0.1`
     /// and `::1`.
     #[serde(default)]
@@ -88,11 +87,29 @@ impl Default for ServerConfig {
         Self {
             bind: default_bind(),
             endpoint: default_endpoint(),
-            auth_token_env: None,
+            auth: None,
             allowed_hosts: Vec::new(),
             allowed_origins: Vec::new(),
         }
     }
+}
+
+/// The `server.auth` section.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthConfig {
+    /// The bearer token that every MCP request must send as
+    /// `Authorization: Bearer <token>`.
+    pub token: SecretRef,
+}
+
+/// Where a secret value comes from, in the format of the Saci backend
+/// configuration. The runner supports environment variables only.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SecretRef {
+    /// Name of an environment variable of the runner process.
+    pub env: String,
 }
 
 fn default_bind() -> SocketAddr {
@@ -258,16 +275,17 @@ impl ServerConfig {
                 crate::server::HEALTH_PATH
             )));
         }
-        if let Some(name) = &self.auth_token_env
-            && !is_env_name(name)
+        if let Some(auth) = &self.auth
+            && !is_env_name(&auth.token.env)
         {
             return Err(invalid(format!(
-                "`server.auth_token_env` `{name}` is not a variable name"
+                "`server.auth.token.env` `{}` is not a variable name",
+                auth.token.env
             )));
         }
-        if !self.bind.ip().is_loopback() && self.auth_token_env.is_none() {
+        if !self.bind.ip().is_loopback() && self.auth.is_none() {
             return Err(invalid(format!(
-                "`server.bind` {} is not a loopback address: set `server.auth_token_env`",
+                "`server.bind` {} is not a loopback address: set `server.auth.token`",
                 self.bind
             )));
         }
@@ -718,11 +736,39 @@ mod tests {
                 .validate()
                 .unwrap_err()
                 .to_string()
-                .contains("auth_token_env")
+                .contains("server.auth.token")
         );
-        let with_token = public.replace("server:\n", "server:\n  auth_token_env: RUNNER_TOKEN\n");
+        let with_token = public.replace(
+            "server:\n",
+            "server:\n  auth:\n    token: {env: RUNNER_TOKEN}\n",
+        );
         let config: Config = serde_yaml::from_str(&with_token).unwrap();
         config.validate().unwrap();
+    }
+
+    #[test]
+    fn the_token_is_a_reference_not_a_value() {
+        let fixture = Fixture::new();
+        let tool = fixture.tool("");
+        for token in ["s3cret", "{value: s3cret}", "{env: TOKEN, key: k}"] {
+            let yaml = format!(
+                "server:\n  auth:\n    token: {token}\n{}",
+                fixture.yaml(&tool)
+            );
+            assert!(serde_yaml::from_str::<Config>(&yaml).is_err(), "{token}");
+        }
+        let yaml = format!(
+            "server:\n  auth:\n    token: {{env: 'A B'}}\n{}",
+            fixture.yaml(&tool)
+        );
+        let config: Config = serde_yaml::from_str(&yaml).unwrap();
+        assert!(
+            config
+                .validate()
+                .unwrap_err()
+                .to_string()
+                .contains("not a variable name")
+        );
     }
 
     #[test]
