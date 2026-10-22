@@ -927,11 +927,58 @@ components:
               properties:
                 type: { type: string, const: cancellation_requested }
             - type: object
+              required: [type, report]
+              properties:
+                type: { type: string, const: investigation_concluded }
+                report: { $ref: "#/components/schemas/InvestigationReport" }
+            - type: object
               required: [type, outcome, reason]
               properties:
                 type: { type: string, const: run_finished }
                 outcome: { $ref: "#/components/schemas/Outcome" }
                 reason: { type: string }
+    InvestigationReport:
+      type: object
+      description: The result of an investigation run (see crates/saci-core/src/investigation.rs).
+      required: [outcome, summary]
+      properties:
+        outcome: { type: string, enum: [concluded, inconclusive, error, cancelled] }
+        summary: { type: string }
+        sources:
+          type: array
+          items:
+            type: object
+            required: [name, commit]
+            properties:
+              name: { type: string }
+              commit: { type: string }
+        hypotheses:
+          type: array
+          items:
+            type: object
+            required: [statement, confidence]
+            properties:
+              statement: { type: string }
+              confidence: { type: string, enum: [high, medium, low] }
+              evidence: { type: array, items: { type: string } }
+              code:
+                type: array
+                items:
+                  type: object
+                  required: [repository, commit, path, start_line, end_line]
+                  properties:
+                    repository: { type: string }
+                    commit: { type: string }
+                    path: { type: string }
+                    start_line: { type: integer, minimum: 1 }
+                    end_line: { type: integer, minimum: 1 }
+        bug:
+          type: object
+          required: [url, title]
+          properties:
+            url: { type: string }
+            title: { type: string }
+        no_bug_reason: { type: string }
     CapturedText:
       type: object
       required: [text, total_bytes]
@@ -1037,6 +1084,7 @@ components:
         backend_build: { $ref: "#/components/schemas/BuildInfo" }
         worker_environment: { $ref: "#/components/schemas/WorkerEnvironment" }
         worker_image: { $ref: "#/components/schemas/WorkerImage" }
+        investigation: { $ref: "#/components/schemas/InvestigationReport" }
         last_seq: { type: integer }
     BuildInfo:
       type: object

@@ -62,6 +62,14 @@ export function describeEvent(event: RunEvent): { look?: StatusLook; text: React
       return { look: OUTCOME.skipped, text: <>Skipped: <SafeText text={event.reason} /></> };
     case "cancellation_requested":
       return { look: PENDING, text: "Cancellation requested; stopping" };
+    case "investigation_concluded":
+      return {
+        text: (
+          <>
+            Investigation {event.report.outcome}: <SafeText text={event.report.summary} />
+          </>
+        ),
+      };
     case "run_finished":
       return {
         look: OUTCOME[event.outcome],

@@ -40,13 +40,43 @@ The worker rejects its input, and runs nothing, when:
 - the specification has an unsupported `schema_version` (the backend and
   the image come from different releases);
 - the specification names a run other than `SACI_RUN_ID`;
-- the plan bundle does not validate;
+- the plan bundle does not validate, or an investigation names no repository;
 - a configured secret or the LLM key is not in the worker's environment;
 - the workspace is not a writable directory.
 
 A rejected specification is reported as a single `run_finished` event with
 outcome `error` and the reason, so the run ends with an explanation rather
 than a lost worker. No model request is made and no tool runs.
+
+## Investigation mode
+
+A specification with an `investigation` field starts an investigation of a
+failed unit (see the [design](plans/investigations.md)). The worker reports
+it as a run with one unit, `investigation`, and one attempt. The steps are:
+
+1. For each repository, the worker clones `url` into
+   `<workspace>/src/<name>` and checks out `ref` (a commit, a tag, a branch
+   or a remote branch) as a detached commit. The shell records this as
+   evidence. A failed clone or checkout ends the run `error` before the
+   first model request.
+2. The worker runs each `prepare` command in each clone and records the
+   output as evidence. The commands get the failure values as environment
+   variables (see [configuration](configuration.md#investigations)). A
+   failed command does not stop the investigation.
+3. The model gets the failed unit, its attempts, the evidence of the
+   failed run, the clones with their commits, and the preparation output.
+   It can use the shell, the MCP servers of the environment, and the
+   `conclude` tool.
+4. The model calls `conclude` once with its result. The worker refuses a
+   result that cites evidence that this investigation did not record, or a
+   code location that is not in the clone (an unknown path, or a line
+   after the end of the file). The model gets the reason and can try again.
+
+The outcome of the attempt and the run follows the result: `concluded`
+gives `passed`, and `inconclusive` gives `inconclusive`. An investigation
+that ends without a result ends `error`, or `cancelled` when it is
+cancelled. The result is the `investigation_concluded` event and the
+`investigation` field of the report.
 
 ## Exit codes
 

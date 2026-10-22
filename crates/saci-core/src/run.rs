@@ -8,6 +8,7 @@ use crate::build_info::BuildInfo;
 use crate::event::{EventKind, RunEvent};
 use crate::evidence::Evidence;
 use crate::ids::{EvidenceId, RunId, UnitKey};
+use crate::investigation::{InvestigationOutcome, InvestigationReport};
 use crate::plan::{Criterion, SourceLocation, UnitKind};
 use crate::spec::SCHEMA_VERSION;
 use crate::status::{Lifecycle, Outcome, summarize};
@@ -319,6 +320,9 @@ pub struct RunReport {
     /// The worker's container image, once the backend has launched it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worker_image: Option<WorkerImage>,
+    /// The result of an investigation run, once its agent concluded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub investigation: Option<Box<InvestigationReport>>,
     /// Sequence number of the last applied event.
     pub last_seq: u64,
 }
@@ -385,6 +389,7 @@ impl RunReport {
             backend_build: None,
             worker_environment: None,
             worker_image: None,
+            investigation: None,
             last_seq: 0,
         }
     }
@@ -452,6 +457,7 @@ impl RunReport {
                 Ok(())
             }
             EventKind::Observation { evidence } => self.observe(event, evidence),
+            EventKind::InvestigationConcluded { report } => self.conclude(event, report),
             EventKind::AttemptStarted
             | EventKind::AttemptFinished { .. }
             | EventKind::UnitFinished { .. }
@@ -528,6 +534,39 @@ impl RunReport {
         Ok(())
     }
 
+    /// Records an investigation's result: once, inside an open attempt,
+    /// with an outcome the agent may give, passing
+    /// [`InvestigationReport::check`] and citing recorded evidence only.
+    fn conclude(
+        &mut self,
+        event: &RunEvent,
+        report: &InvestigationReport,
+    ) -> Result<(), ContractError> {
+        let recorded = self.recorded();
+        let key = event.unit.clone().unwrap_or_else(|| UnitKey::new(""));
+        self.open_attempt(event)?;
+        let mut problems = report.check().err().unwrap_or_default();
+        if self.investigation.is_some() {
+            problems.push("the investigation already concluded".to_owned());
+        }
+        if !matches!(
+            report.outcome,
+            InvestigationOutcome::Concluded | InvestigationOutcome::Inconclusive
+        ) {
+            problems.push("an agent concludes `concluded` or `inconclusive`".to_owned());
+        }
+        let cited = report.hypotheses.iter().flat_map(|h| &h.evidence);
+        for id in cited.filter(|id| !recorded.contains_key(*id)) {
+            problems.push(format!("cites unknown evidence {id}"));
+        }
+        if !problems.is_empty() {
+            let reason = format!("invalid investigation result: {}", problems.join("; "));
+            return Err(invalid(&key, &reason));
+        }
+        self.investigation = Some(Box::new(report.clone()));
+        Ok(())
+    }
+
     fn unit_mut(&mut self, event: &RunEvent) -> Result<&mut UnitReport, ContractError> {
         let key = event
             .unit
@@ -588,7 +627,10 @@ impl RunReport {
         error: bool,
     ) -> Result<(), ContractError> {
         let key = event.unit.clone().unwrap_or_else(|| UnitKey::new(""));
-        let expected = crate::assessment::attempt_outcome(assessment, error);
+        let expected = match (&self.investigation, assessment, error) {
+            (Some(report), None, false) => report.outcome.run_outcome(),
+            _ => crate::assessment::attempt_outcome(assessment, error),
+        };
         let interrupted = matches!(outcome, Outcome::Cancelled | Outcome::Error);
         if outcome != expected && !(interrupted && assessment.is_none()) {
             let reason = format!(

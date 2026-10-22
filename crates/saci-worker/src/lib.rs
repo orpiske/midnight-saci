@@ -8,6 +8,7 @@ pub mod environment;
 pub mod events;
 pub mod http;
 pub mod init;
+pub mod investigate;
 pub mod llm;
 pub mod mcp;
 pub mod report;

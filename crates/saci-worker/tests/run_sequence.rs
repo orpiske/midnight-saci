@@ -109,6 +109,7 @@ fn executor(
         http: HttpTool::new(credentials.clone(), limits.output_limit_bytes).unwrap(),
         recorder: Recorder::new(Arc::new(sink), credentials.redactor().clone()),
         environment: String::new(),
+        workspace: workspace.to_owned(),
     };
     let connection = LlmConnection::new(llm, &limits, |_| None).unwrap();
     (Executor::new(connection, toolbox, limits), events)

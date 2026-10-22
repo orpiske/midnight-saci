@@ -8,6 +8,7 @@
 //! assessment or the reason the attempt stopped.
 
 mod hook;
+mod investigation;
 pub mod judge;
 pub mod mcp;
 pub mod prompt;
@@ -16,6 +17,7 @@ mod state;
 mod tools;
 
 use std::future::Future;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -33,6 +35,7 @@ use saci_core::status::Outcome;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
+pub use investigation::{CONCLUDE, Checkout, InvestigationRequest};
 pub use judge::Judge;
 pub use render::evidence as render_evidence;
 use state::{AttemptState, Setup};
@@ -62,6 +65,8 @@ pub struct Executor {
     /// What the judge is told about the environment.
     environment: String,
     judge: Option<Judge>,
+    /// The run's workspace.
+    workspace: PathBuf,
 }
 
 impl std::fmt::Debug for Executor {
@@ -84,6 +89,8 @@ pub struct Toolbox {
     pub recorder: Recorder,
     /// What the model is told about the environment.
     pub environment: String,
+    /// The run's workspace, where investigations clone repositories.
+    pub workspace: PathBuf,
 }
 
 /// One attempt to execute.
@@ -149,6 +156,14 @@ impl AttemptResult {
 /// A running agent loop.
 type AgentRun = Pin<Box<dyn Future<Output = Result<(), Box<PromptError>>> + Send>>;
 
+/// What an agent run is told: the system prompt, the user prompt, and the
+/// feedback for a reply without a tool call.
+struct Turn<'a> {
+    system: &'a str,
+    feedback: &'static str,
+    text: String,
+}
+
 /// How the agent run ended.
 enum Ending {
     Finished(Result<(), Box<PromptError>>),
@@ -170,6 +185,7 @@ impl Executor {
             system: prompt::system(&toolbox.environment),
             environment: toolbox.environment,
             judge: None,
+            workspace: toolbox.workspace,
         }
     }
 
@@ -268,7 +284,12 @@ impl Executor {
         ran: &prompt::Ran,
     ) -> AttemptResult {
         let text = prompt::unit(request.unit, request.attempt, request.context, ran);
-        let run = self.start(state, tools, text);
+        let turn = Turn {
+            system: &self.system,
+            feedback: hook::ASSESS_FEEDBACK,
+            text,
+        };
+        let run = self.start(state, tools, turn);
         let ending = Box::pin(self.run_agent(state, run, request.cancel)).await;
         self.conclude(state, ending, request.cancel)
     }
@@ -335,15 +356,21 @@ impl Executor {
     }
 
     /// Builds the attempt's agent and starts its run.
-    fn start(&self, state: &Arc<AttemptState>, tools: Vec<DynamicTool>, text: String) -> AgentRun {
+    fn start(
+        &self,
+        state: &Arc<AttemptState>,
+        tools: Vec<DynamicTool>,
+        turn: Turn<'_>,
+    ) -> AgentRun {
         let agent = AgentBuilder::new(self.llm.model())
-            .preamble(&self.system)
+            .preamble(turn.system)
             .dynamic_tools(tools)
             .build();
         // The hook stops the run at the model-call limit; Rig's own turn
         // limit is a backstop one request later.
         let max_turns = self.llm.max_turns().saturating_add(1);
-        let controls = hook::Controls::new(state.clone());
+        let controls = hook::Controls::new(state.clone(), turn.feedback);
+        let text = turn.text;
         Box::pin(async move {
             agent
                 .prompt(text)

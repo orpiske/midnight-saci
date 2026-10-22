@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use crate::config::LimitsOverride;
 use crate::evidence::Evidence;
 use crate::ids::{EvidenceId, RunId, UnitKey};
-use crate::run::UnitReport;
+use crate::plan::UnitKind;
+use crate::run::{UnitIdentity, UnitReport};
+use crate::status::Outcome;
 
 /// A source repository the agent may clone.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,6 +68,9 @@ pub struct InvestigationSpec {
     pub plan_title: String,
     /// The failed unit: identity, expected results, outcome and attempts.
     pub unit: UnitReport,
+    /// The failed unit's authored action.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub action: String,
     /// The evidence that the unit's attempts cite.
     #[serde(default)]
     pub evidence: Vec<Evidence>,
@@ -79,6 +84,64 @@ pub struct InvestigationSpec {
     /// where to file bugs.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub instructions: String,
+}
+
+/// Key of the one unit of an investigation run. Its single attempt holds
+/// the investigation's evidence.
+pub const INVESTIGATION_UNIT: &str = "investigation";
+
+impl InvestigationSpec {
+    /// The one unit of the investigation run, as the backend lists it in the
+    /// initial report and the worker reports it.
+    #[must_use]
+    pub fn unit_identity(&self) -> UnitIdentity {
+        let failed = &self.unit.identity;
+        UnitIdentity {
+            key: UnitKey::new(INVESTIGATION_UNIT),
+            id: INVESTIGATION_UNIT.to_owned(),
+            kind: UnitKind::Step,
+            title: format!("Investigate {} \"{}\"", failed.key, failed.title),
+            phase: "Investigation".to_owned(),
+            location: failed.location.clone(),
+            cleanup: false,
+            criteria: Vec::new(),
+        }
+    }
+
+    /// Why the failed unit failed: the explanation of its last assessment,
+    /// else the error of its last attempt, else the unit's reason.
+    #[must_use]
+    pub fn failure_reason(&self) -> String {
+        let last = self.unit.attempts.last();
+        last.and_then(|attempt| attempt.assessment.as_ref())
+            .map(|assessment| assessment.explanation.clone())
+            .or_else(|| {
+                last.and_then(|a| a.error.as_ref())
+                    .map(|e| e.message.clone())
+            })
+            .or_else(|| self.unit.reason.clone())
+            .unwrap_or_default()
+    }
+
+    /// The environment variables that carry the values of
+    /// [`PREPARE_VARIABLES`].
+    #[must_use]
+    pub fn prepare_values(&self) -> Vec<(&'static str, String)> {
+        let failed = &self.unit.identity;
+        PREPARE_VARIABLES
+            .iter()
+            .map(|(name, variable)| {
+                let value = match *name {
+                    "run.id" => self.parent_run.to_string(),
+                    "plan.title" => self.plan_title.clone(),
+                    "unit" => failed.key.to_string(),
+                    "failure.title" => failed.title.clone(),
+                    _ => self.failure_reason(),
+                };
+                (*variable, value)
+            })
+            .collect()
+    }
 }
 
 /// Template variables of `prepare` commands, with the environment variable
@@ -156,6 +219,31 @@ pub enum InvestigationOutcome {
     Error,
     /// A user or client stopped the investigation.
     Cancelled,
+}
+
+impl InvestigationOutcome {
+    /// The serialized name, such as `concluded`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Concluded => "concluded",
+            Self::Inconclusive => "inconclusive",
+            Self::Error => "error",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    /// The outcome of the investigation run's unit and of the run: a
+    /// conclusion passes, the other outcomes keep their names.
+    #[must_use]
+    pub const fn run_outcome(self) -> Outcome {
+        match self {
+            Self::Concluded => Outcome::Passed,
+            Self::Inconclusive => Outcome::Inconclusive,
+            Self::Error => Outcome::Error,
+            Self::Cancelled => Outcome::Cancelled,
+        }
+    }
 }
 
 /// How strongly the evidence and the code support a hypothesis.
@@ -297,6 +385,66 @@ impl InvestigationReport {
             problems.push("give the bug, or no_bug_reason when none was filed".to_owned());
         }
     }
+}
+
+/// JSON schema of the `conclude` tool. The worker adds the cloned sources,
+/// so the model does not give them.
+#[must_use]
+pub fn conclusion_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "outcome": {
+                "type": "string",
+                "enum": ["concluded", "inconclusive"],
+                "description": "concluded only when a hypothesis points to code in a cloned commit"
+            },
+            "summary": {"type": "string", "description": "A short analysis of the failure"},
+            "hypotheses": {
+                "type": "array",
+                "description": "Probable causes, most likely first",
+                "items": hypothesis_schema()
+            },
+            "bug": {
+                "type": "object",
+                "properties": {"url": {"type": "string"}, "title": {"type": "string"}},
+                "required": ["url", "title"],
+                "additionalProperties": false
+            },
+            "no_bug_reason": {"type": "string", "description": "Why no bug was filed, when none was"}
+        },
+        "required": ["outcome", "summary", "hypotheses"],
+        "additionalProperties": false
+    })
+}
+
+fn hypothesis_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "statement": {"type": "string"},
+            "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+            "evidence": {"type": "array", "items": {"type": "string", "pattern": "^ev-[0-9]+$"}},
+            "code": {"type": "array", "items": location_schema()}
+        },
+        "required": ["statement", "confidence", "evidence", "code"],
+        "additionalProperties": false
+    })
+}
+
+fn location_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "repository": {"type": "string"},
+            "commit": {"type": "string", "description": "The cloned commit SHA"},
+            "path": {"type": "string", "description": "Relative to the repository root"},
+            "start_line": {"type": "integer", "minimum": 1},
+            "end_line": {"type": "integer", "minimum": 1}
+        },
+        "required": ["repository", "commit", "path", "start_line", "end_line"],
+        "additionalProperties": false
+    })
 }
 
 fn check_location(

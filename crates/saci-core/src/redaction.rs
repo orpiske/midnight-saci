@@ -13,6 +13,7 @@ use serde_json::Value;
 
 use crate::event::EventKind;
 use crate::evidence::{CapturedText, EvidenceRecord, HttpEvidence};
+use crate::investigation::InvestigationReport;
 
 /// Replacement for a masked value whose secret is not known by name.
 pub const REDACTED: &str = "[REDACTED]";
@@ -159,10 +160,26 @@ impl Redactor {
             EventKind::UnitSkipped { reason } | EventKind::RunFinished { reason, .. } => {
                 self.redact_string(reason);
             }
+            EventKind::InvestigationConcluded { report } => self.redact_investigation(report),
             EventKind::RunStarted { .. }
             | EventKind::AttemptStarted
             | EventKind::UnitFinished { .. }
             | EventKind::CancellationRequested => {}
+        }
+    }
+
+    /// Redacts the free text of an investigation result.
+    fn redact_investigation(&self, report: &mut InvestigationReport) {
+        self.redact_string(&mut report.summary);
+        for hypothesis in &mut report.hypotheses {
+            self.redact_string(&mut hypothesis.statement);
+        }
+        if let Some(bug) = &mut report.bug {
+            self.redact_string(&mut bug.url);
+            self.redact_string(&mut bug.title);
+        }
+        if let Some(reason) = &mut report.no_bug_reason {
+            self.redact_string(reason);
         }
     }
 

@@ -36,7 +36,7 @@ struct ShellArgs {
     command: String,
 }
 
-fn tool_name(name: &'static str) -> Result<ToolName, ExecutionError> {
+pub(super) fn tool_name(name: &'static str) -> Result<ToolName, ExecutionError> {
     ToolName::new(name).map_err(|_| {
         ExecutionError::new(
             saci_core::run::ErrorKind::Tool,

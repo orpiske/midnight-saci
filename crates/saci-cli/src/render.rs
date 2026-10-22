@@ -22,11 +22,8 @@ fn name<T: Serialize>(value: &T) -> String {
 /// One line per event.
 #[must_use]
 pub fn event(event: &RunEvent) -> String {
-    let unit = event
-        .unit
-        .as_ref()
-        .map(|unit| format!("{unit} "))
-        .unwrap_or_default();
+    let unit = event.unit.as_ref().map(|unit| format!("{unit} "));
+    let unit = unit.unwrap_or_default();
     let attempt = event
         .attempt
         .map(|n| format!("attempt {n} "))
@@ -49,9 +46,23 @@ pub fn event(event: &RunEvent) -> String {
         EventKind::UnitFinished { outcome } => format!("{outcome}"),
         EventKind::UnitSkipped { reason } => format!("skipped: {reason}"),
         EventKind::CancellationRequested => "cancellation requested".to_owned(),
+        EventKind::InvestigationConcluded { report } => conclusion(report),
         EventKind::RunFinished { outcome, reason } => format!("run finished {outcome}: {reason}"),
     };
     format!("[{}] {unit}{attempt}{what}", event.seq)
+}
+
+fn conclusion(report: &saci_core::investigation::InvestigationReport) -> String {
+    let bug = report
+        .bug
+        .as_ref()
+        .map(|bug| format!(" (bug {})", bug.url))
+        .unwrap_or_default();
+    format!(
+        "investigation {}{bug}: {}",
+        report.outcome.as_str(),
+        report.summary
+    )
 }
 
 fn attempt_ending(

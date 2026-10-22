@@ -19,21 +19,28 @@ use rig::run::{InvalidToolCallAction, InvalidToolCallContext, InvalidToolCallRea
 
 use super::state::AttemptState;
 
-/// Stop reason once the assessment is accepted.
+/// Stop reason once the assessment or the conclusion is accepted.
 pub const ASSESSED: &str = "assessment accepted";
 
 /// Feedback for a reply that neither calls a tool nor assesses the step.
-const ASSESS_FEEDBACK: &str = "The step is not finished until you call the `assess` tool with \
+pub const ASSESS_FEEDBACK: &str = "The step is not finished until you call the `assess` tool with \
     a result for every expected result. Continue the authored action if needed, then call `assess`.";
+
+/// Feedback for a reply that neither calls a tool nor concludes an
+/// investigation.
+pub const CONCLUDE_FEEDBACK: &str = "The investigation is not finished until you call the \
+    `conclude` tool. Continue reading the code if needed, then call `conclude`.";
 
 /// Saci's controls, attached to one attempt's agent run.
 pub struct Controls {
     state: Arc<AttemptState>,
+    /// What a reply without a tool call is told.
+    feedback: &'static str,
 }
 
 impl Controls {
-    pub const fn new(state: Arc<AttemptState>) -> Self {
-        Self { state }
+    pub const fn new(state: Arc<AttemptState>, feedback: &'static str) -> Self {
+        Self { state, feedback }
     }
 }
 
@@ -66,7 +73,7 @@ impl AgentHook for Controls {
         if event.tool_result().is_none() {
             return OutcomeAction::proceed();
         }
-        if self.state.assessment().is_some() {
+        if self.state.finished() {
             return OutcomeAction::stop(ASSESSED);
         }
         self.state
@@ -83,10 +90,10 @@ impl AgentHook for Controls {
             .content
             .iter()
             .any(|content| matches!(content, AssistantContent::ToolCall(_)));
-        if calls_tool || self.state.assessment().is_some() {
+        if calls_tool || self.state.finished() {
             ModelTurnAction::continue_run()
         } else {
-            ModelTurnAction::retry_with_feedback(ASSESS_FEEDBACK)
+            ModelTurnAction::retry_with_feedback(self.feedback)
         }
     }
 

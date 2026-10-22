@@ -137,6 +137,7 @@ fn toolbox(
         http: HttpTool::new(credentials.clone(), limits.output_limit_bytes).unwrap(),
         recorder: Recorder::new(Arc::new(sink), credentials.redactor().clone()),
         environment: credentials.model_context(),
+        workspace: workspace.path().to_owned(),
     };
     (toolbox, events, workspace)
 }
