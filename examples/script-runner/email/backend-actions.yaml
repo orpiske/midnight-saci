@@ -1,0 +1,29 @@
+# Saci backend configuration for the email example: an outcome action that
+# calls the runner's send_report_email tool when a run finishes
+# (docs/actions.md). Add these entries to the backend configuration and add
+# `email-report` to the `actions` of each policy that must send email.
+#
+# `summary` starts with text because the runner rejects values that start
+# with `-`, and each summary line starts with `- [outcome]`.
+
+actions:
+  servers:
+    mailer:
+      url: http://mailer.example.com:3000/mcp
+      headers:
+        Authorization: Bearer ${RUNNER_TOKEN}
+  secrets:
+    RUNNER_TOKEN: { env: SACI_MAILER_TOKEN }
+  definitions:
+    email-report:
+      server: mailer
+      tool: send_report_email
+      on: [passed, failed, blocked, inconclusive, error, cancelled]
+      arguments:
+        run_id: "{{run.id}}"
+        title: "{{plan.title}}"
+        outcome: "{{run.outcome}}"
+        reason: "{{run.reason}}"
+        finished_at: "{{run.finished_at}}"
+        counts: "{{run.counts}}"
+        summary: "Units:\n{{summary}}"
