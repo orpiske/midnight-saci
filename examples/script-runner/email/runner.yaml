@@ -1,0 +1,65 @@
+# saci-script-runner configuration for the email example
+# (docs/script-runner.md#example-email-the-results-of-each-run).
+#
+# The runner listens on all interfaces so that the Saci backend can reach
+# it, so it requires a token. Put the script in
+# /opt/saci-script-runner/email/send-email.sh, owned by an administrator
+# and not writable by group or others.
+
+server:
+  bind: "0.0.0.0:3000"
+  auth:
+    token: { env: RUNNER_TOKEN }
+  allowed_hosts: [mailer.example.com, localhost, 127.0.0.1]
+
+execution:
+  max_concurrent: 2
+  working_directory: /var/lib/saci-mailer
+  # The runner clears the environment: set everything mutt needs here.
+  environment:
+    PATH: /usr/local/bin:/usr/bin:/bin
+    HOME: /var/lib/saci-mailer          # mutt reads ~/.muttrc (SMTP settings) from here
+    SACI_EMAIL_TO: qa-team@example.com  # the recipient; callers cannot change it
+
+tools:
+  - name: send_report_email
+    description: Email the summary of a finished Saci run
+    executable: /opt/saci-script-runner/email/send-email.sh
+    timeout_seconds: 60
+    arguments:
+      - name: run_id
+        description: The Saci run ID, for example run-0f3c9a2b7d4e4f1a9b8c7d6e5f4a3b2c
+        type: string
+        required: true
+        pattern: '^run-[0-9a-f]{32}$'
+        binding: {kind: option, flag: --run-id}
+      - name: title
+        description: The plan title, used in the subject and the body
+        type: string
+        required: true
+        binding: {kind: option, flag: --title}
+      - name: outcome
+        description: The outcome of the run, used in the subject
+        type: string
+        required: true
+        enum: [passed, failed, blocked, inconclusive, error, skipped, cancelled]
+        binding: {kind: option, flag: --outcome}
+      - name: finished_at
+        description: When the run finished, as an RFC 3339 timestamp; the subject uses its date
+        type: string
+        required: true
+        pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+        binding: {kind: option, flag: --finished-at}
+      - name: counts
+        description: Unit counts by outcome, for example 3 passed, 1 failed
+        type: string
+        required: true
+        binding: {kind: option, flag: --counts}
+      - name: reason
+        description: Why the run ended this way; may be empty
+        type: string
+        binding: {kind: option, flag: --reason}
+      - name: summary
+        description: "One line per finished unit, after a text prefix such as 'Units:'"
+        type: string
+        binding: {kind: option, flag: --summary}

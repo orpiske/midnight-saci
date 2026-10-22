@@ -88,6 +88,39 @@ mcp_servers:
       Authorization: Bearer ${SCRIPT_RUNNER_TOKEN}
 ```
 
+### Example: email the results of each run
+
+`examples/script-runner/email/` contains a complete example. When a run
+finishes, the backend calls a runner tool as an [outcome action](actions.md).
+The tool runs a script that sends a summary of the run with `mutt`. The
+script does not connect to the backend: the backend sends all values as tool
+arguments. The runner and the mail configuration can be on a different host
+than the backend.
+
+| File | Contents |
+|------|----------|
+| `send-email.sh` | The script. It requires `mutt` with a working `~/.muttrc`. |
+| `runner.yaml` | The runner configuration: the tool, its arguments, the recipient and the environment for `mutt`. |
+| `backend-actions.yaml` | The backend configuration: the action server, the token and the `email-report` action. |
+
+To use the example:
+
+1. Install `send-email.sh` as `/opt/saci-script-runner/email/send-email.sh`.
+   Only an administrator must be able to write it.
+2. Set `SACI_EMAIL_TO`, `HOME` and the host names in `runner.yaml`. Start
+   the runner with `RUNNER_TOKEN` set.
+3. Add the entries of `backend-actions.yaml` to the backend configuration,
+   set the server URL, and add `email-report` to the `actions` of a policy.
+   Start the backend with `SACI_MAILER_TOKEN` set to the same token.
+
+The subject is `Saci Report: <plan title> - <outcome> - <date>`. The body
+contains the run ID, the outcome and reason, the finish time, the number of
+units, the counts and one line for each unit.
+
+The action puts `Units:` before `{{summary}}`, because the runner rejects
+values that start with `-`. If the summary is longer than 4096 bytes, the
+runner rejects the call and the action is recorded as `error`.
+
 ## Configuration
 
 ```yaml
