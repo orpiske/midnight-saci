@@ -191,7 +191,10 @@ pairs are checked against `web/src/styles/tokens.css` by
 Every status pairs color with an icon and a label. The console works with
 the keyboard alone (tabs follow the ARIA pattern; dialogs trap focus and
 return it), announces run completion and decisions through one polite live
-region, and lays out for phone widths below 900 px.
+region, and lays out for phone widths below 900 px. A copy button shows
+"Copied" next to it for 1.5 seconds after a copy, or "Copy failed" when the
+browser does not give clipboard access (for example, on plain HTTP to a
+remote host). Screen readers announce the same text.
 
 The logo artwork the guide names is not in the repository yet
 ([artwork](../artwork/README.md)); the console uses the typographic
