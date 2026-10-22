@@ -148,6 +148,7 @@ crate.
 - [LLM providers: OpenRouter, Ollama, retries and errors](docs/llm-providers.md)
 - [Worker tools: shell, HTTP and step assessment](docs/tools.md)
 - [MCP servers](docs/mcp.md)
+- [Optional MCP script runner: scripts as MCP tools](docs/script-runner.md)
 - [Run sequencing, retries, stopping and cleanup](docs/sequencing.md)
 - [Outcome actions and approvals](docs/actions.md)
 - [Credentials, evidence redaction and isolation limits](docs/security.md)
