@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use rig::completion::Usage;
 use saci_core::assessment::Assessment;
 use saci_core::evidence::{Evidence, EvidenceRecord, RejectedCall};
+use saci_core::investigation::InvestigationReport;
 use saci_core::plan::Criterion;
 use saci_core::run::{AttemptTiming, ErrorKind, ExecutionError, UnitIdentity};
 use saci_core::spec::ExecutionLimits;
@@ -30,6 +31,7 @@ pub struct AttemptState {
     tool_calls: AtomicU32,
     tool_running: AtomicBool,
     assessment: Mutex<Option<Assessment>>,
+    conclusion: Mutex<Option<InvestigationReport>>,
     /// Why a limit or the tool infrastructure ended the attempt.
     halt: Mutex<Option<ExecutionError>>,
     problems: Mutex<Vec<String>>,
@@ -105,6 +107,7 @@ impl AttemptState {
             tool_calls: AtomicU32::new(0),
             tool_running: AtomicBool::new(false),
             assessment: Mutex::new(None),
+            conclusion: Mutex::new(None),
             halt: Mutex::new(None),
             problems: Mutex::new(Vec::new()),
             timing: Mutex::new(Clock::default()),
@@ -181,6 +184,21 @@ impl AttemptState {
     /// The accepted assessment, if any.
     pub fn assessment(&self) -> Option<Assessment> {
         lock(&self.assessment).clone()
+    }
+
+    /// Accepts the checked investigation result.
+    pub fn accept_conclusion(&self, report: InvestigationReport) {
+        *lock(&self.conclusion) = Some(report);
+    }
+
+    /// The accepted investigation result, if any.
+    pub fn conclusion(&self) -> Option<InvestigationReport> {
+        lock(&self.conclusion).clone()
+    }
+
+    /// Whether the attempt's finishing tool accepted a submission.
+    pub fn finished(&self) -> bool {
+        lock(&self.assessment).is_some() || lock(&self.conclusion).is_some()
     }
 
     /// Remembers why the latest submitted assessment was refused.

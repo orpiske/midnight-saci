@@ -697,10 +697,42 @@ export interface components {
             type: "cancellation_requested";
         } | {
             /** @constant */
+            type: "investigation_concluded";
+            report: components["schemas"]["InvestigationReport"];
+        } | {
+            /** @constant */
             type: "run_finished";
             outcome: components["schemas"]["Outcome"];
             reason: string;
         });
+        /** @description The result of an investigation run (see crates/saci-core/src/investigation.rs). */
+        InvestigationReport: {
+            /** @enum {string} */
+            outcome: "concluded" | "inconclusive" | "error" | "cancelled";
+            summary: string;
+            sources?: {
+                name: string;
+                commit: string;
+            }[];
+            hypotheses?: {
+                statement: string;
+                /** @enum {string} */
+                confidence: "high" | "medium" | "low";
+                evidence?: string[];
+                code?: {
+                    repository: string;
+                    commit: string;
+                    path: string;
+                    start_line: number;
+                    end_line: number;
+                }[];
+            }[];
+            bug?: {
+                url: string;
+                title: string;
+            };
+            no_bug_reason?: string;
+        };
         CapturedText: {
             /** @description The retained, redacted text. */
             text: string;
@@ -792,6 +824,7 @@ export interface components {
             backend_build?: components["schemas"]["BuildInfo"];
             worker_environment?: components["schemas"]["WorkerEnvironment"];
             worker_image?: components["schemas"]["WorkerImage"];
+            investigation?: components["schemas"]["InvestigationReport"];
             last_seq: number;
         };
         /** @description A Saci build (see docs/development.md#build-commit). */

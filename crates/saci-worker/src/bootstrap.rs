@@ -16,15 +16,17 @@ use std::time::{Duration, Instant};
 use saci_core::bundle::{ExpandedPlan, expand};
 use saci_core::event::EventKind;
 use saci_core::ids::RunId;
+use saci_core::investigation::InvestigationSpec;
 use saci_core::run::{ErrorKind, ExecutionError};
 use saci_core::spec::{RunSpec, SCHEMA_VERSION, Work};
 use saci_core::status::Outcome;
 use tokio_util::sync::CancellationToken;
 
-use crate::agent::{Executor, Judge, Toolbox};
+use crate::agent::{Executor, InvestigationRequest, Judge, Toolbox};
 use crate::credentials::Credentials;
 use crate::events::{EventReceiver, EventSink, Recorder};
 use crate::http::HttpTool;
+use crate::investigate;
 use crate::llm::LlmConnection;
 use crate::mcp;
 use crate::sequence::{self, RunEnding, RunPlan};
@@ -41,8 +43,8 @@ pub const WORKSPACE_ENV: &str = "SACI_WORKSPACE";
 pub struct Prepared {
     /// The specification.
     pub spec: RunSpec,
-    /// Its expanded plan.
-    pub plan: ExpandedPlan,
+    /// What it does.
+    pub job: Job,
     credentials: Credentials,
     llm: LlmConnection,
     judge: Option<Judge>,
@@ -62,14 +64,27 @@ fn invalid(message: impl Into<String>) -> ExecutionError {
     ExecutionError::new(ErrorKind::InvalidSpecification, message)
 }
 
-/// The specification's plan, expanded. Investigations are not supported yet
-/// (#110).
-fn expand_plan(spec: &RunSpec) -> Result<ExpandedPlan, ExecutionError> {
+/// What a validated run does.
+#[derive(Debug)]
+pub enum Job {
+    /// Execute the expanded plan.
+    Plan(Box<ExpandedPlan>),
+    /// Investigate a failure (`docs/plans/investigations.md`).
+    Investigation(Box<InvestigationSpec>),
+}
+
+/// The specification's work, validated.
+fn job(spec: &RunSpec) -> Result<Job, ExecutionError> {
     match spec.work().map_err(invalid)? {
-        Work::Plan(bundle) => {
-            expand(bundle).map_err(|error| invalid(format!("invalid plan:\n{error}")))
+        Work::Plan(bundle) => expand(bundle)
+            .map(|plan| Job::Plan(Box::new(plan)))
+            .map_err(|error| invalid(format!("invalid plan:\n{error}"))),
+        Work::Investigation(investigation) if investigation.repositories.is_empty() => {
+            Err(invalid("the investigation names no repository to clone"))
         }
-        Work::Investigation(_) => Err(invalid("this worker does not run investigations")),
+        Work::Investigation(investigation) => {
+            Ok(Job::Investigation(Box::new(investigation.clone())))
+        }
     }
 }
 
@@ -100,7 +115,7 @@ pub fn prepare(
             spec.run_id
         )));
     }
-    let plan = expand_plan(&spec)?;
+    let job = job(&spec)?;
     let mut credentials = Credentials::project(&spec.environment, &spec.llm, process.clone())
         .map_err(|error| invalid(error.message))?;
     let llm = LlmConnection::new(&spec.llm, &spec.limits, |name| process.get(name).cloned())
@@ -109,7 +124,7 @@ pub fn prepare(
     check_workspace(workspace)?;
     Ok(Box::new(Prepared {
         spec,
-        plan,
+        job,
         credentials,
         llm,
         judge,
@@ -188,7 +203,7 @@ pub fn reject(run_id: RunId, error: &ExecutionError) -> EventReceiver {
 pub fn executor(prepared: Box<Prepared>) -> Result<(Box<Running>, EventReceiver), ExecutionError> {
     let Prepared {
         spec,
-        plan,
+        job,
         credentials,
         llm,
         judge,
@@ -208,7 +223,7 @@ pub fn executor(prepared: Box<Prepared>) -> Result<(Box<Running>, EventReceiver)
     Ok((
         Box::new(Running {
             spec,
-            plan,
+            job,
             credentials,
             executor,
         }),
@@ -223,7 +238,7 @@ fn toolbox(
     sink: EventSink,
 ) -> Result<Toolbox, ExecutionError> {
     let shell = ShellSession::new(ShellConfig {
-        workspace,
+        workspace: workspace.clone(),
         environment: credentials.shell_environment().clone(),
         output_limit,
         redactor: credentials.redactor().clone(),
@@ -233,13 +248,14 @@ fn toolbox(
         http: HttpTool::new(credentials.clone(), output_limit)?,
         recorder: Recorder::new(Arc::new(sink), credentials.redactor().clone()),
         environment: credentials.model_context(),
+        workspace,
     })
 }
 
 /// A run ready to execute.
 pub struct Running {
     spec: RunSpec,
-    plan: ExpandedPlan,
+    job: Job,
     credentials: Credentials,
     executor: Executor,
 }
@@ -259,7 +275,7 @@ impl std::fmt::Debug for Running {
 pub async fn execute(running: Box<Running>, cancel: &CancellationToken) -> RunEnding {
     let Running {
         spec,
-        plan,
+        job,
         credentials,
         mut executor,
     } = *running;
@@ -272,16 +288,38 @@ pub async fn execute(running: Box<Running>, cancel: &CancellationToken) -> RunEn
         executor.close().await;
         return ending;
     }
-    let run_plan = RunPlan {
-        plan: &plan,
-        policy: &spec.policy,
-        step_timeout: Duration::from_secs(spec.limits.step_timeout_secs),
-        deadline,
-        model: &spec.llm.model,
-    };
-    let ending = Box::pin(sequence::run(&executor, run_plan, cancel)).await;
+    let ending = Box::pin(run_job(&executor, &spec, &job, deadline, cancel)).await;
     executor.close().await;
     ending
+}
+
+async fn run_job(
+    executor: &Executor,
+    spec: &RunSpec,
+    job: &Job,
+    deadline: Instant,
+    cancel: &CancellationToken,
+) -> RunEnding {
+    match job {
+        Job::Plan(plan) => {
+            let run_plan = RunPlan {
+                plan,
+                policy: &spec.policy,
+                step_timeout: Duration::from_secs(spec.limits.step_timeout_secs),
+                deadline,
+                model: &spec.llm.model,
+            };
+            Box::pin(sequence::run(executor, run_plan, cancel)).await
+        }
+        Job::Investigation(investigation) => {
+            let request = InvestigationRequest {
+                spec: investigation,
+                deadline,
+                cancel,
+            };
+            Box::pin(investigate::run(executor, request, &spec.llm.model)).await
+        }
+    }
 }
 
 async fn connect_mcp(

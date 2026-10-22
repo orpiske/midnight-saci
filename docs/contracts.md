@@ -79,7 +79,8 @@ outcome; earlier attempts stay in the report.
 
 A worker reports progress as ordered `RunEvent`s (`run_started`,
 `attempt_started`, `observation`, `attempt_finished`, `unit_finished`,
-`unit_skipped`, `cancellation_requested`, `run_finished`). The backend folds
+`unit_skipped`, `cancellation_requested`, `investigation_concluded`,
+`run_finished`). The backend folds
 them into a `RunReport` with `RunReport::apply`, which rejects events for
 another run, events out of sequence (including retransmissions), events
 after `run_finished`, and unit events that do not match the unit's state:
@@ -118,11 +119,12 @@ A run specification contains exactly one of these fields:
 A test run has the same format as before investigations existed, so the
 backend reads stored runs without change. A worker rejects a
 specification with both fields or with neither. A worker that does not
-run investigations rejects an `investigation`.
+run investigations rejects an `investigation`. The backend does not start
+investigations yet ([#111](https://github.com/orpiske/midnight-saci/issues/111)).
 
 ## Investigations
 
-Investigations are not run yet; see the [design](plans/investigations.md).
+The [design](plans/investigations.md) describes investigations.
 These types are in `saci_core::investigation`.
 
 - `InvestigationRequest`: what a client sends. `run_id`, an optional
@@ -147,6 +149,20 @@ clones:
   path, and lines from 1 with `end_line` at or after `start_line`;
 - a `concluded` report needs a hypothesis with a code location, and a
   `bug` or a `no_bug_reason`.
+
+An investigation run has one unit, `investigation`, with one attempt (see
+[investigation mode](worker.md#investigation-mode)). These rules apply to
+the `investigation_concluded` event, which carries the `report`:
+
+- it comes during the attempt, before `attempt_finished`, and only once;
+- the report passes `InvestigationReport::check`, its `outcome` is
+  `concluded` or `inconclusive`, and each evidence ID that it cites is
+  recorded in this run;
+- the attempt outcome is `passed` for `concluded` and `inconclusive` for
+  `inconclusive`. Without a conclusion, the attempt can only end `error`
+  or `cancelled`.
+
+The report keeps the result as its `investigation` field.
 
 ## Secrets
 

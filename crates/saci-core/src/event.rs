@@ -6,6 +6,7 @@ use time::OffsetDateTime;
 use crate::assessment::Assessment;
 use crate::evidence::Evidence;
 use crate::ids::{RunId, UnitKey};
+use crate::investigation::InvestigationReport;
 use crate::plan::SourceLocation;
 use crate::run::{AttemptTiming, ExecutionError, WorkerEnvironment};
 use crate::status::Outcome;
@@ -80,6 +81,12 @@ pub enum EventKind {
     },
     /// The worker received a cancellation request.
     CancellationRequested,
+    /// An investigation's agent concluded. Sent once, inside the
+    /// investigation unit's attempt, before `attempt_finished`.
+    InvestigationConcluded {
+        /// The checked result.
+        report: Box<InvestigationReport>,
+    },
     /// The run finished. Always the last event.
     RunFinished {
         /// Summary outcome.
