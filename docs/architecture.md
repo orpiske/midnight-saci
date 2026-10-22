@@ -70,3 +70,4 @@ API ([CLI](cli.md)). Runs survive a backend restart
 | `saci-worker` | The worker: the agent, its tools and reporting to the backend. |
 | `saci-mcp` | MCP client code shared by the worker (step tools) and the backend (actions). |
 | `saci-testkit` | Test fixtures: fake model, target, MCP and Kubernetes servers. |
+| `saci-script-runner` | Optional, separate MCP server that exposes configured scripts as tools ([script runner](script-runner.md)). |

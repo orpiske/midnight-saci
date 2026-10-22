@@ -6159,6 +6159,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "saci-script-runner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "clap",
+ "nix",
+ "regex",
+ "reqwest 0.13.5",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "yaml_serde",
+]
+
+[[package]]
 name = "saci-testkit"
 version = "0.1.0"
 dependencies = [

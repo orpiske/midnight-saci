@@ -1,0 +1,57 @@
+# Example configuration for saci-script-runner (docs/script-runner.md).
+# The scripts are in scripts/ next to this file. The container image
+# (deploy/script-runner/Containerfile) installs them in
+# /opt/saci-script-runner/scripts.
+
+server:
+  bind: "127.0.0.1:3000"
+  endpoint: /mcp
+
+execution:
+  max_concurrent: 4
+  default_timeout_seconds: 30
+  max_output_bytes: 65536
+  working_directory: /tmp
+  environment:
+    PATH: /usr/local/bin:/usr/bin:/bin
+    LANG: C.UTF-8
+
+tools:
+  - name: health_check
+    description: Report the host name, the kernel and the health status
+    executable: /opt/saci-script-runner/scripts/health.sh
+    read_only: true
+
+  - name: disk_usage
+    description: Show the disk usage of one mount point
+    executable: /opt/saci-script-runner/scripts/disk-usage.sh
+    read_only: true
+    timeout_seconds: 10
+    arguments:
+      - name: mount
+        description: The mount point
+        type: string
+        required: true
+        enum: ["/", /tmp]
+        binding:
+          kind: positional
+
+  - name: greet
+    description: Print a greeting for a name
+    executable: /opt/saci-script-runner/scripts/greet.sh
+    read_only: true
+    arguments:
+      - name: name
+        description: The name to greet
+        type: string
+        required: true
+        pattern: '^[A-Za-z][A-Za-z .-]{0,63}$'
+        binding:
+          kind: option
+          flag: --name
+      - name: language
+        type: string
+        enum: [en, pt]
+        binding:
+          kind: option
+          flag: --language

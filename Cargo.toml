@@ -7,6 +7,7 @@ members = [
     "crates/saci-backend",
     "crates/saci-cli",
     "crates/saci-testkit",
+    "crates/saci-script-runner",
 ]
 
 [workspace.package]
@@ -25,6 +26,7 @@ http = "1.4"
 jsonschema = { version = "0.59", default-features = false }
 # MCP SDK; must stay on the major version rig-rmcp uses (see docs/mcp.md).
 rmcp = { version = "2.2", default-features = false }
+regex = "1"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "http2", "system-proxy"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
 nix = { version = "0.31", default-features = false, features = ["signal", "process"] }

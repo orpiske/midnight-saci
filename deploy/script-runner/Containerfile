@@ -1,0 +1,36 @@
+# Optional Saci script runner image (docs/script-runner.md). Build it from
+# the repository root:
+#
+#   podman build -f deploy/script-runner/Containerfile -t localhost/saci-script-runner:latest .
+#
+# The image contains the example scripts and configuration. Replace them
+# with your own: mount a configuration at /etc/saci-script-runner/config.yaml
+# and your scripts read-only. The runner runs as a non-root user that cannot
+# write the scripts.
+
+ARG RUST_IMAGE=docker.io/library/rust:1.96-slim-trixie
+ARG BASE_IMAGE=registry.fedoraproject.org/fedora:44
+
+FROM ${RUST_IMAGE} AS build
+WORKDIR /src
+COPY . .
+RUN cargo build --locked --release --package saci-script-runner --bin saci-script-runner \
+    && install -D -t /out target/release/saci-script-runner
+
+FROM ${BASE_IMAGE}
+COPY --from=build /out/saci-script-runner /usr/local/bin/saci-script-runner
+COPY examples/script-runner/scripts/ /opt/saci-script-runner/scripts/
+COPY examples/script-runner/config.yaml /etc/saci-script-runner/config.yaml
+# Scripts must not be writable by group or others (docs/script-runner.md).
+RUN chmod 0755 /opt/saci-script-runner/scripts /opt/saci-script-runner/scripts/* \
+    && chmod 0644 /etc/saci-script-runner/config.yaml
+USER 10001:0
+WORKDIR /tmp
+EXPOSE 3000
+ENTRYPOINT ["/usr/local/bin/saci-script-runner"]
+CMD ["--config", "/etc/saci-script-runner/config.yaml"]
+
+LABEL org.opencontainers.image.title="saci-script-runner" \
+      org.opencontainers.image.description="Saci: optional MCP script runner" \
+      org.opencontainers.image.source="https://github.com/orpiske/midnight-saci" \
+      org.opencontainers.image.licenses="Apache-2.0"

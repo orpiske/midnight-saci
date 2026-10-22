@@ -1,4 +1,4 @@
-.PHONY: check fmt fmt-check clippy test image image-check web web-check console install uninstall
+.PHONY: check fmt fmt-check clippy test image image-check script-runner-image web web-check console install uninstall
 
 ## Run every quality gate that CI runs.
 check: fmt-check clippy test
@@ -28,6 +28,12 @@ image:
 image-check: image
 	SACI_WORKER_IMAGE=$(IMAGE) SACI_CONTAINER_RUNTIME=$(RUNTIME) cargo test --locked --package saci-worker --test worker_bootstrap
 	SACI_WORKER_IMAGE=$(IMAGE) SACI_CONTAINER_RUNTIME=$(RUNTIME) cargo test --locked --package saci-backend --test container_launcher
+
+SCRIPT_RUNNER_IMAGE ?= localhost/saci-script-runner:latest
+
+## Build the optional script runner image (docs/script-runner.md).
+script-runner-image:
+	$(RUNTIME) build -f deploy/script-runner/Containerfile -t $(SCRIPT_RUNNER_IMAGE) .
 
 ## Build the web console into web/dist.
 web:

@@ -62,10 +62,12 @@ podman build -f Containerfile --build-arg SACI_BUILD_COMMIT="$(git rev-parse HEA
 | `saci-testkit` | library (test only) | Controlled fixtures: a scripted OpenAI-compatible model server, a fake MCP server, a fake orders service and a fake Kubernetes API. |
 | `web/` | TypeScript (React) | The [web console](web-ui.md) served by the backend at `/ui/`, embedded in every backend build once `web/dist` is built. Talks to the backend only through the REST API. |
 | `saci-cli` | `saci` binary | Offline authoring, validation and agent skills (`saci new test-plan`, `saci check`, `saci skill`), backend startup, and run submission, progress, report and cancellation commands. |
+| `saci-script-runner` | library + `saci-script-runner` binary (optional) | The [MCP script runner](script-runner.md): configured scripts as MCP tools over Streamable HTTP. No other crate depends on it, and no deployment starts it by default. |
 
 Dependencies only point "down": `saci-cli` → `saci-backend`/`saci-core`,
 `saci-backend` → `saci-mcp`/`saci-core`, `saci-worker` → `saci-mcp`/`saci-core`,
-`saci-mcp` → `saci-core`. The worker and the
+`saci-mcp` → `saci-core`. `saci-script-runner` depends on no other Saci
+crate. The worker and the
 backend never link each other; they communicate through the REST contract in
 `saci-core`.
 
