@@ -198,10 +198,11 @@ fn configured(yaml_secrets: &str) -> (Config, RunSpec) {
         schema_version: saci_core::spec::SCHEMA_VERSION,
         run_id: RunId::parse("run-abc123").unwrap(),
         created_at: time::OffsetDateTime::UNIX_EPOCH,
-        bundle: saci_core::plan::PlanBundle {
+        bundle: Some(saci_core::plan::PlanBundle {
             entry: "plan.md".into(),
             documents: std::collections::BTreeMap::new(),
-        },
+        }),
+        investigation: None,
         environment,
         policy: config.policy("default").unwrap(),
         limits,

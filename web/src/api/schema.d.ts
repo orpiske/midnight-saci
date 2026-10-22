@@ -160,7 +160,8 @@ export interface paths {
          * @description The submitted bundle and its units in execution order, expanded by the backend's
          *     parser: authored action, criteria, verification, source locations and the
          *     run-unique keys reports and events use. It is read from the run's retained input,
-         *     never from changed files or the current configuration.
+         *     never from changed files or the current configuration. A run without a plan,
+         *     such as an investigation, gives `404`.
          */
         get: operations["getRunPlan"];
         put?: never;
@@ -885,7 +886,12 @@ export interface components {
             run_id: string;
             /** Format: date-time */
             created_at: string;
-            bundle: components["schemas"]["PlanBundle"];
+            /** @description The plan of a test run. Exactly one of `bundle` and `investigation` is set. */
+            bundle?: components["schemas"]["PlanBundle"];
+            /** @description The failure to investigate, for an investigation run (see crates/saci-core/src/investigation.rs). */
+            investigation?: {
+                [key: string]: unknown;
+            };
             environment: {
                 [key: string]: unknown;
             };

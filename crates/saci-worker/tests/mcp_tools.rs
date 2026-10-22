@@ -63,10 +63,11 @@ fn spec(model_url: String, command: &str) -> RunSpec {
         schema_version: SCHEMA_VERSION,
         run_id: RunId::generate(),
         created_at: time::OffsetDateTime::now_utc(),
-        bundle: PlanBundle {
+        bundle: Some(PlanBundle {
             entry: "plan.md".into(),
             documents: BTreeMap::from([("plan.md".to_owned(), PLAN.to_owned())]),
-        },
+        }),
+        investigation: None,
         environment,
         policy: RunPolicy::default(),
         limits: ExecutionLimits::default(),
@@ -112,7 +113,7 @@ async fn run(spec: &RunSpec) -> (Output, Vec<RunEvent>) {
 }
 
 fn report(spec: &RunSpec, events: &[RunEvent]) -> RunReport {
-    let plan = saci_core::bundle::expand(&spec.bundle).unwrap();
+    let plan = saci_core::bundle::expand(spec.bundle.as_ref().unwrap()).unwrap();
     let header = ReportHeader {
         run_id: spec.run_id.clone(),
         plan_title: plan.plan.title.clone(),

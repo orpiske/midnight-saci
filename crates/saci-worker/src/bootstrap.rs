@@ -17,7 +17,7 @@ use saci_core::bundle::{ExpandedPlan, expand};
 use saci_core::event::EventKind;
 use saci_core::ids::RunId;
 use saci_core::run::{ErrorKind, ExecutionError};
-use saci_core::spec::{RunSpec, SCHEMA_VERSION};
+use saci_core::spec::{RunSpec, SCHEMA_VERSION, Work};
 use saci_core::status::Outcome;
 use tokio_util::sync::CancellationToken;
 
@@ -62,6 +62,17 @@ fn invalid(message: impl Into<String>) -> ExecutionError {
     ExecutionError::new(ErrorKind::InvalidSpecification, message)
 }
 
+/// The specification's plan, expanded. Investigations are not supported yet
+/// (#110).
+fn expand_plan(spec: &RunSpec) -> Result<ExpandedPlan, ExecutionError> {
+    match spec.work().map_err(invalid)? {
+        Work::Plan(bundle) => {
+            expand(bundle).map_err(|error| invalid(format!("invalid plan:\n{error}")))
+        }
+        Work::Investigation(_) => Err(invalid("this worker does not run investigations")),
+    }
+}
+
 /// Validates `spec` for this worker.
 ///
 /// `expected` is the run the launcher assigned, `process` the worker's
@@ -89,7 +100,7 @@ pub fn prepare(
             spec.run_id
         )));
     }
-    let plan = expand(&spec.bundle).map_err(|error| invalid(format!("invalid plan:\n{error}")))?;
+    let plan = expand_plan(&spec)?;
     let mut credentials = Credentials::project(&spec.environment, &spec.llm, process.clone())
         .map_err(|error| invalid(error.message))?;
     let llm = LlmConnection::new(&spec.llm, &spec.limits, |name| process.get(name).cloned())

@@ -108,6 +108,46 @@ Examples of complete event streams live in
 `crates/saci-core/tests/fixtures/runs/` (success, failure with stop, and a
 retried-then-cancelled run).
 
+## Work of a run
+
+A run specification contains exactly one of these fields:
+
+- `bundle`: the plan documents of a test run;
+- `investigation`: the failure to investigate, for an investigation run.
+
+A test run has the same format as before investigations existed, so the
+backend reads stored runs without change. A worker rejects a
+specification with both fields or with neither. A worker that does not
+run investigations rejects an `investigation`.
+
+## Investigations
+
+Investigations are not run yet; see the [design](plans/investigations.md).
+These types are in `saci_core::investigation`.
+
+- `InvestigationRequest`: what a client sends. `run_id`, an optional
+  `unit` (the first unsuccessful unit when omitted) and optional `sources`
+  (configured repository names, each with an optional `ref`).
+- `InvestigationSpec`: what the worker receives. The parent run, the plan
+  title, the failed unit's report (identity, expected results, outcome and
+  attempts), the evidence that the attempts cite, the repositories with
+  their refs, the `prepare` commands and the instructions.
+- `InvestigationReport`: what the worker produces. `outcome` is
+  `concluded`, `inconclusive`, `error` or `cancelled`. It also contains
+  a `summary`, the cloned `sources` with their commit SHAs, the
+  `hypotheses`, and the `bug` or a `no_bug_reason`. Each hypothesis has a
+  `statement`, a `confidence` (`high`, `medium` or `low`), `evidence` IDs
+  and `code` locations (`repository`, `commit`, `path`, `start_line`,
+  `end_line`).
+
+`InvestigationReport::check` applies the rules that do not need the
+clones:
+
+- a code location must name a cloned repository and commit, a relative
+  path, and lines from 1 with `end_line` at or after `start_line`;
+- a `concluded` report needs a hypothesis with a code location, and a
+  `bug` or a `no_bug_reason`.
+
 ## Secrets
 
 Public types hold secret *references* only: `{ "env": "NAME" }` for a backend

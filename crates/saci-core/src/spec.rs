@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
 use crate::ids::RunId;
+use crate::investigation::InvestigationSpec;
 use crate::plan::PlanBundle;
 use crate::status::Outcome;
 
@@ -27,8 +28,14 @@ pub struct RunSpec {
     /// When the backend accepted the run.
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
-    /// The validated plan documents.
-    pub bundle: PlanBundle,
+    /// The validated plan documents of a test run. Exactly one of `bundle`
+    /// and `investigation` is set; see [`RunSpec::work`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bundle: Option<PlanBundle>,
+    /// The failure to investigate, for an investigation run
+    /// (`docs/plans/investigations.md`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub investigation: Option<Box<InvestigationSpec>>,
     /// The selected target environment (secret references only).
     pub environment: EnvironmentSpec,
     /// How to respond to outcomes.
@@ -40,6 +47,31 @@ pub struct RunSpec {
     /// The optional System One judge.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub judge: Option<Box<JudgeSettings>>,
+}
+
+/// What a run does: execute a test plan or investigate a failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Work<'a> {
+    /// Execute the plan.
+    Plan(&'a PlanBundle),
+    /// Investigate the failure.
+    Investigation(&'a InvestigationSpec),
+}
+
+impl RunSpec {
+    /// The run's work.
+    ///
+    /// # Errors
+    ///
+    /// Fails unless exactly one of `bundle` and `investigation` is set.
+    pub fn work(&self) -> Result<Work<'_>, &'static str> {
+        match (&self.bundle, &self.investigation) {
+            (Some(bundle), None) => Ok(Work::Plan(bundle)),
+            (None, Some(investigation)) => Ok(Work::Investigation(investigation)),
+            (None, None) => Err("the specification has neither a plan nor an investigation"),
+            (Some(_), Some(_)) => Err("the specification has both a plan and an investigation"),
+        }
+    }
 }
 
 /// Where a secret value comes from. Only the reference is ever stored.
@@ -298,5 +330,45 @@ mod tests {
         let kube: SecretRef = serde_json::from_str(r#"{"secret":"s","key":"k"}"#).unwrap();
         assert!(matches!(kube, SecretRef::Kubernetes { .. }));
         assert!(serde_json::from_str::<SecretRef>(r#"{"value":"hunter2"}"#).is_err());
+    }
+
+    /// A plan run as backends store it: `bundle` only.
+    const PLAN_RUN: &str = r##"{"schema_version":1,"run_id":"run-1a",
+        "created_at":"2026-10-22T10:00:00Z",
+        "bundle":{"entry":"plan.md","documents":{"plan.md":"# Test Plan: X"}},
+        "environment":{"name":"local"},"policy":{},
+        "limits":{"run_timeout_secs":60,"step_timeout_secs":60,"operation_timeout_secs":60,
+          "model_request_timeout_secs":60,"model_request_retries":0,"model_calls_per_step":5,
+          "tool_calls_per_step":5,"output_limit_bytes":1024},
+        "llm":{"base_url":"http://model/v1","model":"m"}}"##;
+
+    const INVESTIGATION: &str = r#"{"parent_run":"run-2b","plan_title":"Orders",
+        "unit":{"key":"1.2","id":"1.2","kind":"step","title":"Check orders","phase":"Smoke",
+          "location":{"document":"plan.md","line":9},"cleanup":false,"outcome":"failed"},
+        "repositories":[{"name":"orders","url":"https://example.com/o.git","ref":"v2"}]}"#;
+
+    #[test]
+    fn stored_plan_runs_keep_their_format() {
+        let spec: RunSpec = serde_json::from_str(PLAN_RUN).unwrap();
+        assert!(matches!(spec.work(), Ok(Work::Plan(bundle)) if bundle.entry == "plan.md"));
+        let json = serde_json::to_value(&spec).unwrap();
+        assert!(json.get("investigation").is_none(), "{json}");
+    }
+
+    #[test]
+    fn a_run_does_exactly_one_kind_of_work() {
+        let mut spec: RunSpec = serde_json::from_str(PLAN_RUN).unwrap();
+        spec.investigation = Some(Box::new(serde_json::from_str(INVESTIGATION).unwrap()));
+        assert!(spec.work().is_err());
+        spec.bundle = None;
+        let Ok(Work::Investigation(investigation)) = spec.work() else {
+            panic!("expected an investigation");
+        };
+        assert_eq!(investigation.repositories[0].git_ref, "v2");
+        let round_trip: RunSpec =
+            serde_json::from_value(serde_json::to_value(&spec).unwrap()).unwrap();
+        assert_eq!(round_trip, spec);
+        spec.investigation = None;
+        assert!(spec.work().is_err());
     }
 }

@@ -194,3 +194,43 @@ when not configured.
 Outcome actions: MCP tool calls the backend makes after a run's report is
 final, with `servers`, `secrets` and `definitions`. Workers never receive
 them. See [outcome actions](actions.md).
+
+## `investigations`
+
+Failure investigations: an agent finds the probable cause of a failed
+unit in the source code and reports a bug. The section is optional. Without
+it, the backend runs no investigations. The backend and the worker do not
+run investigations yet; see the [design](plans/investigations.md) and
+[#107](https://github.com/orpiske/midnight-saci/issues/107).
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `environment` | required | An entry of `environments`. The agent gets its parameters, secrets and MCP servers, for example a Git token and a bug tracker server. |
+| `repositories` | required | The repositories a request can select. Each has a `name` (letters, digits, `-` and `_`, unique), a clone `url`, a default `ref` (branch, tag or commit) and an optional `description`. A URL or ref must not contain spaces or start with `-`. |
+| `image` | `worker.image` | The worker image for investigations, for example an image that adds a code map tool. |
+| `prepare` | `[]` | Commands that the worker runs in each clone before the first model request. Their output is evidence in the first prompt. |
+| `instructions` | none | Extra guidance for the agent, for example how to use a code map tool and where to file bugs. |
+| `limits` | the environment's | Limits applied over the environment's `limits`. |
+
+A `prepare` command can use these variables: `{{run.id}}`, `{{plan.title}}`,
+`{{unit}}`, `{{failure.title}}` and `{{failure.reason}}`. The worker
+replaces each variable with a reference to an environment variable, for
+example `${SACI_FAILURE_TITLE}`. The value is never part of the command
+text, so it cannot change the command. Put quotes around a variable where
+the shell must not split the value. An unknown variable is a configuration
+error.
+
+```yaml
+investigations:
+  environment: investigator
+  repositories:
+    - name: orders-service
+      url: https://github.com/example/orders-service.git
+      ref: main
+      description: The orders REST service.
+  prepare:
+    - ripwire . --for="{{failure.title}}: {{failure.reason}}" --token-budget=4000
+  limits:
+    run_timeout_secs: 1800
+    output_limit_bytes: 8192
+```

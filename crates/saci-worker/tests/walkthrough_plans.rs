@@ -65,10 +65,11 @@ async fn spec(plan: &str, service: &str) -> RunSpec {
         schema_version: SCHEMA_VERSION,
         run_id: RunId::generate(),
         created_at: time::OffsetDateTime::now_utc(),
-        bundle: PlanBundle {
+        bundle: Some(PlanBundle {
             entry: "plan.md".into(),
             documents: BTreeMap::from([("plan.md".to_owned(), text)]),
-        },
+        }),
+        investigation: None,
         environment: EnvironmentSpec {
             name: "local".into(),
             parameters: BTreeMap::from([("SERVICE_URL".into(), service.into())]),
@@ -110,7 +111,7 @@ async fn events(spec: &RunSpec) -> Vec<RunEvent> {
 /// Each unit's outcome when the plan at `plan` runs against `service`.
 async fn outcomes(plan: &str, service: &str) -> Vec<Option<Outcome>> {
     let spec = spec(plan, service).await;
-    let expanded = saci_core::bundle::expand(&spec.bundle).unwrap();
+    let expanded = saci_core::bundle::expand(spec.bundle.as_ref().unwrap()).unwrap();
     let header = ReportHeader {
         run_id: spec.run_id.clone(),
         plan_title: expanded.plan.title.clone(),
