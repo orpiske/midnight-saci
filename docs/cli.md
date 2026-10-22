@@ -15,7 +15,8 @@ make install BINDIR=$HOME/bin     # installs in a directory that you select
 make install PREFIX=/opt/saci     # installs in /opt/saci/bin
 ```
 
-The target installs `saci`, `saci-backend` and `saci-worker`. It uses only
+The target installs `saci`, `saci-backend`, `saci-worker` and
+`saci-script-runner` ([MCP script runner](script-runner.md)). It uses only
 `cargo` and the standard `install` tool, and works on Linux and macOS.
 
 Do not run `sudo make install`. The target builds as the current user. If

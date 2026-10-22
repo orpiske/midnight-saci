@@ -1,7 +1,7 @@
 # Example configuration for saci-script-runner (docs/script-runner.md).
-# The scripts are in scripts/ next to this file. The container image
-# (deploy/script-runner/Containerfile) installs them in
-# /opt/saci-script-runner/scripts.
+# The scripts are in scripts/ next to this file. The paths below expect
+# them in /opt/saci-script-runner/scripts; docs/script-runner.md shows how
+# to change the paths to run the example from a checkout.
 
 server:
   bind: "127.0.0.1:3000"

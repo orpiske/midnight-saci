@@ -1,4 +1,4 @@
-.PHONY: check fmt fmt-check clippy test image image-check script-runner-image web web-check console install uninstall
+.PHONY: check fmt fmt-check clippy test image image-check web web-check console install uninstall
 
 ## Run every quality gate that CI runs.
 check: fmt-check clippy test
@@ -29,12 +29,6 @@ image-check: image
 	SACI_WORKER_IMAGE=$(IMAGE) SACI_CONTAINER_RUNTIME=$(RUNTIME) cargo test --locked --package saci-worker --test worker_bootstrap
 	SACI_WORKER_IMAGE=$(IMAGE) SACI_CONTAINER_RUNTIME=$(RUNTIME) cargo test --locked --package saci-backend --test container_launcher
 
-SCRIPT_RUNNER_IMAGE ?= localhost/saci-script-runner:latest
-
-## Build the optional script runner image (docs/script-runner.md).
-script-runner-image:
-	$(RUNTIME) build -f deploy/script-runner/Containerfile -t $(SCRIPT_RUNNER_IMAGE) .
-
 ## Build the web console into web/dist.
 web:
 	cd web && npm ci && npm run build
@@ -53,7 +47,7 @@ console: web
 
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
-BINARIES := saci saci-backend saci-worker
+BINARIES := saci saci-backend saci-worker saci-script-runner
 # Runs the commands that write to $(DESTDIR)$(BINDIR). It is sudo when the
 # nearest existing directory on that path is not writable, else empty.
 # Override it, for example SUDO= or SUDO=doas.
@@ -65,7 +59,8 @@ SUDO ?= $(shell d="$(DESTDIR)$(BINDIR)"; while [ ! -d "$$d" ]; do d=$$(dirname "
 ## to embed the web console.
 install:
 	cargo build --locked --release --package saci-cli --bin saci \
-		--package saci-backend --bin saci-backend --package saci-worker --bin saci-worker
+		--package saci-backend --bin saci-backend --package saci-worker --bin saci-worker \
+		--package saci-script-runner --bin saci-script-runner
 	$(SUDO) install -d "$(DESTDIR)$(BINDIR)"
 	for bin in $(BINARIES); do $(SUDO) install -m 0755 "target/release/$$bin" "$(DESTDIR)$(BINDIR)/$$bin"; done
 

@@ -116,8 +116,10 @@ commits, the console shows a warning.
 copies it into `registry.fedoraproject.org/fedora:44` with the utilities test
 plans commonly use: `bash`, `curl`, `jq`, `git`, `ssh`, `ps`, `ip`, `dig` and
 `nc`, plus the CA certificates the HTTP tool and the model connection need. The image
-also contains `saci-backend` and `saci`, so the Helm chart runs the backend
-from the same image with `saci-backend --config ...` ([Helm](helm.md)).
+also contains `saci-backend`, `saci` and `saci-script-runner`. Thus the Helm
+chart runs the backend from the same image with `saci-backend --config ...`
+([Helm](helm.md)), and the [MCP script runner](script-runner.md#container)
+can run from it too.
 The entry point stays `saci-worker`.
 
 ```sh
