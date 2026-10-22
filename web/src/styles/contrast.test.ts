@@ -78,6 +78,10 @@ describe("design token contrast", () => {
     ["ms-glow", "ms-raised"],
     ["ms-glow", "ms-code-bg"],
     ["ms-fail", "ms-surface"],
+    // Copy button result text (components/Copy.tsx).
+    ["ms-pass", "ms-surface"],
+    ["ms-pass", "ms-raised"],
+    ["ms-fail", "ms-raised"],
   ])("marker text %s on %s", (text, surface) => {
     expect(contrast(rgb(token(text)), rgb(token(surface)))).toBeGreaterThanOrEqual(TEXT);
   });
