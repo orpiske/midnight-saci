@@ -56,19 +56,26 @@ scripts and waits until they are reaped.
 Connect an MCP client to `http://127.0.0.1:3000/mcp`. With `curl`:
 
 ```sh
-H='-H content-type:application/json -H accept:application/json,text/event-stream'
-curl -s -D headers.txt $H http://127.0.0.1:3000/mcp -d \
-  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
+# Send one JSON-RPC message. The commands work in bash and zsh.
+mcp() {
+  curl -s -D headers.txt "$@" \
+    -H 'content-type: application/json' \
+    -H 'accept: application/json, text/event-stream' \
+    http://127.0.0.1:3000/mcp -d "$BODY"
+}
+BODY='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}' mcp
 SID=$(grep -i mcp-session-id headers.txt | cut -d' ' -f2 | tr -d '\r')
-S="-H mcp-session-id:$SID -H mcp-protocol-version:2025-06-18"
-curl -s $H $S http://127.0.0.1:3000/mcp -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
-curl -s $H $S http://127.0.0.1:3000/mcp -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
-curl -s $H $S http://127.0.0.1:3000/mcp -d \
-  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"greet","arguments":{"name":"Ada","language":"pt"}}}'
+session() { mcp -H "mcp-session-id: $SID" -H 'mcp-protocol-version: 2025-06-18'; }
+BODY='{"jsonrpc":"2.0","method":"notifications/initialized"}' session
+BODY='{"jsonrpc":"2.0","id":2,"method":"tools/list"}' session
+BODY='{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"greet","arguments":{"name":"Ada","language":"pt"}}}' session
 ```
 
 The last call runs `greet.sh --name Ada --language pt` and returns
 `"stdout":"Olá, Ada!\n"`.
+
+If `server.auth.token` is set, add `-H "authorization: Bearer $TOKEN"` to
+the `curl` command in `mcp`.
 
 To use the runner from Saci test plans, add it as an HTTP server in the
 backend configuration ([MCP servers](mcp.md)):
@@ -132,9 +139,9 @@ All sections reject unknown fields.
 
 | Setting | Default | Meaning |
 |---------|---------|---------|
-| `bind` | `127.0.0.1:3000` | Listen address. An address that is not loopback requires `auth_token_env`. |
+| `bind` | `127.0.0.1:3000` | Listen address. An address that is not loopback requires `auth.token`. |
 | `endpoint` | `/mcp` | Path of the MCP endpoint. It cannot be `/health`. |
-| `auth_token_env` | none | Name of the environment variable that contains the bearer token. If set, each MCP request must send `Authorization: Bearer <token>`. If the variable is not set or is empty, the runner does not start. |
+| `auth.token` | none | The bearer token, as `{ env: VAR }`: the name of an environment variable of the runner, the same format as Saci [secrets](configuration.md). If set, each MCP request must send `Authorization: Bearer <token>`. If the variable is not set or is empty, the runner does not start. |
 | `allowed_hosts` | `localhost`, `127.0.0.1`, `::1` | Permitted `Host` header values. This prevents DNS rebinding. Add the host names that clients use when they connect from other hosts. |
 | `allowed_origins` | none | Permitted `Origin` header values, for example `https://app.example.com`. The runner rejects a request that sends an `Origin` that is not in this list with `403`. Requests without `Origin` are permitted. |
 
@@ -293,7 +300,7 @@ Do these steps:
 3. Run the runner as a dedicated user that is not root. In a container, use
    a read-only root file system and limit CPU, memory, the number of
    processes and network access.
-4. Keep the default loopback bind, or set `auth_token_env`. For remote
+4. Keep the default loopback bind, or set `auth.token`. For remote
    access, also put the runner behind a gateway that authenticates clients,
    and make sure that clients cannot connect to the runner directly. Set
    `allowed_hosts` to the names that clients use. CORS is not
@@ -314,7 +321,8 @@ A runner in a container must listen on all interfaces, so it needs a token:
 ```yaml
 server:
   bind: "0.0.0.0:3000"
-  auth_token_env: SCRIPT_RUNNER_TOKEN
+  auth:
+    token: { env: SCRIPT_RUNNER_TOKEN }
   allowed_hosts: [script-runner, localhost, 127.0.0.1]
 ```
 

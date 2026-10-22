@@ -227,16 +227,17 @@ impl ServerHandler for ScriptRunner {
     }
 }
 
-/// Reads the bearer token from the variable that `server.auth_token_env`
-/// names.
+/// Reads the bearer token from the environment variable that
+/// `server.auth.token` names.
 ///
 /// # Errors
 ///
-/// Fails when the variable is named but not set, or empty.
+/// Fails when the variable is not set, or is empty.
 pub fn auth_token(config: &ServerConfig) -> anyhow::Result<Option<String>> {
-    let Some(name) = &config.auth_token_env else {
+    let Some(auth) = &config.auth else {
         return Ok(None);
     };
+    let name = &auth.token.env;
     let token = std::env::var(name).with_context(|| format!("`{name}` is not set"))?;
     anyhow::ensure!(!token.is_empty(), "`{name}` is empty");
     Ok(Some(token))
