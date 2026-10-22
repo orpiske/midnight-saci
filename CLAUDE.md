@@ -6,7 +6,8 @@ Markdown test plans with an LLM agent.
 ## Repository layout
 
 - `crates/`: the Rust workspace (`saci-core`, `saci-mcp`, `saci-worker`,
-  `saci-backend`, `saci-cli`, `saci-testkit`, `saci-script-runner`).
+  `saci-backend`, `saci-cli`, `saci-testkit`, `saci-script-runner`,
+  `saci-julia`).
   Dependencies point down only.
   See [docs/development.md](docs/development.md#workspace-layout).
 - `web/`: the web console (TypeScript, React, Vite). The backend serves it at

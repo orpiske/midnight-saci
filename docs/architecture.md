@@ -71,3 +71,4 @@ API ([CLI](cli.md)). Runs survive a backend restart
 | `saci-mcp` | MCP client code shared by the worker (step tools) and the backend (actions). |
 | `saci-testkit` | Test fixtures: fake model, target, MCP and Kubernetes servers. |
 | `saci-script-runner` | Separate MCP server, not required to run Saci, that exposes configured scripts as tools ([script runner](script-runner.md)). |
+| `saci-julia` | Separate judge service, not required to run Saci, that runs the open Julia 1 model ([Julia 1 judge](julia-judge.md)). |

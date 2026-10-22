@@ -71,8 +71,9 @@ run (`Executor::attempt`):
    exit normally (timeout, cancellation, or a lost or ended session).
    When a [judge](configuration.md#judge) is configured, every code block
    of the unit is marked `run`, and each block ran and exited normally,
-   `agent::judge::Judge` asks the judge with one Noul question per expected
-   result. If every probability is at or above the threshold, the attempt
+   `agent::judge::Judge` asks the judge (TypeSafe or a
+   [`saci-julia`](julia-judge.md) service, which use the same wire format)
+   with one Noul question per expected result. If every probability is at or above the threshold, the attempt
    ends with that passed assessment, without a model request. Otherwise the
    attempt continues with step 2.
 2. It builds an agent on the configured chat model with the system prompt

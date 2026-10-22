@@ -126,16 +126,21 @@ fn judge(
     let Some(settings) = &spec.judge else {
         return Ok(None);
     };
-    let variable = &settings.api_key_env;
-    let key = process
-        .get(variable)
-        .filter(|key| !key.is_empty())
-        .ok_or_else(|| {
-            invalid(format!(
-                "the judge key variable `{variable}` is not set in the worker environment"
-            ))
-        })?;
-    credentials.protect_judge_key(variable, key);
+    let key = match &settings.api_key_env {
+        Some(variable) => {
+            let key = process
+                .get(variable)
+                .filter(|key| !key.is_empty())
+                .ok_or_else(|| {
+                    invalid(format!(
+                        "the judge key variable `{variable}` is not set in the worker environment"
+                    ))
+                })?;
+            credentials.protect_judge_key(variable, key);
+            Some(key.as_str())
+        }
+        None => None,
+    };
     let judge = Judge::new(settings, key, &spec.limits).map_err(|error| invalid(error.message))?;
     Ok(Some(judge))
 }

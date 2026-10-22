@@ -100,7 +100,12 @@ pub fn backend_redactor(spec: &RunSpec, lookup: impl Fn(&str) -> Option<String>)
     if let Some(value) = spec.llm.api_key_env.as_deref().and_then(&lookup) {
         redactor.add("LLM_API_KEY", &value);
     }
-    if let Some(value) = spec.judge.as_ref().and_then(|j| lookup(&j.api_key_env)) {
+    if let Some(value) = spec
+        .judge
+        .as_ref()
+        .and_then(|j| j.api_key_env.as_deref())
+        .and_then(&lookup)
+    {
         redactor.add("JUDGE_API_KEY", &value);
     }
     redactor

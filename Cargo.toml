@@ -8,6 +8,7 @@ members = [
     "crates/saci-cli",
     "crates/saci-testkit",
     "crates/saci-script-runner",
+    "crates/saci-julia",
 ]
 
 [workspace.package]
@@ -31,6 +32,10 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "rus
 rusqlite = { version = "0.40", features = ["bundled"] }
 nix = { version = "0.31", default-features = false, features = ["signal", "process"] }
 clap = { version = "4.6", features = ["derive"] }
+# ONNX Runtime for saci-julia. Pinned exactly to the version rig's optional
+# fastembed backend uses: Cargo allows one ONNX Runtime link per lockfile.
+# Each crate selects how ONNX Runtime is linked.
+ort = { version = "=2.0.0-rc.9", default-features = false }
 # Agent library; see docs/agent-library.md. Pinned exactly: its API moves quickly.
 rig = { version = "=0.44.0", default-features = false, features = ["agent", "reqwest", "rustls", "rmcp", "typesafeai"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -38,6 +43,9 @@ sha2 = "0.10"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde_yaml = { package = "yaml_serde", version = "0.10.4" }
 tempfile = "3.27"
+# The Julia 1 tokenizer. `unstable_wasm` selects the pure-Rust regex engine,
+# the same build as the reference encoder in Julia-1-ONNX.
+tokenizers = { version = "0.22", default-features = false, features = ["unstable_wasm"] }
 thiserror = "2.0"
 time = { version = "0.3.55", features = ["serde", "formatting", "parsing", "macros"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "process", "io-util", "fs", "net", "signal", "io-std"] }
