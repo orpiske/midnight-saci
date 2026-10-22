@@ -1,13 +1,14 @@
-# MCP script runner (optional)
+# MCP script runner
 
-`saci-script-runner` is an optional Saci module. It makes administrator-configured
+`saci-script-runner` is a Saci module. It makes administrator-configured
 scripts available as MCP tools over Streamable HTTP. Each script is one tool.
 An MCP client, for example a Saci worker, Wanaku or an agent, can list the
 tools and call them.
 
-The runner is a separate binary. No other Saci binary depends on it, and
-Saci deployments do not start it. To use it, you must install and start it
-yourself.
+The runner is part of the Saci distribution: `make install` installs it and
+the Saci image contains it. It is not necessary to run Saci. It is a separate
+binary, no other Saci binary depends on it, and Saci does not start it. To
+use it, write a configuration and start it yourself.
 
 ## How it works
 
@@ -27,8 +28,8 @@ that the configuration permits.
 
 ## Run it
 
-Build the binary with the workspace (`cargo build --release -p
-saci-script-runner`), or build the image (see [Container](#container)).
+Install the binary with `make install` ([command line](cli.md#installing)),
+or use the Saci image (see [Container](#container)).
 
 The example in `examples/script-runner/` uses absolute script paths below
 `/opt/saci-script-runner`. To try it from a checkout, change the paths and
@@ -303,18 +304,12 @@ Do these steps:
 
 ## Container
 
-`deploy/script-runner/Containerfile` builds an image with the runner, the
-example scripts in `/opt/saci-script-runner/scripts` and the example
-configuration in `/etc/saci-script-runner/config.yaml`. It runs as UID
-10001, which cannot write the scripts.
+The Saci image ([the worker](worker.md#the-image)) contains
+`/usr/local/bin/saci-script-runner`. To run the runner from the image, set it
+as the entry point and mount your configuration and scripts read-only. The
+image runs as UID 10001, which cannot write the mounted scripts.
 
-```sh
-make script-runner-image
-```
-
-The example configuration binds to loopback, so it cannot be reached from
-outside the container. For a container, mount your own configuration and
-scripts, for example:
+A runner in a container must listen on all interfaces, so it needs a token:
 
 ```yaml
 server:
@@ -329,10 +324,12 @@ podman run --rm -p 127.0.0.1:3000:3000 --read-only \
     -e SCRIPT_RUNNER_TOKEN \
     -v ./runner.yaml:/etc/saci-script-runner/config.yaml:ro,Z \
     -v ./scripts:/opt/saci-script-runner/scripts:ro,Z \
-    localhost/saci-script-runner:latest
+    --entrypoint /usr/local/bin/saci-script-runner \
+    localhost/saci-worker:latest --config /etc/saci-script-runner/config.yaml
 ```
 
-The Helm chart does not include the runner.
+The image does not contain the example scripts. The Helm chart does not
+start the runner.
 
 ## Development
 

@@ -1,6 +1,7 @@
-# Saci image (docs/worker.md): the per-run worker, and the backend for
-# cluster installs (docs/helm.md), which runs `saci-backend` instead of
-# the default entry point.
+# Saci image (docs/worker.md): the per-run worker, the backend for
+# cluster installs (docs/helm.md) and the MCP script runner
+# (docs/script-runner.md). The backend and the runner run with another
+# command instead of the default entry point.
 #
 #   podman build -t localhost/saci-worker:latest .
 #   docker build -f Containerfile -t localhost/saci-worker:latest .
@@ -32,7 +33,9 @@ COPY --from=web /src/web/dist /src/web/dist
 ENV SACI_WEB_DIST=/src/web/dist
 RUN cargo build --locked --release --package saci-worker --bin saci-worker \
         --package saci-backend --bin saci-backend --package saci-cli --bin saci \
-    && install -D -t /out target/release/saci-worker target/release/saci-backend target/release/saci
+        --package saci-script-runner --bin saci-script-runner \
+    && install -D -t /out target/release/saci-worker target/release/saci-backend target/release/saci \
+        target/release/saci-script-runner
 
 FROM ${BASE_IMAGE}
 # The utilities test plans most often need. `bash` runs every shell action.
@@ -51,6 +54,6 @@ USER 10001:0
 ENTRYPOINT ["/usr/local/bin/saci-worker"]
 
 LABEL org.opencontainers.image.title="saci-worker" \
-      org.opencontainers.image.description="Saci: the per-run worker (default entry point) and the backend" \
+      org.opencontainers.image.description="Saci: the per-run worker (default entry point), the backend and the MCP script runner" \
       org.opencontainers.image.source="https://github.com/orpiske/midnight-saci" \
       org.opencontainers.image.licenses="Apache-2.0"
