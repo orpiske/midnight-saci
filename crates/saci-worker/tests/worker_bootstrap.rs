@@ -62,10 +62,11 @@ fn spec(run_id: RunId, model_url: String) -> RunSpec {
         schema_version: SCHEMA_VERSION,
         run_id,
         created_at: time::OffsetDateTime::now_utc(),
-        bundle: PlanBundle {
+        bundle: Some(PlanBundle {
             entry: "plan.md".into(),
             documents: BTreeMap::from([("plan.md".to_owned(), PLAN.to_owned())]),
-        },
+        }),
+        investigation: None,
         environment: EnvironmentSpec {
             name: "local".into(),
             ..EnvironmentSpec::default()
@@ -113,7 +114,7 @@ fn parse(stdout: &[u8]) -> Vec<RunEvent> {
 }
 
 fn fold(spec: &RunSpec, events: &[RunEvent]) -> RunReport {
-    let plan = saci_core::bundle::expand(&spec.bundle).unwrap();
+    let plan = saci_core::bundle::expand(spec.bundle.as_ref().unwrap()).unwrap();
     let header = ReportHeader {
         run_id: spec.run_id.clone(),
         plan_title: plan.plan.title.clone(),
@@ -178,6 +179,21 @@ async fn an_unknown_format_is_rejected_before_anything_runs() {
     assert!(rejection(&events).contains("format 99"), "{events:?}");
     assert!(model.requests().is_empty(), "the model was not asked");
     assert!(!workspace.path().join("made-by-saci").exists());
+}
+
+#[tokio::test]
+async fn a_specification_without_a_plan_is_rejected() {
+    let model = FakeModel::start(script()).await.unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let mut spec = spec(RunId::generate(), model.base_url());
+    spec.bundle = None;
+    let (output, events) = local(&spec, workspace.path(), &[]).await;
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        rejection(&events).contains("neither a plan nor an investigation"),
+        "{events:?}"
+    );
+    assert!(model.requests().is_empty(), "the model was not asked");
 }
 
 #[tokio::test]

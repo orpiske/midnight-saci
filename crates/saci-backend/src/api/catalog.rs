@@ -3,6 +3,7 @@
 
 use axum::Json;
 use axum::extract::{Path, State};
+use saci_core::api::ErrorCode;
 use saci_core::view::{self, EnvironmentInfo, Items, PolicyInfo, RunPlan};
 
 use super::runs::run_id;
@@ -28,10 +29,13 @@ pub async fn plan(
     Path(id): Path<String>,
 ) -> Result<Json<RunPlan>, Failure> {
     let record = backend.store.run(&run_id(&id)?).await?;
+    let Some(bundle) = &record.spec.bundle else {
+        return Err(Failure::new(ErrorCode::NotFound, "the run has no plan"));
+    };
     let title = &record.report.header.plan_title;
     Ok(Json(view::run_plan(
         record.spec.run_id.clone(),
         title,
-        &record.spec.bundle,
+        bundle,
     )))
 }

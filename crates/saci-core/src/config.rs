@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::action::{self, ActionDefinition};
+use crate::investigation::{self, InvestigationsConfig, Repository};
 use crate::spec::{
     EnvironmentSpec, ExecutionLimits, FailureAction, JudgeSettings, KubernetesSecretKey,
     LlmSettings, McpServerSpec, McpTransport, RetryPolicy, RunPolicy, SecretRef, WorkerResources,
@@ -164,6 +165,10 @@ pub struct Config {
     /// Outcome actions, called by the backend after a run finishes.
     #[serde(default)]
     pub actions: ActionsConfig,
+    /// Failure investigations; off when omitted
+    /// (`docs/plans/investigations.md`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub investigations: Option<Box<InvestigationsConfig>>,
 }
 
 /// Outcome actions and what the backend needs to call them
@@ -593,9 +598,24 @@ impl Config {
         for (name, environment) in &self.environments {
             self.validate_environment(name, environment, &mut issues);
         }
+        self.validate_policies(&mut issues);
+        for (name, server) in &self.mcp_servers {
+            validate_mcp_server(&format!("mcp_servers.{name}"), name, server, &mut issues);
+        }
+        validate_actions(&self.actions, &mut issues);
+        if let Some(investigations) = &self.investigations {
+            self.validate_investigations(investigations, &mut issues);
+        }
+        if self.worker.image.trim().is_empty() {
+            issues.push("worker.image", "must not be empty");
+        }
+        issues.0
+    }
+
+    fn validate_policies(&self, issues: &mut Issues) {
         for (name, policy) in &self.policies {
             let path = format!("policies.{name}");
-            validate_policy(&path, policy, &mut issues);
+            validate_policy(&path, policy, issues);
             for action in &policy.actions {
                 if !self.actions.definitions.contains_key(action) {
                     let message = format!("`{action}` is not defined under actions.definitions");
@@ -603,14 +623,6 @@ impl Config {
                 }
             }
         }
-        for (name, server) in &self.mcp_servers {
-            validate_mcp_server(&format!("mcp_servers.{name}"), name, server, &mut issues);
-        }
-        validate_actions(&self.actions, &mut issues);
-        if self.worker.image.trim().is_empty() {
-            issues.push("worker.image", "must not be empty");
-        }
-        issues.0
     }
 
     fn validate_variable_names(&self, path: &str, env: &EnvironmentConfig, issues: &mut Issues) {
@@ -680,6 +692,31 @@ impl Config {
                     "omit `tools` to enable all tools; an empty list enables none",
                 );
             }
+        }
+    }
+
+    fn validate_investigations(&self, config: &InvestigationsConfig, issues: &mut Issues) {
+        let path = "investigations";
+        match self.environments.get(&config.environment) {
+            None => issues.push(
+                &format!("{path}.environment"),
+                "is not defined under environments",
+            ),
+            Some(env) => {
+                let limits = config.limits.apply(env.limits.apply(self.default_limits()));
+                validate_limits(&format!("{path}.limits"), limits, issues);
+            }
+        }
+        validate_repositories(path, &config.repositories, issues);
+        if config
+            .image
+            .as_ref()
+            .is_some_and(|image| image.trim().is_empty())
+        {
+            issues.push(&format!("{path}.image"), "must not be empty");
+        }
+        for (index, command) in config.prepare.iter().enumerate() {
+            validate_prepare(&format!("{path}.prepare[{index}]"), command, issues);
         }
     }
 
@@ -1081,6 +1118,55 @@ pub fn is_variable_name(name: &str) -> bool {
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
+fn validate_repositories(path: &str, repositories: &[Repository], issues: &mut Issues) {
+    if repositories.is_empty() {
+        issues.push(
+            &format!("{path}.repositories"),
+            "list at least one repository",
+        );
+    }
+    let mut names = std::collections::BTreeSet::new();
+    for (index, repository) in repositories.iter().enumerate() {
+        let at = format!("{path}.repositories[{index}]");
+        if !is_name(&repository.name) {
+            issues.push(
+                &format!("{at}.name"),
+                "names use letters, digits, `-` and `_`",
+            );
+        } else if !names.insert(repository.name.as_str()) {
+            issues.push(&format!("{at}.name"), "is used by another repository");
+        }
+        if !is_git_value(&repository.url) {
+            issues.push(&format!("{at}.url"), "must be a clone URL");
+        }
+        if !is_git_value(&repository.git_ref) {
+            issues.push(&format!("{at}.ref"), "must be a branch, tag or commit");
+        }
+    }
+}
+
+fn validate_prepare(path: &str, command: &str, issues: &mut Issues) {
+    if command.trim().is_empty() {
+        issues.push(path, "must not be empty");
+    }
+    let known = investigation::PREPARE_VARIABLES.map(|(name, _)| name);
+    for variable in action::variables(&serde_json::Value::String(command.to_owned())) {
+        if !known.contains(&variable.as_str()) {
+            let message = format!(
+                "unknown variable `{{{{{variable}}}}}`; available: {}",
+                known.join(", ")
+            );
+            issues.push(path, &message);
+        }
+    }
+}
+
+/// A clone URL or ref: not empty, no whitespace, and not an option that
+/// `git` would read.
+fn is_git_value(value: &str) -> bool {
+    !value.is_empty() && !value.starts_with('-') && !value.chars().any(char::is_whitespace)
+}
+
 fn is_name(name: &str) -> bool {
     !name.is_empty()
         && name
@@ -1456,5 +1542,60 @@ mod tests {
                 "{expected}: {found:?}"
             );
         }
+    }
+
+    const INVESTIGATIONS: &str = "environments:\n  investigator:\n    limits:\n      run_timeout_secs: 900\n\
+investigations:\n  environment: investigator\n  repositories:\n    - name: orders\n      \
+url: https://example.com/orders.git\n      ref: main\n  prepare:\n    \
+- ripwire . --for=\"{{failure.title}}\"\n  limits:\n    output_limit_bytes: 8192\n";
+
+    #[test]
+    fn investigations_are_off_unless_configured() {
+        let config = Config::from_yaml(MINIMAL, "t.yaml").unwrap();
+        assert_eq!(config.investigations, None);
+        let config = Config::from_yaml(&format!("{MINIMAL}{INVESTIGATIONS}"), "t.yaml").unwrap();
+        let investigations = config.investigations.unwrap();
+        assert_eq!(investigations.repositories[0].git_ref, "main");
+        assert_eq!(investigations.limits.output_limit_bytes, Some(8192));
+    }
+
+    #[test]
+    fn investigations_need_a_known_environment_and_valid_repositories() {
+        let yaml = "investigations:\n  environment: nowhere\n  repositories:\n    \
+- { name: orders, url: https://example.com/a.git, ref: main }\n    \
+- { name: orders, url: --upload-pack=x, ref: 'two words' }\n  \
+prepare: [\"echo {{secret}}\"]\n  limits:\n    run_timeout_secs: 0\n";
+        let found = issues(&format!("{MINIMAL}{yaml}"));
+        let expected = [
+            "investigations.environment: is not defined under environments",
+            "investigations.repositories[1].name: is used by another repository",
+            "investigations.repositories[1].url: must be a clone URL",
+            "investigations.repositories[1].ref: must be a branch, tag or commit",
+            "investigations.prepare[0]: unknown variable `{{secret}}`",
+        ];
+        for issue in expected {
+            assert!(
+                found.iter().any(|f| f.starts_with(issue)),
+                "{issue}: {found:?}"
+            );
+        }
+        assert_eq!(found.len(), expected.len(), "{found:?}");
+    }
+
+    #[test]
+    fn investigation_limits_apply_over_the_environment() {
+        let yaml = format!("{MINIMAL}{INVESTIGATIONS}").replace("8192", "0");
+        let found = issues(&yaml);
+        assert_eq!(
+            found,
+            ["investigations.limits.output_limit_bytes: must be greater than 0"]
+        );
+        let yaml = format!(
+            "{MINIMAL}environments:\n  i: {{}}\ninvestigations:\n  environment: i\n  repositories: []\n"
+        );
+        assert_eq!(
+            issues(&yaml),
+            ["investigations.repositories: list at least one repository"]
+        );
     }
 }

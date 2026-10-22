@@ -4,7 +4,7 @@
 use saci_core::api::{ErrorCode, SubmitRun};
 use saci_core::build_info::BuildInfo;
 use saci_core::bundle::expand;
-use saci_core::config::{Config, DEFAULT_POLICY};
+use saci_core::config::{Config, ConfigError, DEFAULT_POLICY};
 use saci_core::ids::RunId;
 use saci_core::run::{ReportHeader, RunReport};
 use saci_core::spec::{RunSpec, SCHEMA_VERSION};
@@ -36,9 +36,7 @@ pub fn prepare(
     idempotency_key: Option<String>,
 ) -> Result<NewRun, Failure> {
     let expanded = expand(&request.bundle).map_err(plan_invalid)?;
-    let invalid = |error: saci_core::config::ConfigError| {
-        Failure::new(ErrorCode::ValidationFailed, error.to_string())
-    };
+    let invalid = |error: ConfigError| Failure::new(ErrorCode::ValidationFailed, error.to_string());
     let (environment, limits) = config.environment(&request.environment).map_err(invalid)?;
     let policy_name = request.policy.as_deref().unwrap_or(DEFAULT_POLICY);
     let policy = config.policy(policy_name).map_err(invalid)?;
@@ -47,14 +45,15 @@ pub fn prepare(
         schema_version: SCHEMA_VERSION,
         run_id: RunId::generate(),
         created_at: OffsetDateTime::now_utc(),
-        bundle: request.bundle.clone(),
+        bundle: Some(request.bundle.clone()),
+        investigation: None,
         environment,
         policy,
         limits,
         llm: config.llm.settings(),
         judge: config.judge_settings(),
     };
-    let header = header(&spec, &expanded.plan.title);
+    let header = header(&spec, &expanded.plan.title, &request.bundle.entry);
     let units = expanded.units.into_iter().map(|u| u.identity).collect();
     let idempotency = idempotency_key.map(|key| (key, request_hash(request)));
     let mut report = RunReport::new(header, units);
@@ -75,11 +74,11 @@ fn plan_invalid(error: saci_core::parser::PlanError) -> Failure {
         .with_diagnostics(diagnostics)
 }
 
-fn header(spec: &RunSpec, plan_title: &str) -> ReportHeader {
+fn header(spec: &RunSpec, plan_title: &str, entry: &str) -> ReportHeader {
     ReportHeader {
         run_id: spec.run_id.clone(),
         plan_title: plan_title.to_owned(),
-        entry: spec.bundle.entry.clone(),
+        entry: entry.to_owned(),
         environment: spec.environment.name.clone(),
         policy: spec.policy.name.clone(),
         model: spec.llm.model.clone(),

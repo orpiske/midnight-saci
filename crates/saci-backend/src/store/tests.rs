@@ -32,10 +32,11 @@ fn new_run(fixture: &Fixture, run_id: RunId) -> NewRun {
         schema_version: SCHEMA_VERSION,
         run_id,
         created_at: header.created_at,
-        bundle: PlanBundle {
+        bundle: Some(PlanBundle {
             entry: "plan.md".into(),
             documents: BTreeMap::from([("plan.md".into(), "# Test Plan: X".into())]),
-        },
+        }),
+        investigation: None,
         environment: EnvironmentSpec::default(),
         policy: RunPolicy::default(),
         limits: ExecutionLimits::default(),

@@ -220,7 +220,7 @@ async fn a_large_backlog_is_split_and_an_oversized_observation_cut_to_fit() {
     let served = serve().await;
     let client = client(&served).await;
     let spec = fetch_specification(&client, FAST).await.unwrap();
-    let plan = saci_core::bundle::expand(&spec.bundle).unwrap();
+    let plan = saci_core::bundle::expand(spec.bundle.as_ref().unwrap()).unwrap();
     let unit = &plan.units[0].identity;
     let (sink, events) = EventSink::new(client.run().clone());
     sink.emit(None, None, started());
