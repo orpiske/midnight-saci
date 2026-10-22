@@ -13,7 +13,9 @@ use saci_core::evidence::{EvidenceRecord, Termination};
 use saci_core::ids::RunId;
 use saci_core::plan::PlanBundle;
 use saci_core::run::ErrorKind;
-use saci_core::spec::{EnvironmentSpec, ExecutionLimits, JudgeSettings, LlmSettings};
+use saci_core::spec::{
+    EnvironmentSpec, ExecutionLimits, JudgeProvider, JudgeSettings, LlmSettings,
+};
 use saci_core::status::Outcome;
 use saci_testkit::{FakeModel, Reply, text_reply, tool_calls_reply};
 use saci_worker::agent::{AttemptRequest, AttemptResult, Executor, Judge, Toolbox, prompt};
@@ -648,19 +650,52 @@ fn judge_reply(scores: &[f64]) -> Reply {
 }
 
 async fn judged_harness(script: Vec<Reply>, judge: Vec<Reply>) -> (Harness, FakeModel) {
+    Box::pin(judged_by(
+        JudgeProvider::Typesafe,
+        Some("judge-key-value"),
+        script,
+        judge,
+    ))
+    .await
+}
+
+async fn judged_by(
+    provider: JudgeProvider,
+    key: Option<&str>,
+    script: Vec<Reply>,
+    judge: Vec<Reply>,
+) -> (Harness, FakeModel) {
     let limits = ExecutionLimits::default();
     let mut h = harness(script, limits).await;
     let fake = FakeModel::start(judge).await.unwrap();
     let settings = JudgeSettings {
+        provider,
         endpoint: format!("{}/systemone", fake.base_url()),
         model: "jev-test".into(),
-        api_key_env: "JUDGE_KEY".into(),
+        api_key_env: key.map(|_| "JUDGE_KEY".into()),
         api_key_secret: None,
         threshold_percent: 90,
     };
     h.executor
-        .attach_judge(Judge::new(&settings, "judge-key-value", &limits).unwrap());
+        .attach_judge(Judge::new(&settings, key, &limits).unwrap());
     (h, fake)
+}
+
+#[tokio::test]
+async fn a_julia_judge_without_a_key_passes_a_step_with_a_placeholder_token() {
+    let (h, judge) = Box::pin(judged_by(
+        JudgeProvider::Julia1,
+        None,
+        vec![],
+        vec![judge_reply(&[0.95])],
+    ))
+    .await;
+    let result = h.run(4, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+    assert!(h.model.requests().is_empty(), "the model is not asked");
+    let requests = judge.requests();
+    assert_eq!(requests[0].headers["authorization"], "Bearer none");
+    assert_eq!(requests[0].body["questions"]["criterion_0"]["type"], "noul");
 }
 
 #[tokio::test]

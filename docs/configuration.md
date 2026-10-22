@@ -85,24 +85,40 @@ setting.
 
 ## `judge`
 
-Optional. When it is set, the worker asks a TypeSafe System One model to
-judge a step before it asks the `llm` model. The judge uses the
+Optional. When it is set, the worker asks a System One judge to judge a step
+before it asks the `llm` model. The judge uses the
 [Noul](https://docs.typesafe.ai/primitives/noul) primitive: for each expected
 result, it gives the probability that the evidence shows the result holds.
-When the section is omitted, the judge is off.
+When the section is omitted, the judge is off and the `llm` model assesses
+every step.
+
+Two providers are available:
+
+- `typesafe` (default): the hosted TypeSafe System One API. It requires a
+  credential.
+- `julia-1`: a [`saci-julia`](julia-judge.md) service that runs the open
+  Julia 1 model. You start the service. A credential is necessary only when
+  the service requires a token.
 
 | Setting | Default | Meaning |
 |---------|---------|---------|
-| `api_key` | required | `env:NAME`. The backend reads the credential from `NAME` when it starts a worker. The worker receives it as `NAME`. A value written in the file is not accepted. |
-| `api_key_secret.name`, `.key` | none | Kubernetes Secret key that supplies the credential to worker Jobs as `NAME`. |
-| `model` | `jev-latest` | The judge model identifier. |
-| `endpoint` | `https://api.typesafe.ai/v1/systemone` | The complete evaluation URL, or `env:NAME`. |
+| `provider` | `typesafe` | `typesafe` or `julia-1`. |
+| `api_key` | required for `typesafe` | `env:NAME`. The backend reads the credential from `NAME` when it starts a worker. The worker receives it as `NAME`. A value written in the file is not accepted. For `julia-1`, set it to the token of `saci-julia serve --auth-token`. |
+| `api_key_secret.name`, `.key` | none | Kubernetes Secret key that supplies the credential to worker Jobs as `NAME`. Requires `api_key`. |
+| `model` | `jev-latest` (`typesafe`), `julia-1` (`julia-1`) | The judge model identifier. |
+| `endpoint` | `https://api.typesafe.ai/v1/systemone` (`typesafe`), `http://127.0.0.1:8095/v1/evaluate` (`julia-1`) | The complete evaluation URL, or `env:NAME`. |
 | `threshold_percent` | `90` | The lowest probability, in percent (1 to 100), that each expected result must get. |
 
 ```yaml
 judge:
   api_key: env:TYPESAFE_API_KEY
   threshold_percent: 90
+```
+
+```yaml
+judge:
+  provider: julia-1
+  endpoint: http://judge.example:8095/v1/evaluate
 ```
 
 The worker asks the judge only for a step that has expected results and
@@ -116,8 +132,9 @@ secret names, the procedure results and the evidence of the blocks.
   and names the judge model and each probability. The `llm` model gets no
   request for the attempt.
 - Otherwise the `llm` model assesses the step as usual. This includes a
-  failed judge request and a result below the threshold. The worker log
-  gives the reason. The judge never fails a step.
+  failed judge request, a result below the threshold, and, for `julia-1`,
+  evidence that is too long for the model. The worker log gives the reason.
+  The judge never fails a step.
 
 ## `limits`
 

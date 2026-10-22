@@ -1,6 +1,9 @@
-//! The optional System One judge: a TypeSafe Noul evaluation that decides
-//! whether the evidence of a step whose blocks all ran satisfies each
-//! expected result, without a model request.
+//! The optional System One judge: a Noul evaluation that decides whether
+//! the evidence of a step whose blocks all ran satisfies each expected
+//! result, without a model request.
+//!
+//! Both providers use the TypeSafe System One wire format: the hosted
+//! TypeSafe API, and a `saci-julia` service that runs the open Julia 1 model.
 //!
 //! The judge only passes steps. When a result scores below the threshold,
 //! or the judge fails, the model assesses the step as usual.
@@ -26,6 +29,10 @@ use super::state::AttemptState;
 const SATISFIED: &str =
     "The recorded evidence of the commands that ran shows that the expected result holds.";
 
+/// The bearer token sent to a judge that has no configured credential.
+/// `saci-julia` without `--auth-token` ignores it.
+const NO_CREDENTIAL: &str = "none";
+
 /// What the judge is told a low probability means.
 const NOT_SATISFIED: &str =
     "The recorded evidence does not show the expected result, contradicts it, or is missing.";
@@ -47,14 +54,14 @@ impl std::fmt::Debug for Judge {
 }
 
 impl Judge {
-    /// Connects to the judge with the credential `key`.
+    /// Connects to the judge with the credential `key`, when it has one.
     ///
     /// # Errors
     ///
     /// Fails when the HTTP client cannot be built.
     pub fn new(
         settings: &JudgeSettings,
-        key: &str,
+        key: Option<&str>,
         limits: &ExecutionLimits,
     ) -> Result<Self, ExecutionError> {
         let http = rig::rig_reqwest::reqwest::Client::builder()
@@ -67,7 +74,7 @@ impl Judge {
                     crate::llm::client_build_error(&error),
                 )
             })?;
-        let jev = JevConfig::new(key)
+        let jev = JevConfig::new(key.unwrap_or(NO_CREDENTIAL))
             .model(settings.model.clone())
             .with_endpoint(settings.endpoint.clone())
             .connect(ReqwestClient::from(http));

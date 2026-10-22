@@ -18,8 +18,8 @@ use saci_core::ids::RunId;
 use saci_core::plan::PlanBundle;
 use saci_core::run::{ReportHeader, RunReport};
 use saci_core::spec::{
-    EnvironmentSpec, ExecutionLimits, JudgeSettings, LlmSettings, RunPolicy, RunSpec,
-    SCHEMA_VERSION, SecretRef,
+    EnvironmentSpec, ExecutionLimits, JudgeProvider, JudgeSettings, LlmSettings, RunPolicy,
+    RunSpec, SCHEMA_VERSION, SecretRef,
 };
 use saci_core::status::Outcome;
 use saci_testkit::{FakeModel, Reply, tool_calls_reply};
@@ -213,9 +213,10 @@ async fn a_missing_judge_key_is_rejected() {
     let workspace = tempfile::tempdir().unwrap();
     let mut judged = spec(RunId::generate(), model.base_url());
     judged.judge = Some(Box::new(JudgeSettings {
+        provider: JudgeProvider::Typesafe,
         endpoint: "http://127.0.0.1:9/v1/systemone".into(),
         model: "jev-latest".into(),
-        api_key_env: "JUDGE_KEY".into(),
+        api_key_env: Some("JUDGE_KEY".into()),
         api_key_secret: None,
         threshold_percent: 90,
     }));

@@ -9,7 +9,7 @@ whose secrets matter.
 | Credential | Configured as | Reaches the worker as | Used by | Never reaches |
 |------------|---------------|-----------------------|---------|---------------|
 | LLM API key | `llm.api_key` (and `llm.api_key_secret` on Kubernetes) | `NAME` for `api_key: env:NAME`, otherwise `SACI_LLM_API_KEY` | the model transport's `Authorization` header | the shell, HTTP and MCP tools, model messages, evidence |
-| Judge API key | `judge.api_key` (and `judge.api_key_secret` on Kubernetes) | `NAME` for `api_key: env:NAME` | the judge transport's `Authorization` header | the shell, HTTP and MCP tools, model messages, evidence |
+| Judge API key | `judge.api_key` (and `judge.api_key_secret` on Kubernetes); optional for `provider: julia-1` | `NAME` for `api_key: env:NAME` | the judge transport's `Authorization` header (a `julia-1` judge without a key sends the placeholder `none`) | the shell, HTTP and MCP tools, model messages, evidence |
 | Target secret `NAME` | `environments.<env>.secrets.NAME` | `SACI_SECRET_NAME` | the shell as `$NAME`; HTTP requests as `${NAME}` | model messages (only its name is listed), evidence |
 | Worker token | issued per run by the backend | `SACI_WORKER_TOKEN` | reporting to the backend | the shell and every tool, evidence |
 

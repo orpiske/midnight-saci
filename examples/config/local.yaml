@@ -25,10 +25,14 @@ llm:
   model: your-tool-capable-model
   api_key: env:SACI_LLM_API_KEY
 
-# Optional: let a TypeSafe System One judge pass steps whose code blocks are
-# all marked `run`, without a model request (docs/configuration.md#judge).
+# Optional: let a System One judge pass steps whose code blocks are all
+# marked `run`, without a model request (docs/configuration.md#judge).
+# Without a judge, the model assesses every step. TypeSafe:
 # judge:
 #   api_key: env:TYPESAFE_API_KEY
+# Or the local Julia 1 model, served by `saci-julia serve` (docs/julia-judge.md):
+# judge:
+#   provider: julia-1
 
 limits:
   step_timeout_secs: 300

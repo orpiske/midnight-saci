@@ -47,7 +47,7 @@ console: web
 
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
-BINARIES := saci saci-backend saci-worker saci-script-runner
+BINARIES := saci saci-backend saci-worker saci-script-runner saci-julia
 # Runs the commands that write to $(DESTDIR)$(BINDIR). It is sudo when the
 # nearest existing directory on that path is not writable, else empty.
 # Override it, for example SUDO= or SUDO=doas.
@@ -60,7 +60,8 @@ SUDO ?= $(shell d="$(DESTDIR)$(BINDIR)"; while [ ! -d "$$d" ]; do d=$$(dirname "
 install:
 	cargo build --locked --release --package saci-cli --bin saci \
 		--package saci-backend --bin saci-backend --package saci-worker --bin saci-worker \
-		--package saci-script-runner --bin saci-script-runner
+		--package saci-script-runner --bin saci-script-runner \
+		--package saci-julia --bin saci-julia
 	$(SUDO) install -d "$(DESTDIR)$(BINDIR)"
 	for bin in $(BINARIES); do $(SUDO) install -m 0755 "target/release/$$bin" "$(DESTDIR)$(BINDIR)/$$bin"; done
 

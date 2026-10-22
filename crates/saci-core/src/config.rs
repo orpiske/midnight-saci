@@ -10,8 +10,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::action::{self, ActionDefinition};
 use crate::spec::{
-    EnvironmentSpec, ExecutionLimits, FailureAction, JudgeSettings, KubernetesSecretKey,
-    LlmSettings, McpServerSpec, McpTransport, RetryPolicy, RunPolicy, SecretRef, WorkerResources,
+    EnvironmentSpec, ExecutionLimits, FailureAction, JudgeProvider, JudgeSettings,
+    KubernetesSecretKey, LlmSettings, McpServerSpec, McpTransport, RetryPolicy, RunPolicy,
+    SecretRef, WorkerResources,
 };
 
 /// Name of the policy used when a run names none.
@@ -79,45 +80,64 @@ impl LlmConfig {
     }
 }
 
-/// The optional TypeSafe System One judge, as written in the configuration
-/// file. Runs receive it as [`JudgeSettings`].
+/// The optional System One judge, as written in the configuration file.
+/// Runs receive it as [`JudgeSettings`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct JudgeConfig {
-    /// `env:NAME`: the judge credential is read from `NAME`.
-    pub api_key: String,
+    /// The service that answers the judge's questions.
+    #[serde(default)]
+    pub provider: JudgeProvider,
+    /// `env:NAME`: the judge credential is read from `NAME`. Required for
+    /// TypeSafe; optional for Julia 1.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
     /// Kubernetes Secret key that supplies the credential to cluster workers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key_secret: Option<KubernetesSecretKey>,
-    /// The judge model identifier.
-    #[serde(default = "default_judge_model")]
-    pub model: String,
-    /// The complete evaluation endpoint URL, or `env:NAME`.
-    #[serde(default = "default_judge_endpoint")]
-    pub endpoint: String,
+    /// The judge model identifier; the provider's default when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// The complete evaluation endpoint URL, or `env:NAME`; the provider's
+    /// default when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<String>,
     /// Lowest probability, in percent, that each expected result holds for
     /// the judge to pass a step without the model.
     #[serde(default = "default_judge_threshold")]
     pub threshold_percent: u8,
 }
 
-fn default_judge_model() -> String {
-    "jev-latest".to_owned()
-}
-
-fn default_judge_endpoint() -> String {
-    "https://api.typesafe.ai/v1/systemone".to_owned()
-}
+/// The default judge endpoint of `saci-julia serve`.
+pub const DEFAULT_JULIA_ENDPOINT: &str = "http://127.0.0.1:8095/v1/evaluate";
 
 const fn default_judge_threshold() -> u8 {
     90
 }
 
 impl JudgeConfig {
-    /// The variable that carries the credential.
+    /// The variable that carries the credential, when one is configured.
     #[must_use]
-    pub fn api_key_env(&self) -> &str {
-        self.api_key.strip_prefix(ENV_PREFIX).unwrap_or_default()
+    pub fn api_key_env(&self) -> Option<&str> {
+        self.api_key.as_deref()?.strip_prefix(ENV_PREFIX)
+    }
+
+    /// The model identifier, or the provider's default.
+    #[must_use]
+    pub fn model(&self) -> &str {
+        self.model.as_deref().unwrap_or(match self.provider {
+            JudgeProvider::Typesafe => "jev-latest",
+            JudgeProvider::Julia1 => "julia-1",
+        })
+    }
+
+    /// The evaluation endpoint, or the provider's default.
+    #[must_use]
+    pub fn endpoint(&self) -> &str {
+        self.endpoint.as_deref().unwrap_or(match self.provider {
+            JudgeProvider::Typesafe => "https://api.typesafe.ai/v1/systemone",
+            JudgeProvider::Julia1 => DEFAULT_JULIA_ENDPOINT,
+        })
     }
 
     /// The judge runs receive. It names the credential variable and never
@@ -125,9 +145,10 @@ impl JudgeConfig {
     #[must_use]
     pub fn settings(&self) -> JudgeSettings {
         JudgeSettings {
-            endpoint: self.endpoint.clone(),
-            model: self.model.clone(),
-            api_key_env: self.api_key_env().to_owned(),
+            provider: self.provider,
+            endpoint: self.endpoint().to_owned(),
+            model: self.model().to_owned(),
+            api_key_env: self.api_key_env().map(str::to_owned),
             api_key_secret: self.api_key_secret.clone(),
             threshold_percent: self.threshold_percent,
         }
@@ -566,8 +587,8 @@ impl Config {
     ) -> Vec<ConfigIssue> {
         let mut issues = Issues::default();
         resolve_env_reference(&mut self.llm.base_url, "llm.base_url", env, &mut issues);
-        if let Some(judge) = &mut self.judge {
-            resolve_env_reference(&mut judge.endpoint, "judge.endpoint", env, &mut issues);
+        if let Some(endpoint) = self.judge.as_mut().and_then(|j| j.endpoint.as_mut()) {
+            resolve_env_reference(endpoint, "judge.endpoint", env, &mut issues);
         }
         for (name, environment) in &mut self.environments {
             for (key, value) in &mut environment.parameters {
@@ -630,7 +651,7 @@ impl Config {
             } else if self
                 .judge
                 .as_ref()
-                .is_some_and(|judge| judge.api_key_env() == key)
+                .is_some_and(|judge| judge.api_key_env() == Some(key.as_str()))
             {
                 issues.push(
                     &format!("{path}.{key}"),
@@ -875,17 +896,22 @@ fn validate_judge(judge: Option<&JudgeConfig>, issues: &mut Issues) {
     let Some(judge) = judge else {
         return;
     };
-    if !judge
-        .api_key
-        .strip_prefix(ENV_PREFIX)
-        .is_some_and(is_variable_name)
-    {
-        issues.push("judge.api_key", "must be env:NAME");
+    match &judge.api_key {
+        Some(key) if !key.strip_prefix(ENV_PREFIX).is_some_and(is_variable_name) => {
+            issues.push("judge.api_key", "must be env:NAME");
+        }
+        None if judge.provider == JudgeProvider::Typesafe => {
+            issues.push("judge.api_key", "is required for the typesafe provider");
+        }
+        None if judge.api_key_secret.is_some() => {
+            issues.push("judge.api_key_secret", "requires judge.api_key: env:NAME");
+        }
+        _ => {}
     }
-    if !is_http_url(&judge.endpoint) {
+    if !is_http_url(judge.endpoint()) {
         issues.push("judge.endpoint", "must be an http:// or https:// URL");
     }
-    if judge.model.trim().is_empty() {
+    if judge.model().trim().is_empty() {
         issues.push("judge.model", "must not be empty");
     }
     if !(1..=100).contains(&judge.threshold_percent) {
@@ -1250,10 +1276,55 @@ mod tests {
             .unwrap()
             .judge_settings()
             .unwrap();
-        assert_eq!(settings.api_key_env, "TYPESAFE_KEY");
+        assert_eq!(settings.provider, JudgeProvider::Typesafe);
+        assert_eq!(settings.api_key_env.as_deref(), Some("TYPESAFE_KEY"));
         assert_eq!(settings.model, "jev-latest");
         assert_eq!(settings.endpoint, "https://api.typesafe.ai/v1/systemone");
         assert_eq!(settings.threshold_percent, 90);
+    }
+
+    #[test]
+    fn the_julia_judge_needs_no_key_and_uses_its_own_defaults() {
+        let yaml = format!("{MINIMAL}judge:\n  provider: julia-1\n");
+        let settings = Config::from_yaml(&yaml, "t.yaml")
+            .unwrap()
+            .judge_settings()
+            .unwrap();
+        assert_eq!(settings.provider, JudgeProvider::Julia1);
+        assert_eq!(settings.api_key_env, None);
+        assert_eq!(settings.model, "julia-1");
+        assert_eq!(settings.endpoint, DEFAULT_JULIA_ENDPOINT);
+        assert_eq!(settings.threshold_percent, 90);
+
+        let yaml = format!(
+            "{MINIMAL}judge:\n  provider: julia-1\n  api_key: env:JULIA_TOKEN\n  \
+             endpoint: http://judge:8095/v1/evaluate\n  threshold_percent: 80\n"
+        );
+        let settings = Config::from_yaml(&yaml, "t.yaml")
+            .unwrap()
+            .judge_settings()
+            .unwrap();
+        assert_eq!(settings.api_key_env.as_deref(), Some("JULIA_TOKEN"));
+        assert_eq!(settings.endpoint, "http://judge:8095/v1/evaluate");
+        assert_eq!(settings.threshold_percent, 80);
+    }
+
+    #[test]
+    fn the_typesafe_judge_requires_a_key_and_providers_are_checked() {
+        let found = issues(&format!("{MINIMAL}judge:\n  threshold_percent: 90\n"));
+        assert!(
+            found.iter().any(|i| i.starts_with("judge.api_key:")),
+            "{found:?}"
+        );
+        let found = issues(&format!(
+            "{MINIMAL}judge:\n  provider: julia-1\n  api_key_secret:\n    name: s\n    key: k\n"
+        ));
+        assert!(
+            found.iter().any(|i| i.starts_with("judge.api_key_secret:")),
+            "{found:?}"
+        );
+        let unknown = format!("{MINIMAL}judge:\n  provider: other\n");
+        assert!(Config::from_yaml(&unknown, "t.yaml").is_err());
     }
 
     #[test]

@@ -159,18 +159,46 @@ pub struct LlmSettings {
     pub api_key_secret: Option<KubernetesSecretKey>,
 }
 
-/// The optional TypeSafe System One judge (`docs/configuration.md#judge`).
+/// The service that answers the System One judge's questions.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum JudgeProvider {
+    /// The hosted TypeSafe System One API.
+    #[default]
+    Typesafe,
+    /// A `saci-julia` service that runs the open Julia 1 model.
+    #[serde(rename = "julia-1")]
+    Julia1,
+}
+
+impl JudgeProvider {
+    /// The name used in the configuration file.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Typesafe => "typesafe",
+            Self::Julia1 => "julia-1",
+        }
+    }
+}
+
+/// The optional System One judge (`docs/configuration.md#judge`).
 /// When set, the worker asks it whether the evidence of a step whose blocks
 /// all ran satisfies each expected result, before it asks the model.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct JudgeSettings {
-    /// The complete evaluation endpoint URL, including `/v1/systemone`.
+    /// The service that answers the judge's questions.
+    #[serde(default)]
+    pub provider: JudgeProvider,
+    /// The complete evaluation endpoint URL.
     pub endpoint: String,
     /// The judge model identifier, for example `jev-latest`.
     pub model: String,
-    /// Environment variable holding the judge credential.
-    pub api_key_env: String,
+    /// Environment variable holding the judge credential. Always set for
+    /// TypeSafe; optional for Julia 1.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_env: Option<String>,
     /// Kubernetes Secret key that supplies `api_key_env` to cluster workers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key_secret: Option<KubernetesSecretKey>,

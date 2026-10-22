@@ -63,11 +63,12 @@ podman build -f Containerfile --build-arg SACI_BUILD_COMMIT="$(git rev-parse HEA
 | `web/` | TypeScript (React) | The [web console](web-ui.md) served by the backend at `/ui/`, embedded in every backend build once `web/dist` is built. Talks to the backend only through the REST API. |
 | `saci-cli` | `saci` binary | Offline authoring, validation and agent skills (`saci new test-plan`, `saci check`, `saci skill`), backend startup, and run submission, progress, report and cancellation commands. |
 | `saci-script-runner` | library + `saci-script-runner` binary | The [MCP script runner](script-runner.md): configured scripts as MCP tools over Streamable HTTP. It is installed and in the image, but no other crate depends on it and nothing starts it. |
+| `saci-julia` | library + `saci-julia` binary | The [Julia 1 judge](julia-judge.md): the open Julia 1 model in ONNX Runtime, as a System One judge service. It is installed, but no other crate depends on it and nothing starts it. Its build downloads ONNX Runtime. |
 
 Dependencies only point "down": `saci-cli` → `saci-backend`/`saci-core`,
 `saci-backend` → `saci-mcp`/`saci-core`, `saci-worker` → `saci-mcp`/`saci-core`,
-`saci-mcp` → `saci-core`. `saci-script-runner` depends on no other Saci
-crate. The worker and the
+`saci-mcp` → `saci-core`. `saci-script-runner` and `saci-julia` depend on
+no other Saci crate. The worker and the
 backend never link each other; they communicate through the REST contract in
 `saci-core`.
 

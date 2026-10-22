@@ -13,7 +13,7 @@ use saci_backend::launcher::container::{ContainerLauncher, Kind};
 use saci_backend::launcher::{Assignment, Launcher, WorkerState, assignment, worker_name};
 use saci_core::config::{Config, PullPolicy, Runtime, WorkerConfig};
 use saci_core::ids::RunId;
-use saci_core::spec::{JudgeSettings, RunSpec};
+use saci_core::spec::{JudgeProvider, JudgeSettings, RunSpec};
 
 /// A fake runtime that records its arguments and environment in `dir` and
 /// answers like Podman.
@@ -264,9 +264,10 @@ fn assignments_name_what_cannot_be_provided() {
 fn assignments_carry_the_judge_key() {
     let (config, mut spec) = configured("      TARGET_TOKEN:\n        env: TOKEN_SOURCE\n");
     spec.judge = Some(Box::new(JudgeSettings {
+        provider: JudgeProvider::Typesafe,
         endpoint: "https://judge/v1/systemone".into(),
         model: "jev-latest".into(),
-        api_key_env: "JUDGE_KEY".into(),
+        api_key_env: Some("JUDGE_KEY".into()),
         api_key_secret: None,
         threshold_percent: 90,
     }));

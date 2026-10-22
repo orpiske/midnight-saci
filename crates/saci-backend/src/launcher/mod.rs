@@ -169,8 +169,9 @@ fn credentials(
         };
         key.add(kubernetes, lookup, &mut credentials)?;
     }
-    if let Some(judge) = &spec.judge {
-        let name = &judge.api_key_env;
+    if let Some(judge) = &spec.judge
+        && let Some(name) = &judge.api_key_env
+    {
         let secret = judge.api_key_secret.as_ref();
         let key = Key {
             setting: "judge.api_key",

@@ -149,6 +149,7 @@ crate.
 - [Worker tools: shell, HTTP and step assessment](docs/tools.md)
 - [MCP servers](docs/mcp.md)
 - [MCP script runner: scripts as MCP tools](docs/script-runner.md)
+- [Julia 1 judge: a local System One judge](docs/julia-judge.md)
 - [Run sequencing, retries, stopping and cleanup](docs/sequencing.md)
 - [Outcome actions and approvals](docs/actions.md)
 - [Credentials, evidence redaction and isolation limits](docs/security.md)
