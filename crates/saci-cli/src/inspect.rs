@@ -159,18 +159,21 @@ pub async fn follow(
                 }
             }
             Err(error) if error.retryable => {
+                let first = lost.is_none();
                 let since = *lost.get_or_insert_with(tokio::time::Instant::now);
-                reconnect(error, since, run, after).await?;
+                reconnect(error, since, first, run, after).await?;
             }
             Err(error) => return Err(error),
         }
     }
 }
 
-/// Waits before reconnecting, or gives up with how to resume.
+/// Waits before reconnecting, or gives up with how to resume. The first
+/// failure of an outage prints its reason.
 async fn reconnect(
     error: CliError,
     since: tokio::time::Instant,
+    first: bool,
     run: &RunId,
     after: u64,
 ) -> Result<(), CliError> {
@@ -180,6 +183,9 @@ async fn reconnect(
             error.message
         );
         return Err(CliError::new(error.code, message));
+    }
+    if first {
+        eprintln!("{}", error.message);
     }
     eprintln!("connection lost; reconnecting after event {after}");
     tokio::time::sleep(Duration::from_secs(2)).await;
