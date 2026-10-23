@@ -142,6 +142,13 @@ fn judge(
         None => None,
     };
     let judge = Judge::new(settings, key, &spec.limits).map_err(|error| invalid(error.message))?;
+    tracing::info!(
+        provider = settings.provider.as_str(),
+        model = %settings.model,
+        endpoint = %settings.endpoint,
+        threshold_percent = settings.threshold_percent,
+        "the System One judge is configured"
+    );
     Ok(Some(judge))
 }
 

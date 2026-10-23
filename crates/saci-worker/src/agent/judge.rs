@@ -30,7 +30,7 @@ const SATISFIED: &str =
     "The recorded evidence of the commands that ran shows that the expected result holds.";
 
 /// The bearer token sent to a judge that has no configured credential.
-/// `saci-julia` without `--auth-token` ignores it.
+/// `saci-julia` without `--token-env` ignores it.
 const NO_CREDENTIAL: &str = "none";
 
 /// What the judge is told a low probability means.
@@ -41,6 +41,7 @@ const NOT_SATISFIED: &str =
 pub struct Judge {
     jev: Jev,
     model: String,
+    endpoint: String,
     threshold_percent: u8,
 }
 
@@ -48,6 +49,7 @@ impl std::fmt::Debug for Judge {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Judge")
             .field("model", &self.model)
+            .field("endpoint", &self.endpoint)
             .field("threshold_percent", &self.threshold_percent)
             .finish_non_exhaustive()
     }
@@ -81,6 +83,7 @@ impl Judge {
         Ok(Self {
             jev,
             model: settings.model.clone(),
+            endpoint: settings.endpoint.clone(),
             threshold_percent: settings.threshold_percent,
         })
     }
@@ -95,9 +98,10 @@ impl Judge {
         environment: &str,
         ran: &Ran,
     ) -> Option<Assessment> {
-        if !eligible(unit, ran) || state.check_interrupted().is_err() {
+        if !self.asks(state, unit, ran) {
             return None;
         }
+        let key = unit.identity.key.as_str();
         let started = Instant::now();
         let deadline = tokio::time::sleep_until(state.deadline.into());
         let scores = tokio::select! {
@@ -114,11 +118,29 @@ impl Judge {
                     .map_err(|problems| problems.join("; "))
             });
         assessment
+            .inspect(|_| {
+                let elapsed_ms = started.elapsed().as_millis();
+                tracing::info!(unit = key, elapsed_ms, "the judge passed the step");
+            })
             .inspect_err(|reason| {
-                let unit = unit.identity.key.as_str();
-                tracing::info!(unit, "the model assesses the step, since {reason}");
+                tracing::info!(unit = key, "the model assesses the step, since {reason}");
             })
             .ok()
+    }
+
+    /// Whether to ask the judge about `unit`. Logs the reason when not.
+    fn asks(&self, state: &AttemptState, unit: &ExecutionUnit, ran: &Ran) -> bool {
+        let key = unit.identity.key.as_str();
+        if let Some(reason) = ineligible(unit, ran) {
+            tracing::info!(unit = key, "the judge does not assess the step: {reason}");
+            return false;
+        }
+        if state.check_interrupted().is_err() {
+            return false;
+        }
+        let (judge, endpoint) = (&self.model, &self.endpoint);
+        tracing::info!(unit = key, %judge, %endpoint, "asking the judge");
+        true
     }
 
     /// The probability that the evidence satisfies each expected result of
@@ -224,11 +246,20 @@ fn question_id(criterion: usize) -> String {
     format!("criterion_{criterion}")
 }
 
-/// Whether the evidence covers the whole action: the unit has expected
-/// results, and every code block of it is marked `run`, ran and exited
-/// normally.
-fn eligible(unit: &ExecutionUnit, ran: &Ran) -> bool {
+/// Why the evidence does not cover the whole action, or `None` when it
+/// does: the unit has expected results, and every code block of it is
+/// marked `run`, ran and exited normally.
+fn ineligible(unit: &ExecutionUnit, ran: &Ran) -> Option<&'static str> {
     let commands = &unit.unit.commands;
-    let all_run = !commands.is_empty() && commands.iter().all(|block| block.run);
-    all_run && ran.complete && !unit.unit.expected.is_empty()
+    if commands.is_empty() {
+        Some("the step has no code blocks")
+    } else if !commands.iter().all(|block| block.run) {
+        Some("not every code block is marked `run`")
+    } else if !ran.complete {
+        Some("not every `run` block ran and exited normally")
+    } else if unit.unit.expected.is_empty() {
+        Some("the step has no expected results")
+    } else {
+        None
+    }
 }

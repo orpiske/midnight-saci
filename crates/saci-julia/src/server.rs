@@ -35,7 +35,24 @@ pub fn router(engine: Arc<Engine>, token: Option<String>) -> Router {
         }))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .route(HEALTH_PATH, get(|| async { Json(json!({"status": "ok"})) }))
+        .layer(middleware::from_fn(log_request))
         .with_state(engine)
+}
+
+/// Logs every request with its status, including rejected ones.
+async fn log_request(request: Request, next: Next) -> Response {
+    let started = std::time::Instant::now();
+    let method = request.method().clone();
+    let path = request.uri().path().to_owned();
+    let response = next.run(request).await;
+    let status = response.status().as_u16();
+    let elapsed_ms = started.elapsed().as_millis();
+    if path == HEALTH_PATH {
+        tracing::debug!(%method, path, status, elapsed_ms, "request");
+    } else {
+        tracing::info!(%method, path, status, elapsed_ms, "request");
+    }
+    response
 }
 
 async fn evaluate(State(engine): State<Arc<Engine>>, Json(request): Json<Value>) -> Response {
@@ -43,7 +60,11 @@ async fn evaluate(State(engine): State<Arc<Engine>>, Json(request): Json<Value>)
     let result = tokio::task::spawn_blocking(move || engine.evaluate(&request)).await;
     match result {
         Ok(Ok(answer)) => {
-            tracing::debug!(elapsed_ms = started.elapsed().as_millis(), "evaluated");
+            tracing::info!(
+                elapsed_ms = started.elapsed().as_millis(),
+                answers = %answer["answers"],
+                "evaluated"
+            );
             Json(answer).into_response()
         }
         Ok(Err(EvaluateError::Invalid(error))) => {
