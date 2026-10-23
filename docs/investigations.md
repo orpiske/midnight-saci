@@ -25,7 +25,6 @@ environments:
         env: GIT_TOKEN_SOURCE      # read code and create issues only
 investigations:
   environment: investigator
-  image: localhost/saci-investigator:latest
   repositories:
     - name: orders-service
       url: https://github.com/example/orders-service.git
@@ -35,10 +34,18 @@ investigations:
     - ripwire . --for="{{failure.title}}: {{failure.reason}}" --token-budget=4000
   instructions: |
     File bugs in example/orders-service. Search for an open issue first.
+    Find code with `ripwire . --for="..."` and `ripwire . --callers=NAME`.
+    Read only the lines that it points to.
   limits:
     run_timeout_secs: 1800
     output_limit_bytes: 8192
 ```
+
+The Saci image contains [ripwire](https://github.com/redhat-et/ripwire), a
+code map tool that finds the code for a symptom in few tokens. The
+`prepare` command above gives the agent a first map. The `instructions`
+tell the agent to use it for more queries. Set `investigations.image` only
+for an image with other tools, for example one built `FROM` the Saci image.
 
 The investigation run uses:
 
