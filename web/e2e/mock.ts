@@ -2,7 +2,7 @@
 // browser's requests to /api/v1 with the fixtures. Each test gets its own.
 import type { Page, Request, Route } from "@playwright/test";
 
-import type { Action, RunEvent, RunSummary } from "../src/api/types";
+import type { Action, Investigation, RunEvent, RunSummary } from "../src/api/types";
 import * as fx from "./fixtures";
 
 export interface Mock {
@@ -15,6 +15,7 @@ export interface Mock {
   /** Required bearer token, or null for an open backend. */
   token: string | null;
   events: RunEvent[];
+  investigations: Investigation[];
   /** Console messages about content the Content-Security-Policy blocked. */
   blocked: string[];
 }
@@ -40,6 +41,7 @@ export async function mockBackend(page: Page, options: Partial<Mock> = {}): Prom
     token: null,
     events: fx.liveEvents,
     blocked: [],
+    investigations: [fx.investigation],
     ...options,
   };
   page.on("console", (message) => {
@@ -70,6 +72,7 @@ export async function mockBackend(page: Page, options: Partial<Mock> = {}): Prom
       return json(route, 200, { items: mock.actions.filter((a) => a.state === state) });
     }
     // The investigation of the failed run, and the run that executes it.
+    if (path === "/investigations") return json(route, 200, { items: mock.investigations });
     if (path === `/investigations/${fx.INVESTIGATION}`) return json(route, 200, fx.investigation);
     if (path.startsWith("/investigations/")) return error(route, 404, "not_found", "investigation not found");
     if (path === `/runs/${fx.RUN}/investigations`) return json(route, 200, { items: [fx.investigation] });

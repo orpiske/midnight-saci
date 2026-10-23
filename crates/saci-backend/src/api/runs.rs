@@ -79,18 +79,18 @@ pub async fn submit(
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ListQuery {
-    limit: Option<u32>,
-    cursor: Option<String>,
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
 }
 
-fn limit(value: Option<u32>) -> Reply<u32> {
+pub(super) fn limit(value: Option<u32>) -> Reply<u32> {
     match value.unwrap_or(50) {
         limit @ 1..=200 => Ok(limit),
         _ => Err(Failure::bad_request("limit must be between 1 and 200")),
     }
 }
 
-fn query<T>(query: Result<Query<T>, QueryRejection>) -> Reply<T> {
+pub(super) fn query<T>(query: Result<Query<T>, QueryRejection>) -> Reply<T> {
     query
         .map(|Query(query)| query)
         .map_err(|rejection| Failure::bad_request(rejection.body_text()))
@@ -154,7 +154,7 @@ pub async fn evidence(
 pub struct EventsQuery {
     #[serde(default)]
     after: u64,
-    limit: Option<u32>,
+    pub limit: Option<u32>,
     #[serde(default)]
     wait: u64,
 }

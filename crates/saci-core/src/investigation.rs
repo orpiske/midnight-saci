@@ -492,6 +492,10 @@ pub struct Investigation {
     pub parent_run: RunId,
     /// The investigated unit.
     pub unit: UnitKey,
+    /// Title of the investigated run's plan.
+    pub plan_title: String,
+    /// Title of the investigated unit.
+    pub unit_title: String,
     /// Where the investigation is in its lifecycle.
     pub lifecycle: Lifecycle,
     /// How it ended, once finished.
@@ -533,6 +537,8 @@ impl Investigation {
             id: report.header.run_id.clone(),
             parent_run: spec.parent_run.clone(),
             unit: spec.unit.identity.key.clone(),
+            plan_title: spec.plan_title.clone(),
+            unit_title: spec.unit.identity.title.clone(),
             lifecycle: report.lifecycle,
             outcome,
             reason: report.reason.clone(),
@@ -544,7 +550,8 @@ impl Investigation {
     }
 }
 
-/// Investigations, as `GET /runs/{run_id}/investigations` returns them.
+/// A run's investigations, as `GET /runs/{run_id}/investigations` returns
+/// them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InvestigationList {
     /// The investigations of the run, oldest first.

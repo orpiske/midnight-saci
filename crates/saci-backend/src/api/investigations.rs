@@ -1,17 +1,18 @@
 //! Client routes for investigations: create one for a failed unit, list
-//! a run's investigations, and read one. An investigation's events,
+//! all of them or a run's, and read one. An investigation's events,
 //! evidence and cancellation use the routes of the run that executes it.
 
 use axum::Json;
 use axum::body::Bytes;
-use axum::extract::{Path, State};
+use axum::extract::rejection::QueryRejection;
+use axum::extract::{Path, Query, State};
 use axum::http::header::LOCATION;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use saci_core::api::{API_BASE, ErrorCode};
+use saci_core::api::{API_BASE, ErrorCode, Page};
 use saci_core::investigation::{Investigation, InvestigationList, InvestigationRequest};
 
-use super::runs::{idempotency_key, run_id};
+use super::runs::{ListQuery, idempotency_key, limit, query, run_id};
 use super::{Backend, Failure, investigation};
 use crate::store::{Created, NewRun, RunRecord, StoreError};
 
@@ -88,4 +89,19 @@ pub async fn list(
     let records = backend.store.investigations(&id).await?;
     let items = records.iter().filter_map(view).collect();
     Ok(Json(InvestigationList { items }))
+}
+
+pub async fn list_all(
+    State(backend): State<Backend>,
+    params: Result<Query<ListQuery>, QueryRejection>,
+) -> Reply<Json<Page<Investigation>>> {
+    let params = query(params)?;
+    let page = backend
+        .store
+        .list_investigations(params.cursor, limit(params.limit)?)
+        .await?;
+    Ok(Json(Page {
+        items: page.items.iter().filter_map(view).collect(),
+        next_cursor: page.next_cursor,
+    }))
 }

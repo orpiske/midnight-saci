@@ -280,10 +280,8 @@ async fn catalog_action_and_error_responses_match_the_documented_schemas() {
     check(&defs, "ErrorBody", &finished.body);
 }
 
-#[tokio::test]
-async fn investigation_responses_match_the_documented_schemas() {
-    let api = TestBackend::start_with(ClientAuth::Open, CONFIG).await;
-    let defs = definitions();
+/// A finished run that replayed the failure fixture.
+async fn failed_run(api: &TestBackend) -> RunId {
     let run = api.submit_plan(common::actions::PLAN).await;
     let events = common::actions::fixture_events("failure", &run);
     api.backend
@@ -291,6 +289,14 @@ async fn investigation_responses_match_the_documented_schemas() {
         .append_events(&run, events, Redactor::new())
         .await
         .unwrap();
+    run
+}
+
+#[tokio::test]
+async fn investigation_responses_match_the_documented_schemas() {
+    let api = TestBackend::start_with(ClientAuth::Open, CONFIG).await;
+    let defs = definitions();
+    let run = failed_run(&api).await;
     let request =
         json!({"run_id": run, "unit": "1.1", "sources": [{"name": "orders", "ref": "v2"}]});
     check(&defs, "InvestigationRequest", &request);
@@ -300,8 +306,12 @@ async fn investigation_responses_match_the_documented_schemas() {
     let id = created.body["id"].as_str().unwrap();
     let shown = api.get(&format!("/api/v1/investigations/{id}")).await;
     check(&defs, "Investigation", &shown.body);
-    let listed = api.get(&format!("/api/v1/runs/{run}/investigations")).await;
-    check_items(&defs, "Investigation", &listed.body);
+    for list in [
+        format!("/api/v1/runs/{run}/investigations"),
+        "/api/v1/investigations".into(),
+    ] {
+        check_items(&defs, "Investigation", &api.get(&list).await.body);
+    }
     check(
         &defs,
         "RunReport",

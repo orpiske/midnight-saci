@@ -9,7 +9,7 @@ is in [plans/investigations.md](plans/investigations.md).
 An investigation is executed by a run. The investigation ID is the ID of
 that run. Thus the run routes, `saci follow`, `saci report` and
 `saci cancel` also work for an investigation. Investigations are not in
-the run list: list them for their run.
+the run list: they have their own list.
 
 ## Configure investigations
 
@@ -137,10 +137,12 @@ clone, has outcome `error`, or `cancelled` when it was cancelled.
 investigation runs.
 
 `GET /api/v1/runs/{run_id}/investigations` lists the investigations of a
-run, oldest first.
+run, oldest first. `GET /api/v1/investigations` lists the investigations
+of all runs, newest first.
 
-In the [web console](web-ui.md), open the run and select the failed
-unit. The *Investigation* button opens the investigation page at
+In the [web console](web-ui.md), *Investigations* in the menu lists the
+investigations of all runs. On a run, the failed unit has an
+*Investigation* button. Both open the investigation page at
 `/ui/investigations/<investigation-id>`. The page shows the state, the
 summary, the hypotheses with their code locations and evidence, the
 cloned commits, the bug and all evidence of the agent.

@@ -67,8 +67,12 @@ says how to build it; the API is unaffected.
   a link opens the same place.
   A unit with a [failure investigation](investigations.md) shows an
   *Investigation* button with its state.
-- **An investigation**: its state, the investigated run and unit, and the
-  times. While it runs, the page refreshes every three seconds. Once the
+- **Investigations**: the investigations of all runs, newest first, with
+  the failed unit, the plan, the status and the number of hypotheses.
+  Active investigations refresh every five seconds. *Load more* follows the
+  API's cursor.
+- **An investigation**: its state, the investigated plan, run and unit, and
+  the times. While it runs, the page refreshes every three seconds. Once the
   agent concluded, it shows the summary, the bug or the reason for none,
   and each hypothesis with its confidence, its code locations and the
   evidence it cites. For a repository on GitHub or GitLab, a code location

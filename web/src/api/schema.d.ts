@@ -221,7 +221,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List the investigations of all runs, newest first. */
+        get: operations["listInvestigations"];
         put?: never;
         /**
          * Investigate a failed unit of a finished run.
@@ -824,6 +825,10 @@ export interface components {
             id: string;
             parent_run: string;
             unit: string;
+            /** @description Title of the investigated run's plan. */
+            plan_title: string;
+            /** @description Title of the investigated unit. */
+            unit_title: string;
             lifecycle: components["schemas"]["Lifecycle"];
             /**
              * @description Present once finished.
@@ -1376,6 +1381,35 @@ export interface operations {
                     };
                 };
             };
+            401: components["responses"]["Error"];
+        };
+    };
+    listInvestigations: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                /** @description `next_cursor` of the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of investigations. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Investigation"][];
+                        next_cursor?: string;
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
             401: components["responses"]["Error"];
         };
     };
