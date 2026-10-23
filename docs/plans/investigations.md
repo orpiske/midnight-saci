@@ -151,8 +151,8 @@ design limits it in four ways:
   that the failed attempts cite, each item truncated to the same limit.
 
 Usage guidance for the code map tool goes in the investigation
-`instructions`, which play the role of a skill. The worker image does not
-contain ripwire. `investigations.image` selects an image that adds it,
+`instructions`, which play the role of a skill. The Saci image contains
+ripwire. `investigations.image` selects an image that adds other tools,
 for example one built `FROM` the Saci image.
 
 **The bug report.** The filed bug contains the failed step, the observed
@@ -215,7 +215,6 @@ investigations:
       url: https://github.com/example/orders-service.git
       ref: main
       description: The orders REST service.
-  image: localhost/saci-investigator:latest   # the Saci image plus ripwire
   prepare:                       # run in each clone, before the model
     - ripwire . --for="{{failure.title}}: {{failure.reason}}" --token-budget=4000
   instructions: |

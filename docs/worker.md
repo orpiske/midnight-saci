@@ -128,7 +128,7 @@ the run page, together with the worker image and the backend build.
 | `arch` | The CPU architecture, for example `x86_64` or `aarch64`. |
 | `tools` | The `name` and `version` of each known tool on `PATH`. |
 
-The known tools are `bash`, `curl`, `git`, `jq`, `ssh`, `nc`, `dig`,
+The known tools are `bash`, `curl`, `git`, `jq`, `ripwire`, `ssh`, `nc`, `dig`,
 `kubectl`, `oc`, `helm`, `podman`, `docker`, `java`, `mvn`, `jbang`, `node`
 and `python3`. The list is `TOOLS` in `crates/saci-worker/src/environment.rs`.
 The worker runs the version command of each tool at the same time, with
@@ -146,6 +146,11 @@ commits, the console shows a warning.
 copies it into `registry.fedoraproject.org/fedora:44` with the utilities test
 plans commonly use: `bash`, `curl`, `jq`, `git`, `ssh`, `ps`, `ip`, `dig` and
 `nc`, plus the CA certificates the HTTP tool and the model connection need. The image
+also contains [ripwire](https://github.com/redhat-et/ripwire), the code map
+tool that [failure investigations](investigations.md) use. A separate stage
+builds it from the tag in the `RIPWIRE_VERSION` build argument. On x86_64,
+ripwire needs a CPU with x86-64-v3 instructions (AVX2), as its release
+binaries do. The image
 also contains `saci-backend`, `saci` and `saci-script-runner`. Thus the Helm
 chart runs the backend from the same image with `saci-backend --config ...`
 ([Helm](helm.md)), and the [MCP script runner](script-runner.md#container)

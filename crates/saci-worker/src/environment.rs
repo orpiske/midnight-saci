@@ -16,6 +16,7 @@ pub const TOOLS: &[(&str, &[&str])] = &[
     ("curl", &["--version"]),
     ("git", &["--version"]),
     ("jq", &["--version"]),
+    ("ripwire", &["--version"]),
     ("ssh", &["-V"]),
     ("nc", &["--version"]),
     ("dig", &["-v"]),

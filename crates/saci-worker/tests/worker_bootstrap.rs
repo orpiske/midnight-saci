@@ -360,6 +360,24 @@ async fn the_image_runs_a_fixture_backed_plan() {
         Some(Outcome::Passed),
         "{events:?}"
     );
+    assert_ripwire_runs(&events);
+}
+
+/// ripwire, the code map tool of investigations, runs in the image: the
+/// worker reports its version.
+fn assert_ripwire_runs(events: &[RunEvent]) {
+    let tools = events.iter().find_map(|event| match &event.kind {
+        EventKind::RunStarted { environment, .. } => environment.as_ref().map(|e| &e.tools),
+        _ => None,
+    });
+    let ripwire = tools
+        .into_iter()
+        .flatten()
+        .find(|tool| tool.name == "ripwire");
+    assert!(
+        ripwire.is_some_and(|tool| tool.version.starts_with("ripwire ")),
+        "{tools:?}"
+    );
 }
 
 /// The script, with the first model reply held back by `delay`.

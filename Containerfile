@@ -13,6 +13,8 @@
 ARG RUST_IMAGE=docker.io/library/rust:1.96-slim-trixie
 ARG BASE_IMAGE=registry.fedoraproject.org/fedora:44
 ARG NODE_IMAGE=docker.io/library/node:22-trixie-slim
+# The ripwire release to build; a tag of github.com/redhat-et/ripwire.
+ARG RIPWIRE_VERSION=v0.6.8
 
 # The web console (docs/web-ui.md), embedded in saci-backend below.
 FROM ${NODE_IMAGE} AS web
@@ -37,12 +39,29 @@ RUN cargo build --locked --release --package saci-worker --bin saci-worker \
     && install -D -t /out target/release/saci-worker target/release/saci-backend target/release/saci \
         target/release/saci-script-runner
 
+# ripwire (https://github.com/redhat-et/ripwire), the code map tool that
+# failure investigations use (docs/investigations.md). It is built on the
+# runtime base, so it links the libstdc++ of the final image. On x86-64 it
+# needs an x86-64-v3 CPU (AVX2), as the ripwire release binaries do.
+FROM ${BASE_IMAGE} AS ripwire
+ARG RIPWIRE_VERSION
+RUN dnf install --assumeyes --setopt=install_weak_deps=False gcc-c++ cmake make git-core \
+    && dnf clean all
+RUN git clone --quiet --depth 1 --branch "${RIPWIRE_VERSION}" \
+        https://github.com/redhat-et/ripwire.git /src/ripwire \
+    && cmake -S /src/ripwire -B /src/ripwire/build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /src/ripwire/build --target ripwire --parallel \
+    && install -D -t /out /src/ripwire/build/ripwire
+
 FROM ${BASE_IMAGE}
 # The utilities test plans most often need. `bash` runs every shell action.
+# ripwire needs `libstdc++`.
 RUN dnf install --assumeyes --setopt=install_weak_deps=False \
         bash ca-certificates curl jq git openssh-clients procps-ng iproute bind-utils nmap-ncat \
+        libstdc++ \
     && dnf clean all
 COPY --from=build /out/ /usr/local/bin/
+COPY --from=ripwire /out/ripwire /usr/local/bin/ripwire
 # The workspace is writable by group 0 so an arbitrary UID can use it.
 RUN mkdir -p /workspace \
     && chgrp 0 /workspace \
