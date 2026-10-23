@@ -342,6 +342,10 @@ async fn follow_survives_lost_connections_without_gaps_or_repeats() {
     assert!(seen[9].contains("run finished failed: 1.2 failed"));
     let stderr = text(&output.stderr);
     assert!(stderr.contains("reconnecting after event"), "{stderr}");
+    assert!(
+        stderr.contains("the request to http://"),
+        "the reason: {stderr}"
+    );
 }
 
 #[tokio::test]
