@@ -107,8 +107,11 @@ before the first model request (see
 
 ## One investigation for each unit
 
-Each run and unit has one investigation. A second request for the same
-unit returns the first investigation with `200`, also with other sources.
+Each run and unit has one current investigation. A second request for the
+same unit returns the current investigation with `200`, also with other
+sources. When the current investigation finished with outcome `error` or
+`cancelled`, for example because the worker could not start, a request
+starts a new investigation with `202`. The run lists all of them.
 A request with the `Idempotency-Key` of an earlier request returns that
 request's investigation. The same key with another body is refused with
 `409 idempotency_conflict`.

@@ -229,8 +229,9 @@ export interface paths {
          *     backend copies the failed unit and the evidence its attempts cite from the run's
          *     report. Without `unit`, the first unit with outcome `failed`, `error` or `blocked`
          *     is selected. Without `sources`, every configured repository is cloned at its
-         *     configured ref. Each run and unit has one investigation: a second request for the
-         *     same unit returns the first investigation with status 200.
+         *     configured ref. Each run and unit has one current investigation: a second request
+         *     for the same unit returns it with status 200. When it finished with outcome `error`
+         *     or `cancelled`, a request starts a new investigation.
          */
         post: operations["createInvestigation"];
         delete?: never;

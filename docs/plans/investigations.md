@@ -280,8 +280,8 @@ State mapping:
 
 - The message ID is the deduplication key. The same message ID returns the
   same task, and starts nothing new.
-- One investigation exists for each run and unit. A second request for the
-  same unit returns the existing task.
+- One current investigation exists for each run and unit. A second request
+  for the same unit returns it, unless it ended in error or was cancelled.
 - The prompt tells the agent to search the tracker for an open bug with
   the same cause before it files a new one. The result then gives the
   existing bug.

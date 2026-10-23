@@ -254,3 +254,33 @@ async fn an_investigation_without_a_result_ends_in_error() {
     assert_eq!(shown.body["reason"], reason);
     assert!(shown.body.get("result").is_none());
 }
+
+#[tokio::test]
+async fn an_investigation_that_ended_in_error_is_replaced() {
+    let api = backend().await;
+    let run = finished(&api, "failure").await;
+    let request = json!({"run_id": run});
+    let first = id(&investigate(&api, &request).await);
+    let events = failed_investigation(&first, "the worker could not be launched");
+    let store = &api.backend.store;
+    store
+        .append_events(&first, events, Redactor::new())
+        .await
+        .unwrap();
+
+    let again = investigate(&api, &request).await;
+    assert_eq!(again.status, StatusCode::ACCEPTED, "{}", again.body);
+    let second = id(&again);
+    assert_ne!(second, first, "a new investigation");
+    let repeated = investigate(&api, &request).await;
+    assert_eq!(repeated.status, StatusCode::OK);
+    assert_eq!(id(&repeated), second, "the new one is not replaced");
+    let listed = api.get(&format!("/api/v1/runs/{run}/investigations")).await;
+    let ids: Vec<&str> = listed.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, [first.as_str(), second.as_str()], "oldest first");
+}

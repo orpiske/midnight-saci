@@ -22,7 +22,7 @@ use saci_core::ids::{EvidenceId, RunId, UnitKey};
 use saci_core::redaction::Redactor;
 use saci_core::run::{ContractError, RunReport, WorkerImage};
 use saci_core::spec::RunSpec;
-use saci_core::status::Lifecycle;
+use saci_core::status::{Lifecycle, Outcome};
 use serde::de::DeserializeOwned;
 use time::OffsetDateTime;
 
@@ -529,7 +529,8 @@ fn investigated(spec: &RunSpec) -> Option<(&RunId, &UnitKey)> {
 }
 
 /// The stored run that `run` repeats: the run with the same idempotency
-/// key, or the investigation of the same run and unit.
+/// key, or the latest investigation of the same run and unit unless that
+/// one ended in error or was cancelled.
 fn existing(transaction: &Transaction<'_>, run: &NewRun) -> Result<Option<String>, StoreError> {
     if let Some((key, hash)) = &run.idempotency {
         let existing: Option<(String, Option<String>)> = transaction
@@ -546,16 +547,34 @@ fn existing(transaction: &Transaction<'_>, run: &NewRun) -> Result<Option<String
             return Ok(Some(id));
         }
     }
-    let Some((parent, unit)) = investigated(&run.spec) else {
+    match investigated(&run.spec) {
+        Some((parent, unit)) => current_investigation(transaction, parent, unit),
+        None => Ok(None),
+    }
+}
+
+/// The latest investigation of `parent` and `unit`, unless it ended in
+/// error or was cancelled: then a new one replaces it.
+fn current_investigation(
+    transaction: &Transaction<'_>,
+    parent: &RunId,
+    unit: &UnitKey,
+) -> Result<Option<String>, StoreError> {
+    let latest: Option<(String, String)> = transaction
+        .query_row(
+            "SELECT id, report FROM runs WHERE parent_run = ?1 AND parent_unit = ?2
+             ORDER BY rowid DESC LIMIT 1",
+            [parent.as_str(), unit.as_str()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    let Some((id, report)) = latest else {
         return Ok(None);
     };
-    Ok(transaction
-        .query_row(
-            "SELECT id FROM runs WHERE parent_run = ?1 AND parent_unit = ?2",
-            [parent.as_str(), unit.as_str()],
-            |row| row.get(0),
-        )
-        .optional()?)
+    let report: RunReport = serde_json::from_str(&report)?;
+    let replaceable = report.lifecycle == Lifecycle::Finished
+        && matches!(report.outcome, Some(Outcome::Error | Outcome::Cancelled));
+    Ok((!replaceable).then_some(id))
 }
 
 fn store_event(

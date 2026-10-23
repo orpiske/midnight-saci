@@ -27,8 +27,10 @@ For more information, read these documents:
    configuration to make the test pass. Report the result. Change something
    only if the person asks you to.
 2. **Start one investigation for each request.** A run and a unit have one
-   investigation. If one exists, Saci gives it again. Do not try to start a
-   second one with other options.
+   current investigation. If one exists, Saci gives it again. Do not try to
+   start a second one with other options. If the earlier one ended in
+   `error`, fix its cause first (step 7); then a new request starts a new
+   investigation.
 3. **Do not file bugs yourself.** The investigation agent files or finds
    the bug, as its configuration tells it.
 4. **Do not write secrets.** Do not write the value of a token or an API
