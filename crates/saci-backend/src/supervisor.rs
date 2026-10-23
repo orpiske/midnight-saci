@@ -245,7 +245,10 @@ async fn record_image(
     run: &RunId,
     known: Option<WorkerImage>,
 ) -> Option<WorkerImage> {
-    let image = launcher.image(run).await;
+    let started = backend.store.run(run).await.ok();
+    let reference =
+        started.and_then(|record| launcher::worker_image(&backend.config, &record.spec));
+    let image = launcher.image(run, reference.as_deref()).await;
     if known.as_ref() == Some(&image) {
         return known;
     }

@@ -44,6 +44,13 @@ actions:
 policies:
   default:
     actions: [escalate]
+investigations:
+  environment: local
+  repositories:
+    - name: orders
+      url: https://example.com/orders.git
+      ref: main
+      description: The orders service.
 ";
 
 /// `docs/openapi.yaml`'s schemas as JSON Schema definitions.
@@ -271,4 +278,38 @@ async fn catalog_action_and_error_responses_match_the_documented_schemas() {
         .await;
     assert_eq!(finished.status, StatusCode::CONFLICT);
     check(&defs, "ErrorBody", &finished.body);
+}
+
+#[tokio::test]
+async fn investigation_responses_match_the_documented_schemas() {
+    let api = TestBackend::start_with(ClientAuth::Open, CONFIG).await;
+    let defs = definitions();
+    let run = api.submit_plan(common::actions::PLAN).await;
+    let events = common::actions::fixture_events("failure", &run);
+    api.backend
+        .store
+        .append_events(&run, events, Redactor::new())
+        .await
+        .unwrap();
+    let request =
+        json!({"run_id": run, "unit": "1.1", "sources": [{"name": "orders", "ref": "v2"}]});
+    check(&defs, "InvestigationRequest", &request);
+    let created = api.post("/api/v1/investigations", &request).await;
+    assert_eq!(created.status, StatusCode::ACCEPTED, "{}", created.body);
+    check(&defs, "Investigation", &created.body);
+    let id = created.body["id"].as_str().unwrap();
+    let shown = api.get(&format!("/api/v1/investigations/{id}")).await;
+    check(&defs, "Investigation", &shown.body);
+    let listed = api.get(&format!("/api/v1/runs/{run}/investigations")).await;
+    check_items(&defs, "Investigation", &listed.body);
+    check(
+        &defs,
+        "RunReport",
+        &api.get(&format!("/api/v1/runs/{id}/report")).await.body,
+    );
+    let refused = api
+        .post("/api/v1/investigations", &json!({"run_id": id}))
+        .await;
+    assert_eq!(refused.status, StatusCode::UNPROCESSABLE_ENTITY);
+    check(&defs, "ErrorBody", &refused.body);
 }

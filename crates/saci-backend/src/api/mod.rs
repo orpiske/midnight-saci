@@ -3,6 +3,8 @@
 mod actions;
 mod catalog;
 mod error;
+mod investigation;
+mod investigations;
 mod runs;
 mod submit;
 mod worker;
@@ -178,6 +180,12 @@ fn client_routes() -> Router<Backend> {
         .route("/runs/{run_id}/evidence/{evidence_id}", get(runs::evidence))
         .route("/runs/{run_id}/cancellation", post(runs::cancel))
         .route("/runs/{run_id}/plan", get(catalog::plan))
+        .route("/runs/{run_id}/investigations", get(investigations::list))
+        .route("/investigations", post(investigations::create))
+        .route(
+            "/investigations/{investigation_id}",
+            get(investigations::show),
+        )
         .route("/environments", get(catalog::environments))
         .route("/policies", get(catalog::policies))
 }

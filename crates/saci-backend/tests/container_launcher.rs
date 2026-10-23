@@ -123,6 +123,7 @@ fn sample_assignment() -> Assignment {
         cpu: Some("1.5".into()),
         memory: Some("1g".into()),
         run_timeout: std::time::Duration::from_secs(600),
+        image: None,
     }
 }
 
@@ -496,4 +497,35 @@ fn the_pull_policy_becomes_the_pull_option() {
         worker.image_pull_policy = Some(policy);
         assert_eq!(pull(&worker), [expected]);
     }
+}
+
+#[test]
+fn investigations_start_the_investigations_image() {
+    let yaml = "backend:\n  worker_url: http://h:8080\nworker:\n  image: localhost/saci-worker:test\n\
+                llm:\n  base_url: http://m/v1\n  model: m\nenvironments:\n  local: {}\n\
+                investigations:\n  environment: local\n  image: localhost/saci-investigator:1\n  \
+                repositories:\n    - name: orders\n      url: https://example.com/o.git\n      ref: main\n";
+    let config = Config::from_yaml(yaml, "saci.yaml").unwrap();
+    let investigation = r#"{"parent_run":"run-2b","plan_title":"Orders",
+        "unit":{"key":"1.2","id":"1.2","kind":"step","title":"Check orders","phase":"Smoke",
+          "location":{"document":"plan.md","line":9},"cleanup":false,"outcome":"failed"},
+        "repositories":[{"name":"orders","url":"https://example.com/o.git","ref":"main"}]}"#;
+    let (_, mut spec) = configured("      {}\n");
+    spec.bundle = None;
+    spec.investigation = Some(serde_json::from_str(investigation).unwrap());
+    let investigating = assignment(&config, &spec, "token", |_| Some("k".into())).unwrap();
+    assert_eq!(
+        investigating.image.as_deref(),
+        Some("localhost/saci-investigator:1")
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    fake_runtime(dir.path(), "podman", false);
+    let launcher =
+        ContainerLauncher::resolve(Runtime::Podman, dir.path().as_os_str(), &config.worker)
+            .unwrap();
+    let image = |assignment: &Assignment| launcher.run_arguments(assignment).pop().unwrap();
+    assert_eq!(image(&investigating), "localhost/saci-investigator:1");
+    // A test run keeps `worker.image`.
+    assert_eq!(image(&sample_assignment()), "localhost/saci-worker:test");
 }

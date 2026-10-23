@@ -5,6 +5,7 @@ mod actions;
 mod check;
 mod client;
 mod inspect;
+mod investigate;
 mod new;
 mod render;
 mod run;
@@ -98,6 +99,16 @@ enum Command {
     /// outcome. Approval-required actions wait for `approve`.
     #[command(subcommand)]
     Actions(actions::ActionsCommand),
+    /// Investigate a failed unit of a finished run.
+    ///
+    /// An agent clones the configured source code, finds the probable cause
+    /// of the failure and reports a bug. Prints the investigation ID; follow
+    /// it with `saci follow <id>` and show its result with
+    /// `saci investigations show <id>`.
+    Investigate(investigate::InvestigateArgs),
+    /// Show investigations.
+    #[command(subcommand)]
+    Investigations(investigate::InvestigationsCommand),
     /// Request cancellation of a run.
     ///
     /// The worker stops after its current action; the remaining units are
@@ -170,14 +181,16 @@ fn main() -> ExitCode {
 async fn remote(client: &Client, command: Command) -> Result<u8, CliError> {
     match command {
         Command::Run(args) => Box::pin(run::submit(client, args)).await,
-        Command::List { limit, json } => inspect::list(client, limit, json).await,
-        Command::Status(run) => inspect::status(client, &run).await,
+        Command::List { limit, json } => Box::pin(inspect::list(client, limit, json)).await,
+        Command::Status(run) => Box::pin(inspect::status(client, &run)).await,
         Command::Follow { run, after } => {
             Box::pin(inspect::follow_command(client, &run, after)).await
         }
-        Command::Report(run) => inspect::report(client, &run).await,
+        Command::Report(run) => Box::pin(inspect::report(client, &run)).await,
         Command::Cancel { run, wait } => Box::pin(inspect::cancel(client, &run, wait)).await,
         Command::Actions(command) => Box::pin(actions::run(client, command)).await,
+        Command::Investigate(args) => Box::pin(investigate::start(client, args)).await,
+        Command::Investigations(command) => Box::pin(investigate::run(client, command)).await,
         Command::New(_) | Command::Check { .. } | Command::Skill(_) | Command::Backend(_) => {
             Ok(exit::OK)
         }

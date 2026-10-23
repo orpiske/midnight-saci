@@ -364,6 +364,7 @@ async fn a_second_launch_for_a_run_reports_the_existing_job() {
         cpu: None,
         memory: None,
         run_timeout: Duration::from_secs(60),
+        image: None,
     };
     launcher.launch(&assignment).await.unwrap();
     let error = launcher.launch(&assignment).await.unwrap_err();

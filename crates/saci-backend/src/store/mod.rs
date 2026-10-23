@@ -18,7 +18,7 @@ use saci_core::action::ActionDefinition;
 use saci_core::api::{Page, RunSummary};
 use saci_core::event::{EventKind, RunEvent};
 use saci_core::evidence::Evidence;
-use saci_core::ids::{EvidenceId, RunId};
+use saci_core::ids::{EvidenceId, RunId, UnitKey};
 use saci_core::redaction::Redactor;
 use saci_core::run::{ContractError, RunReport, WorkerImage};
 use saci_core::spec::RunSpec;
@@ -192,7 +192,8 @@ impl Store {
     }
 
     /// Stores a new run, or returns the existing one for a repeated
-    /// idempotent request.
+    /// idempotent request or for an investigation of a run and unit that
+    /// already has one.
     ///
     /// # Errors
     ///
@@ -201,20 +202,8 @@ impl Store {
     pub async fn create_run(&self, run: NewRun) -> Result<Created, StoreError> {
         self.with(move |connection| {
             let transaction = connection.transaction()?;
-            if let Some((key, hash)) = &run.idempotency {
-                let existing: Option<(String, Option<String>)> = transaction
-                    .query_row(
-                        "SELECT id, request_hash FROM runs WHERE idempotency_key = ?1",
-                        [key],
-                        |row| Ok((row.get(0)?, row.get(1)?)),
-                    )
-                    .optional()?;
-                if let Some((id, stored)) = existing {
-                    if stored.as_deref() != Some(hash.as_str()) {
-                        return Err(StoreError::IdempotencyConflict);
-                    }
-                    return Ok(Created::Existing(Box::new(load(&transaction, &id)?)));
-                }
+            if let Some(id) = existing(&transaction, &run)? {
+                return Ok(Created::Existing(Box::new(load(&transaction, &id)?)));
             }
             insert(&transaction, &run)?;
             transaction.commit()?;
@@ -239,7 +228,8 @@ impl Store {
         self.with(move |connection| load(connection, &id)).await
     }
 
-    /// Lists runs, newest first. `cursor` continues a previous page.
+    /// Lists test runs, newest first; investigations are listed with their
+    /// run. `cursor` continues a previous page.
     ///
     /// # Errors
     ///
@@ -251,6 +241,24 @@ impl Store {
     ) -> Result<Page<RunRecord>, StoreError> {
         self.with(move |connection| list(connection, cursor.as_deref(), limit))
             .await
+    }
+
+    /// The investigations of `parent`, oldest first.
+    ///
+    /// # Errors
+    ///
+    /// Fails on a database error.
+    pub async fn investigations(&self, parent: &RunId) -> Result<Vec<RunRecord>, StoreError> {
+        let parent = parent.as_str().to_owned();
+        self.with(move |connection| {
+            let mut statement =
+                connection.prepare("SELECT id FROM runs WHERE parent_run = ?1 ORDER BY rowid")?;
+            let ids = statement
+                .query_map([&parent], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            ids.iter().map(|id| load(connection, id)).collect()
+        })
+        .await
     }
 
     /// Runs that have not finished, for reconciliation after a restart.
@@ -492,9 +500,10 @@ async fn blocking<T: Send + 'static>(
 
 fn insert(transaction: &Transaction<'_>, run: &NewRun) -> Result<(), StoreError> {
     let (key, hash) = run.idempotency.clone().unzip();
+    let parent = investigated(&run.spec);
     transaction.execute(
-        "INSERT INTO runs (id, created_at, idempotency_key, request_hash, spec, report, finished, last_seq, actions)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO runs (id, created_at, idempotency_key, request_hash, spec, report, finished, last_seq, actions, parent_run, parent_unit)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         params![
             run.spec.run_id.as_str(),
             format_time(run.spec.created_at)?,
@@ -505,9 +514,48 @@ fn insert(transaction: &Transaction<'_>, run: &NewRun) -> Result<(), StoreError>
             run.report.lifecycle == Lifecycle::Finished,
             int(run.report.last_seq),
             serde_json::to_string(&run.actions)?,
+            parent.map(|(parent_run, _)| parent_run.as_str()),
+            parent.map(|(_, unit)| unit.as_str()),
         ],
     )?;
     Ok(())
+}
+
+/// The run and unit that `spec` investigates, for an investigation.
+fn investigated(spec: &RunSpec) -> Option<(&RunId, &UnitKey)> {
+    spec.investigation
+        .as_ref()
+        .map(|investigation| (&investigation.parent_run, &investigation.unit.identity.key))
+}
+
+/// The stored run that `run` repeats: the run with the same idempotency
+/// key, or the investigation of the same run and unit.
+fn existing(transaction: &Transaction<'_>, run: &NewRun) -> Result<Option<String>, StoreError> {
+    if let Some((key, hash)) = &run.idempotency {
+        let existing: Option<(String, Option<String>)> = transaction
+            .query_row(
+                "SELECT id, request_hash FROM runs WHERE idempotency_key = ?1",
+                [key],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        if let Some((id, stored)) = existing {
+            if stored.as_deref() != Some(hash.as_str()) {
+                return Err(StoreError::IdempotencyConflict);
+            }
+            return Ok(Some(id));
+        }
+    }
+    let Some((parent, unit)) = investigated(&run.spec) else {
+        return Ok(None);
+    };
+    Ok(transaction
+        .query_row(
+            "SELECT id FROM runs WHERE parent_run = ?1 AND parent_unit = ?2",
+            [parent.as_str(), unit.as_str()],
+            |row| row.get(0),
+        )
+        .optional()?)
 }
 
 fn store_event(
@@ -588,7 +636,7 @@ fn list(
     };
     let limit = limit.clamp(1, 200);
     let mut statement = connection
-        .prepare("SELECT rowid, id FROM runs WHERE rowid < ?1 ORDER BY rowid DESC LIMIT ?2")?;
+        .prepare("SELECT rowid, id FROM runs WHERE rowid < ?1 AND parent_run IS NULL ORDER BY rowid DESC LIMIT ?2")?;
     let rows = statement
         .query_map(params![before, limit + 1], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))

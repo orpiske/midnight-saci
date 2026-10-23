@@ -4,7 +4,7 @@
 use rusqlite::Connection;
 
 /// Each entry upgrades the schema by one version.
-const MIGRATIONS: [&str; 4] = [
+const MIGRATIONS: [&str; 5] = [
     r"
 CREATE TABLE runs (
     id                  TEXT PRIMARY KEY,
@@ -76,10 +76,18 @@ CREATE TABLE action_history (
     FOREIGN KEY (run_id, name) REFERENCES actions (run_id, name)
 );
 ",
+    // Investigations (docs/plans/investigations.md): the investigated run
+    // and unit of an investigation run, one investigation for each.
+    r"
+ALTER TABLE runs ADD COLUMN parent_run TEXT;
+ALTER TABLE runs ADD COLUMN parent_unit TEXT;
+CREATE UNIQUE INDEX runs_investigated ON runs (parent_run, parent_unit)
+    WHERE parent_run IS NOT NULL;
+",
 ];
 
 /// The schema version this build writes.
-pub const CURRENT: u32 = 4;
+pub const CURRENT: u32 = 5;
 
 const _: () = assert!(MIGRATIONS.len() == CURRENT as usize);
 

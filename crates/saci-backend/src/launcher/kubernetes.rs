@@ -114,10 +114,15 @@ impl KubernetesLauncher {
         })
     }
 
+    /// The image that `assignment` starts.
+    fn image_of<'a>(&'a self, assignment: &'a Assignment) -> &'a str {
+        assignment.image.as_deref().unwrap_or(&self.image)
+    }
+
     fn pod(&self, assignment: &Assignment, name: &str) -> Value {
         let mut container = json!({
             "name": "worker",
-            "image": self.image,
+            "image": self.image_of(assignment),
             "env": environment(assignment, name),
             "securityContext": {
                 "allowPrivilegeEscalation": false,
@@ -230,16 +235,16 @@ impl KubernetesLauncher {
         text
     }
 
-    /// The image the worker's pod runs: the configured reference, with the
+    /// The image the worker's pod runs: `image` or the configured reference, with the
     /// digest the kubelet reports once the container has started.
-    pub async fn image(&self, run: &RunId) -> WorkerImage {
+    pub async fn image(&self, run: &RunId, image: Option<&str>) -> WorkerImage {
         let pod = self.pod_of(run).await.unwrap_or_else(|error| {
             tracing::debug!(%run, %error, "cannot read the worker's pod");
             None
         });
         let (digest, id) = pod.as_ref().map_or((None, None), pod_image);
         WorkerImage {
-            reference: self.image.clone(),
+            reference: image.unwrap_or(&self.image).to_owned(),
             digest,
             id,
         }

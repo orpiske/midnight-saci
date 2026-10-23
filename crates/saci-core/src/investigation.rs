@@ -13,8 +13,9 @@ use crate::config::LimitsOverride;
 use crate::evidence::Evidence;
 use crate::ids::{EvidenceId, RunId, UnitKey};
 use crate::plan::UnitKind;
-use crate::run::{UnitIdentity, UnitReport};
-use crate::status::Outcome;
+use crate::run::{RunReport, UnitIdentity, UnitReport};
+use crate::status::{Lifecycle, Outcome};
+use time::OffsetDateTime;
 
 /// A source repository the agent may clone.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -469,6 +470,85 @@ fn check_location(
             "{at}: lines must start at 1 and end at or after start_line"
         ));
     }
+}
+
+/// Outcomes of a unit that can be investigated.
+pub const INVESTIGATED_OUTCOMES: [Outcome; 3] = [Outcome::Failed, Outcome::Error, Outcome::Blocked];
+
+/// A clone URL or ref: not empty, no whitespace, and not an option that
+/// `git` would read.
+#[must_use]
+pub fn is_git_value(value: &str) -> bool {
+    !value.is_empty() && !value.starts_with('-') && !value.chars().any(char::is_whitespace)
+}
+
+/// An investigation as clients see it. Its ID is the ID of the run that
+/// executes it, so its events, evidence and report are the run's.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Investigation {
+    /// The investigation, and the run that executes it.
+    pub id: RunId,
+    /// The investigated run.
+    pub parent_run: RunId,
+    /// The investigated unit.
+    pub unit: UnitKey,
+    /// Where the investigation is in its lifecycle.
+    pub lifecycle: Lifecycle,
+    /// How it ended, once finished.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<InvestigationOutcome>,
+    /// Why it ended, once finished.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// The repositories it clones, with the selected refs.
+    pub repositories: Vec<Repository>,
+    /// When it was created.
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
+    /// When it finished.
+    #[serde(
+        default,
+        with = "time::serde::rfc3339::option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub finished_at: Option<OffsetDateTime>,
+    /// The agent's result, when it concluded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<InvestigationReport>,
+}
+
+impl Investigation {
+    /// The investigation that `spec` describes, in the state of `report`,
+    /// the report of the run that executes it.
+    #[must_use]
+    pub fn new(spec: &InvestigationSpec, report: &RunReport) -> Self {
+        let result = report.investigation.as_deref().cloned();
+        let outcome = match (&result, report.outcome) {
+            (Some(result), _) => result.outcome,
+            (None, Some(Outcome::Cancelled)) => InvestigationOutcome::Cancelled,
+            (None, _) => InvestigationOutcome::Error,
+        };
+        let outcome = (report.lifecycle == Lifecycle::Finished).then_some(outcome);
+        Self {
+            id: report.header.run_id.clone(),
+            parent_run: spec.parent_run.clone(),
+            unit: spec.unit.identity.key.clone(),
+            lifecycle: report.lifecycle,
+            outcome,
+            reason: report.reason.clone(),
+            repositories: spec.repositories.clone(),
+            created_at: report.header.created_at,
+            finished_at: report.finished_at,
+            result,
+        }
+    }
+}
+
+/// Investigations, as `GET /runs/{run_id}/investigations` returns them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InvestigationList {
+    /// The investigations of the run, oldest first.
+    pub items: Vec<Investigation>,
 }
 
 #[cfg(test)]

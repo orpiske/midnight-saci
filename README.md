@@ -152,6 +152,7 @@ crate.
 - [Julia 1 judge: a local System One judge](docs/julia-judge.md)
 - [Run sequencing, retries, stopping and cleanup](docs/sequencing.md)
 - [Outcome actions and approvals](docs/actions.md)
+- [Failure investigations](docs/investigations.md)
 - [Credentials, evidence redaction and isolation limits](docs/security.md)
 
 **Deploying and operating**
