@@ -214,6 +214,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/investigations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Investigate a failed unit of a finished run.
+         * @description Creates an investigation and starts its worker (docs/investigations.md). The
+         *     backend copies the failed unit and the evidence its attempts cite from the run's
+         *     report. Without `unit`, the first unit with outcome `failed`, `error` or `blocked`
+         *     is selected. Without `sources`, every configured repository is cloned at its
+         *     configured ref. Each run and unit has one investigation: a second request for the
+         *     same unit returns the first investigation with status 200.
+         */
+        post: operations["createInvestigation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/investigations/{investigation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The ID of the run that executes the investigation. */
+                investigation_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Inspect an investigation.
+         * @description Its events, evidence and report are those of the run with the same ID, under
+         *     `/api/v1/runs/{run_id}`. Cancel it there too.
+         */
+        get: operations["getInvestigation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/investigations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        /** The investigations of a run, oldest first. */
+        get: operations["listRunInvestigations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_id}/actions": {
         parameters: {
             query?: never;
@@ -732,6 +800,42 @@ export interface components {
                 title: string;
             };
             no_bug_reason?: string;
+        };
+        InvestigationRequest: {
+            run_id: string;
+            /** @description The failed unit's key; the first unsuccessful unit when omitted. */
+            unit?: string;
+            /** @description Configured repositories to clone; all of them when omitted. */
+            sources?: {
+                name: string;
+                /** @description The branch */
+                ref?: string;
+            }[];
+        };
+        Repository: {
+            name: string;
+            url: string;
+            ref: string;
+            description?: string;
+        };
+        Investigation: {
+            /** @description The investigation */
+            id: string;
+            parent_run: string;
+            unit: string;
+            lifecycle: components["schemas"]["Lifecycle"];
+            /**
+             * @description Present once finished.
+             * @enum {string}
+             */
+            outcome?: "concluded" | "inconclusive" | "error" | "cancelled";
+            reason?: string;
+            repositories: components["schemas"]["Repository"][];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            finished_at?: string;
+            result?: components["schemas"]["InvestigationReport"];
         };
         CapturedText: {
             /** @description The retained, redacted text. */
@@ -1272,6 +1376,123 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error"];
+        };
+    };
+    createInvestigation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description Client-chosen key (1 to 200 visible ASCII characters). Retrying a submission with the
+                 *     same key and body returns the original run instead of creating another one; reusing it
+                 *     with a different body fails with `idempotency_conflict`.
+                 */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvestigationRequest"];
+            };
+        };
+        responses: {
+            /** @description The existing investigation of the unit, or a replay with the same idempotency key. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Investigation"];
+                };
+            };
+            /** @description Accepted and stored. The worker launches asynchronously. */
+            202: {
+                headers: {
+                    /** @description `/api/v1/investigations/{investigation_id}` */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Investigation"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            /** @description The run does not exist, or investigations are not configured. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: components["responses"]["Error"];
+            /**
+             * @description The run has not finished or is an investigation, the unit did not fail, or a
+             *     source is not configured.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getInvestigation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The ID of the run that executes the investigation. */
+                investigation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The investigation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Investigation"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    listRunInvestigations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The investigations. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Investigation"][];
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
         };
     };
     listRunActions: {

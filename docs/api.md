@@ -152,6 +152,25 @@ person found for an `unknown` action and sends nothing. Both answer `200`
 with the action, or `409 action_not_resolvable` in another state; see
 [retries and restarts](actions.md#retries-and-restarts).
 
+## Investigations
+
+`POST /api/v1/investigations` with
+`{"run_id": "...", "unit": "1.2", "sources": [{"name": "orders", "ref": "v2"}]}`
+creates an investigation of a failed unit of a finished run and starts
+its worker (`202`). `unit` and `sources` are optional. The request accepts
+an `Idempotency-Key`. A second request for the same run and unit returns
+the existing investigation with `200`. The backend answers
+`404 not_found` when investigations are not configured or the run does
+not exist, and `422 validation_failed` when the run has not finished, is
+an investigation, the unit did not fail, or a source is not configured.
+
+`GET /api/v1/investigations/{investigation_id}` returns the investigation:
+its parent run and unit, lifecycle, outcome, repositories and result.
+`GET /api/v1/runs/{run_id}/investigations` lists a run's investigations.
+The investigation ID is a run ID: use the run routes for its events,
+evidence, report and cancellation. `GET /api/v1/runs` does not list
+investigations. See [failure investigations](investigations.md).
+
 ## Console reads
 
 These client routes describe what a run may be submitted with and what a

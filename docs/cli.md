@@ -268,19 +268,42 @@ decision for any other payload (exit 2). Deciding on an action that is not
 waiting for approval, or redispatching or reconciling one in another
 state, also exits 2. All commands accept `--json`.
 
+## Investigations
+
+`saci investigate <run-id>` starts a [failure investigation](investigations.md)
+of a finished run and prints the investigation ID. The backend must have
+an `investigations` section.
+
+| Option | Does |
+| --- | --- |
+| `--unit <key>` | The failed unit. Without it, the first unit that failed, ended in error or was blocked. |
+| `--source <name>[=<ref>]` | A configured repository to clone, with an optional branch, tag or commit. Repeat it for more. Without it, every configured repository at its configured ref. |
+| `--idempotency-key <key>` | Makes a repeated request safe; generated when omitted. |
+| `--json` | Prints the investigation as JSON. |
+
+A run and unit have one investigation: a second request prints the
+existing ID. The investigation ID is a run ID, so `saci follow`,
+`saci report` and `saci cancel` work with it.
+
+`saci investigations show <id>` prints the state, the repositories and,
+once the agent concluded, the summary, the cloned commits, the
+hypotheses with their code locations and evidence, and the bug. It exits
+0 for `concluded`, 5 for `inconclusive`, 6 for `error`, 7 for `cancelled`
+and 8 while the investigation runs.
+
 ## Exit codes
 
 | Code | Meaning | What to do |
 | --- | --- | --- |
 | 0 | Success; for `status`, `follow`, `report`, `cancel --wait` and `run --follow`, the run passed. | |
 | 1 | The run finished `failed`: an expected result did not hold. | Read `saci report`. |
-| 2 | Invalid input: plan, configuration, arguments, an unknown environment, policy, run or action, a run that already finished, or an action decision, redispatch or reconciliation the backend refused. | Fix the input named in the message. |
+| 2 | Invalid input: plan, configuration, arguments, an unknown environment, policy, run or action, a run that already finished, an action decision, redispatch or reconciliation the backend refused, or an investigation request the backend refused. | Fix the input named in the message. |
 | 3 | The backend is unreachable, refused the credentials, or failed. | Start the backend, check `--backend`, or set `SACI_TOKEN`; the message says which. |
 | 4 | The outcome of a request that changes state is unknown. | Repeat it as the message says. |
 | 5 | The run finished `blocked` or `inconclusive`, or units were skipped. | Read `saci report` for what was not established. |
 | 6 | The run finished `error`: infrastructure, the model provider or limits. | Read the reason; the run says nothing about the target. |
 | 7 | The run finished `cancelled`. | |
-| 8 | The run has not finished (`status` and `report` only). | Wait with `saci follow`. |
+| 8 | The run has not finished (`status`, `report` and `investigations show` only). | Wait with `saci follow`. |
 
 Codes 0, 1 and 5 to 8 come from the run's summary outcome, which the backend
 computes; the CLI never combines unit results itself.

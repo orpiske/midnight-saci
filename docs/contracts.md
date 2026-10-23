@@ -119,8 +119,8 @@ A run specification contains exactly one of these fields:
 A test run has the same format as before investigations existed, so the
 backend reads stored runs without change. A worker rejects a
 specification with both fields or with neither. A worker that does not
-run investigations rejects an `investigation`. The backend does not start
-investigations yet ([#111](https://github.com/orpiske/midnight-saci/issues/111)).
+run investigations rejects an `investigation`. The backend creates
+investigations from stored runs ([failure investigations](investigations.md)).
 
 ## Investigations
 

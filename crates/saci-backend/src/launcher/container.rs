@@ -171,6 +171,11 @@ impl ContainerLauncher {
             })
     }
 
+    /// The image that `assignment` starts.
+    fn image_of<'a>(&'a self, assignment: &'a Assignment) -> &'a str {
+        assignment.image.as_deref().unwrap_or(&self.image)
+    }
+
     /// The arguments of `run` for `assignment`; values stay in the
     /// environment.
     #[must_use]
@@ -195,7 +200,7 @@ impl ContainerLauncher {
             args.push("--env".to_owned());
             args.push(variable.clone());
         }
-        args.push(self.image.clone());
+        args.push(self.image_of(assignment).to_owned());
         args
     }
 
@@ -236,7 +241,8 @@ impl ContainerLauncher {
             .map_err(|error| LaunchError {
                 message: format!(
                     "cannot start {name} with image {}: {}",
-                    self.image, error.message
+                    self.image_of(assignment),
+                    error.message
                 ),
                 uncertain: error.uncertain,
             })
@@ -268,12 +274,13 @@ impl ContainerLauncher {
         }
     }
 
-    /// The image the container runs: the configured reference, with the
+    /// The image the container runs: `image` or the configured reference, with the
     /// image ID and registry digest the runtime reports. Values the runtime
     /// cannot give are left out.
-    pub async fn image(&self, run: &RunId) -> WorkerImage {
+    pub async fn image(&self, run: &RunId, image: Option<&str>) -> WorkerImage {
+        let reference = image.unwrap_or(&self.image);
         let mut image = WorkerImage {
-            reference: self.image.clone(),
+            reference: reference.to_owned(),
             digest: None,
             id: None,
         };
@@ -286,7 +293,7 @@ impl ContainerLauncher {
         if let Some(id) = &image.id {
             let args = ["image", "inspect", "--format={{json .RepoDigests}}", id];
             match self.run(&args, COMMAND_TIMEOUT).await {
-                Ok(output) => image.digest = repo_digest(&self.image, &output),
+                Ok(output) => image.digest = repo_digest(reference, &output),
                 Err(error) => tracing::debug!(%run, %error, "cannot read the image digests"),
             }
         }

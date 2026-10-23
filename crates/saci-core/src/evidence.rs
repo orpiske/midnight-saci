@@ -42,11 +42,8 @@ pub enum EvidenceRecord {
 }
 
 impl EvidenceRecord {
-    /// Halves every captured text, for an observation too large to report
-    /// whole; the drop stays visible as truncation. Returns false when
-    /// nothing was left to drop.
-    pub fn shrink(&mut self) -> bool {
-        let texts: Vec<&mut CapturedText> = match self {
+    fn texts(&mut self) -> Vec<&mut CapturedText> {
+        match self {
             Self::Shell(shell) => vec![&mut shell.stdout, &mut shell.stderr],
             Self::Http(http) => http
                 .request_body
@@ -55,13 +52,27 @@ impl EvidenceRecord {
                 .collect(),
             Self::Mcp(mcp) => vec![&mut mcp.result],
             Self::Rejected(_) => Vec::new(),
-        };
+        }
+    }
+
+    /// Halves every captured text, for an observation too large to report
+    /// whole; the drop stays visible as truncation. Returns false when
+    /// nothing was left to drop.
+    pub fn shrink(&mut self) -> bool {
         let mut dropped = false;
-        for text in texts {
+        for text in self.texts() {
             let half = text.text.len() / 2;
             dropped |= text.truncate_to(half);
         }
         dropped
+    }
+
+    /// Keeps at most `bytes` of each captured text, marked truncated where
+    /// something was dropped.
+    pub fn truncate_to(&mut self, bytes: usize) {
+        for text in self.texts() {
+            text.truncate_to(bytes);
+        }
     }
 
     /// Why this observation holds no answer from the target, when it holds

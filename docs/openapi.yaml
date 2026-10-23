@@ -16,6 +16,8 @@ tags:
     description: Submitting, inspecting and cancelling runs.
   - name: catalog
     description: What runs may be submitted with.
+  - name: investigations
+    description: Failure investigations of finished runs (docs/investigations.md).
   - name: actions
     description: Outcome actions of finished runs (docs/actions.md).
   - name: worker
@@ -272,6 +274,101 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/PolicyInfo" }
         "401": { $ref: "#/components/responses/Error" }
+  /api/v1/investigations:
+    post:
+      tags: [investigations]
+      summary: Investigate a failed unit of a finished run.
+      description: |
+        Creates an investigation and starts its worker (docs/investigations.md). The
+        backend copies the failed unit and the evidence its attempts cite from the run's
+        report. Without `unit`, the first unit with outcome `failed`, `error` or `blocked`
+        is selected. Without `sources`, every configured repository is cloned at its
+        configured ref. Each run and unit has one investigation: a second request for the
+        same unit returns the first investigation with status 200.
+      operationId: createInvestigation
+      security: [{ clientToken: [] }, {}]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvestigationRequest" }
+      responses:
+        "202":
+          description: Accepted and stored. The worker launches asynchronously.
+          headers:
+            Location:
+              schema: { type: string }
+              description: "`/api/v1/investigations/{investigation_id}`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Investigation" }
+        "200":
+          description: The existing investigation of the unit, or a replay with the same idempotency key.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Investigation" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404":
+          description: The run does not exist, or investigations are not configured.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorBody" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422":
+          description: |
+            The run has not finished or is an investigation, the unit did not fail, or a
+            source is not configured.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorBody" }
+  /api/v1/investigations/{investigation_id}:
+    parameters:
+      - name: investigation_id
+        in: path
+        required: true
+        description: The ID of the run that executes the investigation.
+        schema: { type: string, pattern: "^run-[a-z0-9]+$" }
+    get:
+      tags: [investigations]
+      summary: Inspect an investigation.
+      description: |
+        Its events, evidence and report are those of the run with the same ID, under
+        `/api/v1/runs/{run_id}`. Cancel it there too.
+      operationId: getInvestigation
+      security: [{ clientToken: [] }, {}]
+      responses:
+        "200":
+          description: The investigation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Investigation" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/runs/{run_id}/investigations:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      tags: [investigations]
+      summary: The investigations of a run, oldest first.
+      operationId: listRunInvestigations
+      security: [{ clientToken: [] }, {}]
+      responses:
+        "200":
+          description: The investigations.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Investigation" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /api/v1/runs/{run_id}/actions:
     parameters:
       - $ref: "#/components/parameters/RunId"
@@ -979,6 +1076,50 @@ components:
             url: { type: string }
             title: { type: string }
         no_bug_reason: { type: string }
+    InvestigationRequest:
+      type: object
+      additionalProperties: false
+      required: [run_id]
+      properties:
+        run_id: { type: string }
+        unit: { type: string, description: The failed unit's key; the first unsuccessful unit when omitted. }
+        sources:
+          type: array
+          description: Configured repositories to clone; all of them when omitted.
+          items:
+            type: object
+            additionalProperties: false
+            required: [name]
+            properties:
+              name: { type: string }
+              ref: { type: string, description: The branch, tag or commit to check out instead of the configured ref. }
+    Repository:
+      type: object
+      required: [name, url, ref]
+      properties:
+        name: { type: string }
+        url: { type: string }
+        ref: { type: string }
+        description: { type: string }
+    Investigation:
+      type: object
+      required: [id, parent_run, unit, lifecycle, repositories, created_at]
+      properties:
+        id: { type: string, description: The investigation, and the run that executes it. }
+        parent_run: { type: string }
+        unit: { type: string }
+        lifecycle: { $ref: "#/components/schemas/Lifecycle" }
+        outcome:
+          type: string
+          enum: [concluded, inconclusive, error, cancelled]
+          description: Present once finished.
+        reason: { type: string }
+        repositories:
+          type: array
+          items: { $ref: "#/components/schemas/Repository" }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time }
+        result: { $ref: "#/components/schemas/InvestigationReport" }
     CapturedText:
       type: object
       required: [text, total_bytes]

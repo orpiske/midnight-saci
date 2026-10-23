@@ -216,10 +216,10 @@ them. See [outcome actions](actions.md).
 
 Failure investigations: an agent finds the probable cause of a failed
 unit in the source code and reports a bug. The section is optional. Without
-it, the backend runs no investigations. The worker runs investigations
-([investigation mode](worker.md#investigation-mode)), but the backend does not
-start them yet; see the [design](plans/investigations.md) and
-[#107](https://github.com/orpiske/midnight-saci/issues/107).
+it, the backend runs no investigations. See
+[failure investigations](investigations.md) for how to start one. The A2A
+endpoint of the [design](plans/investigations.md) is not served yet
+([#112](https://github.com/orpiske/midnight-saci/issues/112)).
 
 | Setting | Default | Meaning |
 |---------|---------|---------|

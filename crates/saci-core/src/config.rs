@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::action::{self, ActionDefinition};
-use crate::investigation::{self, InvestigationsConfig, Repository};
+use crate::investigation::{self, InvestigationsConfig, Repository, is_git_value};
 use crate::spec::{
     EnvironmentSpec, ExecutionLimits, FailureAction, JudgeProvider, JudgeSettings,
     KubernetesSecretKey, LlmSettings, McpServerSpec, McpTransport, RetryPolicy, RunPolicy,
@@ -1185,12 +1185,6 @@ fn validate_prepare(path: &str, command: &str, issues: &mut Issues) {
             issues.push(path, &message);
         }
     }
-}
-
-/// A clone URL or ref: not empty, no whitespace, and not an option that
-/// `git` would read.
-fn is_git_value(value: &str) -> bool {
-    !value.is_empty() && !value.starts_with('-') && !value.chars().any(char::is_whitespace)
 }
 
 fn is_name(name: &str) -> bool {

@@ -92,6 +92,8 @@ pub struct Assignment {
     pub cpu: Option<String>,
     /// Memory limit, as the runtime accepts it.
     pub memory: Option<String>,
+    /// The worker image, when it is not `worker.image`.
+    pub image: Option<String>,
     /// The run's `limits.run_timeout_secs`.
     pub run_timeout: Duration,
 }
@@ -146,7 +148,16 @@ pub fn assignment(
         cpu: spec.environment.worker.cpu.clone(),
         memory: spec.environment.worker.memory.clone(),
         run_timeout: Duration::from_secs(spec.limits.run_timeout_secs),
+        image: worker_image(config, spec),
     })
+}
+
+/// The image of `spec`'s worker when it is not `worker.image`: the
+/// `investigations.image` of an investigation.
+#[must_use]
+pub fn worker_image(config: &Config, spec: &RunSpec) -> Option<String> {
+    spec.investigation.as_ref()?;
+    config.investigations.as_ref()?.image.clone()
 }
 
 type Credentials = (Vec<(String, String)>, Vec<(String, KubernetesSecretKey)>);
@@ -328,12 +339,13 @@ impl Launcher {
         }
     }
 
-    /// The container image of `run`'s worker. The digest and the image ID
-    /// are left out while the runtime cannot give them.
-    pub async fn image(&self, run: &RunId) -> WorkerImage {
+    /// The container image of `run`'s worker, started with `image` or
+    /// `worker.image`. The digest and the image ID are left out while the
+    /// runtime cannot give them.
+    pub async fn image(&self, run: &RunId, image: Option<&str>) -> WorkerImage {
         match self {
-            Self::Container(launcher) => Box::pin(launcher.image(run)).await,
-            Self::Kubernetes(launcher) => Box::pin(launcher.image(run)).await,
+            Self::Container(launcher) => Box::pin(launcher.image(run, image)).await,
+            Self::Kubernetes(launcher) => Box::pin(launcher.image(run, image)).await,
         }
     }
 

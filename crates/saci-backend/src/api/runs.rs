@@ -38,7 +38,7 @@ pub(super) fn run_id(raw: &str) -> Reply<RunId> {
     RunId::parse(raw).map_err(|_| Failure::run_not_found())
 }
 
-fn idempotency_key(headers: &HeaderMap) -> Reply<Option<String>> {
+pub(super) fn idempotency_key(headers: &HeaderMap) -> Reply<Option<String>> {
     let Some(value) = headers.get(IDEMPOTENCY_KEY) else {
         return Ok(None);
     };
