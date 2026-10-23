@@ -4,6 +4,7 @@ import type {
   Action,
   EnvironmentInfo,
   Evidence,
+  Investigation,
   PolicyInfo,
   RunEvent,
   RunPlan,
@@ -299,3 +300,63 @@ export const liveEvents: RunEvent[] = [
   event(5, { type: "unit_finished", unit: "1.1", outcome: "passed" }),
   event(6, { type: "run_finished", outcome: "passed", reason: "every test passed" }),
 ];
+
+export const INVESTIGATION = "run-7a1e2c3d4b5f4a6e8d9c0b1a2f3e4d5c";
+export const COMMIT = "0123456789abcdef0123456789abcdef01234567";
+
+/** The concluded investigation of unit 1.2 of the failed run. */
+export const investigation: Investigation = {
+  id: INVESTIGATION,
+  parent_run: RUN,
+  unit: "1.2",
+  lifecycle: "finished",
+  outcome: "concluded",
+  reason: "the investigation ended concluded",
+  repositories: [{ name: "orders", url: "https://github.com/example/orders.git", ref: "v2.4.1" }],
+  created_at: "2026-10-17T10:05:00Z",
+  finished_at: "2026-10-17T10:09:00Z",
+  result: {
+    outcome: "concluded",
+    summary: "The orders handler returns 500 when the database pool is empty.",
+    sources: [{ name: "orders", commit: COMMIT }],
+    hypotheses: [
+      {
+        statement: "`list_orders` unwraps the pool result instead of waiting.",
+        confidence: "high",
+        evidence: ["ev-2"],
+        code: [{ repository: "orders", commit: COMMIT, path: "src/orders.rs", start_line: 40, end_line: 52 }],
+      },
+    ],
+    bug: { url: "https://github.com/example/orders/issues/7", title: "Orders list fails while the pool starts" },
+  },
+};
+
+const agentShell = (id: string, command: string, text: string): Evidence => ({
+  id,
+  unit: "investigation",
+  attempt: 1,
+  recorded_at: "2026-10-17T10:06:00Z",
+  duration_ms: 50,
+  tool: "shell",
+  command,
+  stdout: { text, total_bytes: text.length },
+  stderr: { text: "", total_bytes: 0 },
+  exit_code: 0,
+  termination: "exited",
+});
+
+/** The report of the run that executed the investigation: its own evidence. */
+export const investigationReport: RunReport = {
+  ...report,
+  run_id: INVESTIGATION,
+  environment: "investigator",
+  counts: { ...counts, passed: 1 },
+  outcome: "passed",
+  units: [],
+  cleanup_not_run: [],
+  investigation: investigation.result,
+  evidence: [
+    agentShell("ev-1", "git clone --depth 1 ...", COMMIT),
+    agentShell("ev-2", "ripwire . --for='List orders'", "src/orders.rs:40 list_orders"),
+  ],
+};

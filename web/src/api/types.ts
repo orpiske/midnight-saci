@@ -75,3 +75,10 @@ export const ACTION_STATES: readonly ActionState[] = [
   "error",
   "unknown",
 ];
+
+export type Investigation = Schemas["Investigation"];
+export type InvestigationReport = Schemas["InvestigationReport"];
+export type InvestigationOutcome = InvestigationReport["outcome"];
+export type Hypothesis = NonNullable<InvestigationReport["hypotheses"]>[number];
+export type CodeLocation = NonNullable<Hypothesis["code"]>[number];
+export type Repository = Schemas["Repository"];

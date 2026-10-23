@@ -2,6 +2,7 @@
 // with their basis and cited evidence, and the evidence itself. The
 // selected unit, attempt and evidence live in the URL so a link reopens
 // the same view.
+import { Search } from "lucide-react";
 import { useId } from "react";
 
 import type {
@@ -9,6 +10,7 @@ import type {
   CriterionResult,
   Evidence,
   ExecutionError,
+  Investigation,
   PlannedUnit,
   RunPlan,
   RunReport,
@@ -20,8 +22,16 @@ import { Badge, StatusIcon } from "../../components/Status";
 import { Tabs, tabPanelProps } from "../../components/Tabs";
 import { between, formatTime, plural } from "../../lib/format";
 import type { Loaded } from "../../lib/resource";
-import { setSearch } from "../../lib/router";
-import { BASIS, CRITERION, IN_PROGRESS, OUTCOME, PENDING, type StatusLook } from "../../lib/status";
+import { Link, setSearch } from "../../lib/router";
+import {
+  BASIS,
+  CRITERION,
+  IN_PROGRESS,
+  OUTCOME,
+  PENDING,
+  type StatusLook,
+  investigationLook,
+} from "../../lib/status";
 import { SafeText } from "../../lib/text";
 import { EvidenceView, evidenceSummary } from "../evidence/EvidenceView";
 
@@ -97,10 +107,13 @@ function UnitList({
 export function ResultsTab({
   report,
   plan,
+  investigations,
   search,
 }: {
   report: Loaded<RunReport>;
   plan: RunPlan | undefined;
+  /** The run's investigations, oldest first. */
+  investigations: Investigation[];
   search: URLSearchParams;
 }) {
   const data = report.resource.data;
@@ -137,6 +150,7 @@ export function ResultsTab({
           unit={unit}
           planned={plan?.units.find((p) => p.key === unit.key)}
           evidence={data.evidence}
+          investigation={investigations.findLast((i) => i.unit === unit.key)}
           search={search}
         />
       </div>
@@ -148,11 +162,14 @@ function UnitDetail({
   unit,
   planned,
   evidence,
+  investigation,
   search,
 }: {
   unit: UnitReport;
   planned: PlannedUnit | undefined;
   evidence: Evidence[];
+  /** The unit's latest investigation. */
+  investigation: Investigation | undefined;
   search: URLSearchParams;
 }) {
   const id = useId();
@@ -176,6 +193,12 @@ function UnitDetail({
             </span>
           </div>
         </div>
+        {investigation ? (
+          <Link to={`/investigations/${encodeURIComponent(investigation.id)}`} className="btn">
+            <Search size={16} aria-hidden="true" />
+            Investigation: {investigationLook(investigation.lifecycle, investigation.outcome).label}
+          </Link>
+        ) : null}
       </div>
       <div className="panel-body stack">
         {unit.reason ? (
@@ -235,7 +258,7 @@ function UnitDetail({
   );
 }
 
-function Cite({ id, evidence, selected }: { id: string; evidence: Evidence | undefined; selected: boolean }) {
+export function Cite({ id, evidence, selected }: { id: string; evidence: Evidence | undefined; selected: boolean }) {
   return (
     <button
       type="button"

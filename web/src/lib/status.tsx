@@ -17,7 +17,7 @@ import {
   Undo2,
 } from "lucide-react";
 
-import type { ActionState, Lifecycle, Outcome } from "../api/types";
+import type { ActionState, InvestigationOutcome, Lifecycle, Outcome } from "../api/types";
 
 export type Tone = "pass" | "fail" | "warn" | "run" | "neutral";
 
@@ -80,5 +80,24 @@ export const IN_PROGRESS: StatusLook = {
 /** The status a run shows: its outcome once finished, else its lifecycle. */
 export function runLook(lifecycle: Lifecycle, outcome?: Outcome | null): StatusLook {
   if (lifecycle === "finished" && outcome) return OUTCOME[outcome];
+  return LIFECYCLE[lifecycle];
+}
+
+export const INVESTIGATION: Record<InvestigationOutcome, StatusLook> = {
+  concluded: { label: "Concluded", tone: "pass", icon: CircleCheck },
+  inconclusive: { label: "Inconclusive", tone: "warn", icon: CircleHelp },
+  error: { label: "Execution error", tone: "fail", icon: OctagonAlert },
+  cancelled: { label: "Cancelled", tone: "neutral", icon: CircleSlash },
+};
+
+export const CONFIDENCE: Record<"high" | "medium" | "low", string> = {
+  high: "High confidence",
+  medium: "Medium confidence",
+  low: "Low confidence",
+};
+
+/** The status an investigation shows: its outcome once finished, else its lifecycle. */
+export function investigationLook(lifecycle: Lifecycle, outcome?: InvestigationOutcome | null): StatusLook {
+  if (lifecycle === "finished" && outcome) return INVESTIGATION[outcome];
   return LIFECYCLE[lifecycle];
 }

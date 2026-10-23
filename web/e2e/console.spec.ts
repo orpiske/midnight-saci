@@ -204,3 +204,49 @@ test("nothing is blocked by the backend's Content-Security-Policy", async ({ pag
   await page.evaluate(() => document.fonts.ready);
   expect(mock.blocked).toEqual([]);
 });
+
+test("a failed unit links to its investigation, which shows the cited code and the bug", async ({ page }, testInfo) => {
+  await mockBackend(page);
+  await page.goto(`/ui/runs/${fx.RUN}?unit=1.2`);
+  const detail = page.getByRole("region", { name: "Test 1.2: List orders" });
+  await detail.getByRole("link", { name: "Investigation: Concluded" }).click();
+  await expect(page).toHaveURL(new RegExp(`/ui/investigations/${fx.INVESTIGATION}$`));
+  await expect(page.getByRole("heading", { name: "Investigation of unit 1.2" })).toBeVisible();
+  await expect(page.locator(".run-header .badge").first()).toHaveText("Concluded");
+
+  const result = page.getByRole("region", { name: "Result" });
+  await expect(result.getByText("returns 500 when the database pool is empty")).toBeVisible();
+  await expect(result.getByText("High confidence")).toBeVisible();
+  await expect(result.getByRole("link", { name: /orders src\/orders\.rs:40-52/ })).toHaveAttribute(
+    "href",
+    `https://github.com/example/orders/blob/${fx.COMMIT}/src/orders.rs#L40-L52`,
+  );
+  await expect(result.getByRole("link", { name: /Orders list fails while the pool starts/ })).toHaveAttribute(
+    "href",
+    "https://github.com/example/orders/issues/7",
+  );
+  const sources = page.getByRole("region", { name: "Source code" });
+  await expect(sources.getByRole("row", { name: /orders/ })).toContainText("v2.4.1");
+  await expect(sources.getByTitle(fx.COMMIT)).toHaveText("0123456789ab");
+  await accessible(page, testInfo, "investigation");
+
+  // The cited evidence opens under the hypotheses; the other in the evidence list.
+  await result.getByRole("button", { name: /ev-2/ }).click();
+  await expect(page).toHaveURL(/evidence=ev-2/);
+  await expect(result.getByRole("region", { name: /ev-2 · Shell command/ })).toBeVisible();
+  const agent = page.getByRole("region", { name: "Agent evidence (2)" });
+  await agent.getByRole("button", { name: /ev-1/ }).click();
+  await expect(agent.getByRole("region", { name: /ev-1 · Shell command/ })).toBeVisible();
+
+  await page.getByRole("link", { name: fx.RUN }).click();
+  await expect(page).toHaveURL(new RegExp(`/ui/runs/${fx.RUN}\\?unit=1\\.2$`));
+});
+
+test("a unit without an investigation has no link, and an unknown one is not found", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto(`/ui/runs/${fx.RUN}?unit=1.1`);
+  await expect(page.getByRole("region", { name: "Test 1.1: Check health" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Investigation:/ })).toHaveCount(0);
+  await page.goto("/ui/investigations/run-00000000000000000000000000000000");
+  await expect(page.getByText("No such investigation")).toBeVisible();
+});
