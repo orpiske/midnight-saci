@@ -2,7 +2,16 @@ import { CircleSlash, Download, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { ApiError, query, seg } from "../../api/client";
-import type { EventPage, RunEvent, RunPlan, RunReport, RunSummary, WorkerImage } from "../../api/types";
+import type {
+  EventPage,
+  Investigation,
+  Page,
+  RunEvent,
+  RunPlan,
+  RunReport,
+  RunSummary,
+  WorkerImage,
+} from "../../api/types";
 import { CopyText } from "../../components/Copy";
 import { Dialog } from "../../components/Dialog";
 import { Callout, ErrorNotice, Loading, describeError } from "../../components/Feedback";
@@ -24,6 +33,9 @@ import { completed } from "./progress";
 import { ResultsTab } from "./ResultsTab";
 
 type TabKey = "results" | "activity" | "performance" | "plan" | "environment" | "actions";
+
+/** The one unit of a run that executes an investigation. */
+const INVESTIGATION_UNIT = "investigation";
 
 const TABS: readonly { key: TabKey; label: string }[] = [
   { key: "results", label: "Results" },
@@ -124,6 +136,11 @@ export function RunPage({ id }: { id: string }) {
     [client, id],
   );
 
+  const investigations = useResource(
+    (signal) => client.get<Page<Investigation>>(`/runs/${seg(id)}/investigations`, { signal }),
+    [client, id],
+  );
+
   const latest = useRef<RunSummary | undefined>(undefined);
   latest.current = summary.resource.data;
   const refresh = useCallback(() => {
@@ -162,6 +179,12 @@ export function RunPage({ id }: { id: string }) {
     <div className="page">
       <Breadcrumb />
       <RunHeader run={run} report={report.resource.data} onChanged={summary.set} reload={refresh} />
+      {report.resource.data?.units.some((unit) => unit.key === INVESTIGATION_UNIT) ? (
+        <Callout tone="neutral" title="This run executes an investigation">
+          <Link to={`/investigations/${seg(id)}`}>Open the investigation</Link> to see its result,
+          the cited code and the bug.
+        </Callout>
+      ) : null}
       {activity.state.status === "reconnecting" ? (
         <Callout tone="warn" title="Reconnecting" role="status">
           Lost contact with the backend; live progress resumes from the last event once it answers.
@@ -176,7 +199,12 @@ export function RunPage({ id }: { id: string }) {
       />
       <div {...tabPanelProps(tabsId, tab)} className="tab-panel">
         {tab === "results" ? (
-          <ResultsTab report={report} plan={plan.resource.data} search={search} />
+          <ResultsTab
+            report={report}
+            plan={plan.resource.data}
+            investigations={investigations.resource.data?.items ?? []}
+            search={search}
+          />
         ) : tab === "activity" ? (
           <ActivityTab activity={activity} />
         ) : tab === "performance" ? (

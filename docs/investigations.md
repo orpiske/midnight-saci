@@ -138,3 +138,9 @@ investigation runs.
 
 `GET /api/v1/runs/{run_id}/investigations` lists the investigations of a
 run, oldest first.
+
+In the [web console](web-ui.md), open the run and select the failed
+unit. The *Investigation* button opens the investigation page at
+`/ui/investigations/<investigation-id>`. The page shows the state, the
+summary, the hypotheses with their code locations and evidence, the
+cloned commits, the bug and all evidence of the agent.

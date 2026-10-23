@@ -5,6 +5,7 @@ import { Wordmark } from "./components/Brand";
 import { EmptyState } from "./components/Feedback";
 import { ActionsPage } from "./features/actions/ActionsPage";
 import { ConnectionPage, TokenForm } from "./features/connection/ConnectionPage";
+import { InvestigationPage } from "./features/investigations/InvestigationPage";
 import { connectionSummary, useConnection } from "./features/connection/connection";
 import { RunPage } from "./features/runs/RunPage";
 import { RunsPage } from "./features/runs/RunsPage";
@@ -107,6 +108,8 @@ function Screen({ path }: { path: string }): ReactNode {
   if (path === "/runs/new") return <NewRunPage />;
   const run = match("/runs/:id", path);
   if (run?.id) return <RunPage id={run.id} />;
+  const investigation = match("/investigations/:id", path);
+  if (investigation?.id) return <InvestigationPage id={investigation.id} />;
   if (path === "/actions") return <ActionsPage />;
   if (path === "/connection") return <ConnectionPage />;
   return (
@@ -137,7 +140,7 @@ function TokenGate() {
 }
 
 function sectionOf(path: string): Section | null {
-  if (path === "/" || path.startsWith("/runs")) return "runs";
+  if (path === "/" || path.startsWith("/runs") || path.startsWith("/investigations")) return "runs";
   if (path.startsWith("/actions")) return "actions";
   if (path.startsWith("/connection")) return "connection";
   return null;

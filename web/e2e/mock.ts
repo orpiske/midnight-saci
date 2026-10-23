@@ -69,6 +69,12 @@ export async function mockBackend(page: Page, options: Partial<Mock> = {}): Prom
       const state = url.searchParams.get("state") ?? "pending_approval";
       return json(route, 200, { items: mock.actions.filter((a) => a.state === state) });
     }
+    // The investigation of the failed run, and the run that executes it.
+    if (path === `/investigations/${fx.INVESTIGATION}`) return json(route, 200, fx.investigation);
+    if (path.startsWith("/investigations/")) return error(route, 404, "not_found", "investigation not found");
+    if (path === `/runs/${fx.RUN}/investigations`) return json(route, 200, { items: [fx.investigation] });
+    if (path.endsWith("/investigations")) return json(route, 200, { items: [] });
+    if (path === `/runs/${fx.INVESTIGATION}/report`) return json(route, 200, fx.investigationReport);
     const run = /^\/runs\/([^/]+)(\/.*)?$/.exec(path);
     const summary = mock.runs.find((r) => r.id === decodeURIComponent(run?.[1] ?? ""));
     if (!run || !summary) return error(route, 404, "not_found", "no such run");

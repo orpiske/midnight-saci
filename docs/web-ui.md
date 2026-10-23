@@ -65,6 +65,18 @@ says how to build it; the API is unaffected.
   - *Outcome actions*: the run's actions and their delivery.
   The selected view, unit, attempt and evidence are part of the address, so
   a link opens the same place.
+  A unit with a [failure investigation](investigations.md) shows an
+  *Investigation* button with its state.
+- **An investigation**: its state, the investigated run and unit, and the
+  times. While it runs, the page refreshes every three seconds. Once the
+  agent concluded, it shows the summary, the bug or the reason for none,
+  and each hypothesis with its confidence, its code locations and the
+  evidence it cites. For a repository on GitHub or GitLab, a code location
+  links to the cited lines at the cloned commit. *Source code* lists the
+  repositories, their refs and the cloned commits. *Agent evidence* lists
+  every observation of the agent. *Agent activity* opens the event feed of
+  the run that executes the investigation. Only `https` addresses become
+  links.
 - **Outcome actions**: actions across runs, one delivery state at a time,
   oldest first. Opening one shows the exact arguments, their digest, the
   idempotency key and the history.

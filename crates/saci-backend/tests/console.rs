@@ -57,6 +57,7 @@ async fn deep_links_reload_to_the_client_without_a_token() {
         "/ui/",
         "/ui/runs",
         "/ui/runs/run-3f1c9a2b7d4e4f0a9c1b2d3e4f5a6b7c?tab=activity",
+        "/ui/investigations/run-7a1e2c3d4b5f4a6e8d9c0b1a2f3e4d5c?evidence=ev-2",
         "/ui/actions?state=unknown",
         "/ui/connection",
     ] {
