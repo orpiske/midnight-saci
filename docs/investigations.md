@@ -31,7 +31,7 @@ investigations:
       ref: main
       description: The orders REST service.
   prepare:
-    - ripwire . --for="{{failure.title}}: {{failure.reason}}" --token-budget=4000
+    - 'ripwire . --for="{{failure.title}}: {{failure.reason}}" --token-budget=4000'
   instructions: |
     File bugs in example/orders-service. Search for an open issue first.
     Find code with `ripwire . --for="..."` and `ripwire . --callers=NAME`.

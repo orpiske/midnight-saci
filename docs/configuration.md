@@ -238,6 +238,10 @@ text, so it cannot change the command. Put quotes around a variable where
 the shell must not split the value. An unknown variable is a configuration
 error.
 
+Put single quotes around a command that contains `: ` or starts with `{`,
+as in the example below. Without quotes, YAML reads the command as a map
+and the configuration is not valid.
+
 ```yaml
 investigations:
   environment: investigator
@@ -247,7 +251,7 @@ investigations:
       ref: main
       description: The orders REST service.
   prepare:
-    - ripwire . --for="{{failure.title}}: {{failure.reason}}" --token-budget=4000
+    - 'ripwire . --for="{{failure.title}}: {{failure.reason}}" --token-budget=4000'
   limits:
     run_timeout_secs: 1800
     output_limit_bytes: 8192

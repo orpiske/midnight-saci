@@ -1612,7 +1612,7 @@ mod tests {
     const INVESTIGATIONS: &str = "environments:\n  investigator:\n    limits:\n      run_timeout_secs: 900\n\
 investigations:\n  environment: investigator\n  repositories:\n    - name: orders\n      \
 url: https://example.com/orders.git\n      ref: main\n  prepare:\n    \
-- ripwire . --for=\"{{failure.title}}\"\n  limits:\n    output_limit_bytes: 8192\n";
+- 'ripwire . --for=\"{{failure.title}}: {{failure.reason}}\"'\n  limits:\n    output_limit_bytes: 8192\n";
 
     #[test]
     fn investigations_are_off_unless_configured() {
@@ -1622,6 +1622,9 @@ url: https://example.com/orders.git\n      ref: main\n  prepare:\n    \
         let investigations = config.investigations.unwrap();
         assert_eq!(investigations.repositories[0].git_ref, "main");
         assert_eq!(investigations.limits.output_limit_bytes, Some(8192));
+        // The documented command, quoted because it contains `: `.
+        let ripwire = r#"ripwire . --for="{{failure.title}}: {{failure.reason}}""#;
+        assert_eq!(investigations.prepare, [ripwire]);
     }
 
     #[test]
