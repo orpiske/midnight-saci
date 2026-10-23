@@ -23,7 +23,7 @@ fn not_found() -> Failure {
 }
 
 /// The investigation that `record` executes, if it executes one.
-fn view(record: &RunRecord) -> Option<Investigation> {
+pub(super) fn view(record: &RunRecord) -> Option<Investigation> {
     let spec = record.spec.investigation.as_deref()?;
     Some(Investigation::new(spec, &record.report))
 }
@@ -54,7 +54,10 @@ pub async fn create(
 }
 
 /// Stores `run`; returns whether it is new, and the investigation.
-async fn store(backend: &Backend, run: Box<NewRun>) -> Reply<(bool, Box<Investigation>)> {
+pub(super) async fn store(
+    backend: &Backend,
+    run: Box<NewRun>,
+) -> Reply<(bool, Box<Investigation>)> {
     let (created, record) = match Box::pin(backend.store.create_run(*run)).await? {
         Created::New(record) => (true, record),
         Created::Existing(record) => (false, record),

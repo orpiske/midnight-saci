@@ -61,6 +61,12 @@ impl Failure {
     pub const fn code(&self) -> ErrorCode {
         self.code
     }
+
+    /// The message for people.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
 }
 
 impl IntoResponse for Failure {
