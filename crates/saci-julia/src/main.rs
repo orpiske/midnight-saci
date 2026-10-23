@@ -32,11 +32,11 @@ enum Command {
         /// Address to listen on.
         #[arg(long, default_value = "127.0.0.1:8095")]
         listen: SocketAddr,
-        /// `env:NAME`: every evaluation must send the value of `NAME` as
-        /// `Authorization: Bearer <token>`. Required when `--listen` is not
-        /// a loopback address.
+        /// Environment variable holding the token that every evaluation
+        /// must send as `Authorization: Bearer <token>`. Required when
+        /// `--listen` is not a loopback address.
         #[arg(long)]
-        auth_token: Option<String>,
+        token_env: Option<String>,
         #[command(flatten)]
         model: ModelArgs,
     },
@@ -114,11 +114,8 @@ fn model_dir(cli: &Cli) -> anyhow::Result<PathBuf> {
     Ok(PathBuf::from(home).join(".cache/saci-julia").join(REVISION))
 }
 
-/// Reads the value of `env:NAME`.
-fn secret(reference: &str) -> anyhow::Result<String> {
-    let Some(name) = reference.strip_prefix("env:") else {
-        bail!("--auth-token must be env:NAME");
-    };
+/// Reads the token from the variable `name`.
+fn token(name: &str) -> anyhow::Result<String> {
     let value = std::env::var(name).with_context(|| format!("`{name}` is not set"))?;
     anyhow::ensure!(!value.is_empty(), "`{name}` is empty");
     Ok(value)
@@ -135,10 +132,10 @@ async fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         }
         Command::Serve {
             listen,
-            auth_token,
+            token_env,
             model,
         } => {
-            Box::pin(serve(dir, listen, auth_token.as_deref(), &model)).await?;
+            Box::pin(serve(dir, listen, token_env.as_deref(), &model)).await?;
             Ok(ExitCode::SUCCESS)
         }
         Command::Parity {
@@ -155,19 +152,25 @@ async fn run(cli: Cli) -> anyhow::Result<ExitCode> {
 async fn serve(
     dir: PathBuf,
     listen: SocketAddr,
-    auth_token: Option<&str>,
+    token_env: Option<&str>,
     model: &ModelArgs,
 ) -> anyhow::Result<()> {
-    let token = auth_token.map(secret).transpose()?;
+    let token = token_env.map(token).transpose()?;
     if token.is_none() && !listen.ip().is_loopback() {
-        bail!("--listen {listen} is not a loopback address: set --auth-token env:NAME");
+        bail!("--listen {listen} is not a loopback address: set --token-env NAME");
     }
     let options = model.options();
+    tracing::info!(model_dir = %dir.display(), "loading the model");
     let engine = tokio::task::spawn_blocking(move || Engine::load(&dir, options)).await??;
     let listener = tokio::net::TcpListener::bind(listen)
         .await
         .with_context(|| format!("cannot listen on {listen}"))?;
-    tracing::info!(%listen, path = server::EVALUATE_PATH, "serving");
+    tracing::info!(
+        %listen,
+        path = server::EVALUATE_PATH,
+        token = token.is_some(),
+        "serving"
+    );
     let shutdown = CancellationToken::new();
     let trigger = shutdown.clone();
     tokio::spawn(async move {

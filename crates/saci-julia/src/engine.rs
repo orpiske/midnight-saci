@@ -6,6 +6,7 @@
 //! score per option marker: `[rows, markers]`.
 
 use std::path::Path;
+use std::time::Instant;
 
 use anyhow::{Context, anyhow, bail};
 use ort::session::Session;
@@ -121,9 +122,19 @@ impl Engine {
             builder = builder.with_intra_threads(threads)?;
         }
         let model_path = model_dir.join("model.onnx");
+        let started = Instant::now();
         let session = builder
             .commit_from_file(&model_path)
             .with_context(|| format!("cannot load {}", model_path.display()))?;
+        tracing::info!(
+            model = %model_path.display(),
+            load_ms = started.elapsed().as_millis(),
+            max_length = options.limits.max_length,
+            head_length = options.limits.head_length,
+            strict = options.limits.strict,
+            threads = ?options.threads,
+            "loaded the model"
+        );
         Ok(Self { encoder, session })
     }
 
@@ -186,9 +197,17 @@ impl Engine {
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let encoded_at = Instant::now();
         let logits = self
             .logits(&encoded)
             .map_err(|error| EvaluateError::Model(format!("{error:#}")))?;
+        tracing::info!(
+            questions = encoded.len(),
+            tokens = encoded.iter().map(|e| e.ids.len()).sum::<usize>(),
+            longest = encoded.iter().map(|e| e.ids.len()).max().unwrap_or(0),
+            model_ms = encoded_at.elapsed().as_millis(),
+            "ran the model"
+        );
         let answers = request
             .questions
             .iter()

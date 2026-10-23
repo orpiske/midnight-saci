@@ -103,7 +103,7 @@ Two providers are available:
 | Setting | Default | Meaning |
 |---------|---------|---------|
 | `provider` | `typesafe` | `typesafe` or `julia-1`. |
-| `api_key` | required for `typesafe` | `env:NAME`. The backend reads the credential from `NAME` when it starts a worker. The worker receives it as `NAME`. A value written in the file is not accepted. For `julia-1`, set it to the token of `saci-julia serve --auth-token`. |
+| `api_key` | required for `typesafe` | `env:NAME`. The backend reads the credential from `NAME` when it starts a worker. The worker receives it as `NAME`. A value written in the file is not accepted. For `julia-1`, set it to the variable that `saci-julia serve --token-env` reads. |
 | `api_key_secret.name`, `.key` | none | Kubernetes Secret key that supplies the credential to worker Jobs as `NAME`. Requires `api_key`. |
 | `model` | `jev-latest` (`typesafe`), `julia-1` (`julia-1`) | The judge model identifier. |
 | `endpoint` | `https://api.typesafe.ai/v1/systemone` (`typesafe`), `http://127.0.0.1:8095/v1/evaluate` (`julia-1`) | The complete evaluation URL, or `env:NAME`. |

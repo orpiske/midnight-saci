@@ -80,9 +80,44 @@ the `llm` model. Thus long evidence is never cut before the judge sees it.
      provider: julia-1
    ```
 
-   The default endpoint is `http://127.0.0.1:8095/v1/evaluate`. A worker in
-   a container or a cluster must reach the service, so set `judge.endpoint`
-   to an address that the worker can reach.
+   The default endpoint is `http://127.0.0.1:8095/v1/evaluate`. It works
+   only for workers on the same host that are not in a container. In a
+   container, `127.0.0.1` is the container itself. For workers in Podman or
+   Docker containers, listen on all interfaces with a token, and use the
+   host name of the container runtime:
+
+   ```sh
+   saci-julia serve --listen 0.0.0.0:8095 --token-env SACI_JULIA_TOKEN
+   ```
+
+   ```yaml
+   judge:
+     provider: julia-1
+     endpoint: http://host.containers.internal:8095/v1/evaluate  # host.docker.internal on Docker
+     api_key: env:SACI_JULIA_TOKEN
+   ```
+
+### Check that the judge is used
+
+- The judge assesses only a step whose code blocks are all marked `run`,
+  when each block ran and exited normally, and the step has expected
+  results.
+- `saci-julia serve` logs `loaded the model` at startup, then a `request`
+  line for each HTTP request (with its status), and `ran the model` and
+  `evaluated` lines for each evaluation (with the token count, the time and
+  the answers). A `401` status means a wrong or missing token.
+- The worker log has `the System One judge is configured` at startup. For
+  each step it has `asking the judge` and `the judge passed the step`, or
+  the reason that the judge did not assess the step or did not pass it.
+- In the run report, a step that the judge passed has an assessment that
+  starts with "The System One judge julia-1 passed every expected result",
+  and its timing shows `model_requests: 0`.
+- When the judge does not pass a step, the worker log gives the reason, for
+  example a connection error or a probability below the threshold. Then the
+  `llm` model assesses the step.
+
+One evaluation usually takes a fraction of a second on a CPU. Thus the CPU use of
+the service is low.
 
 ### Options
 
@@ -90,7 +125,7 @@ the `llm` model. Thus long evidence is never cut before the judge sees it.
 |--------|---------|---------|
 | `--model-dir` | `~/.cache/saci-julia/<revision>` | The model files. Also `SACI_JULIA_MODEL_DIR`. |
 | `serve --listen` | `127.0.0.1:8095` | The listen address. |
-| `serve --auth-token` | none | `env:NAME`. Each evaluation must send the value of `NAME` as `Authorization: Bearer <token>`. Required when `--listen` is not a loopback address. |
+| `serve --token-env` | none | The environment variable that holds the token. Each evaluation must send it as `Authorization: Bearer <token>`. Required when `--listen` is not a loopback address. |
 | `--threads` | ONNX Runtime chooses | CPU threads for one evaluation. |
 | `--max-length` | `8192` | The most tokens of one question with its options and the state. |
 | `--head-length` | `512` | The tokens for the question and its options. |
@@ -98,10 +133,18 @@ the `llm` model. Thus long evidence is never cut before the judge sees it.
 | `download --revision` | the tested commit | The Julia-1-ONNX commit to download. |
 | `parity --cases`, `--tolerance` | `parity-cases.json`, `0.001` | The reference cases and the largest allowed logit difference. |
 
-Set the log level with `RUST_LOG`, for example `RUST_LOG=debug`. `SIGINT`
+The service logs each request and each evaluation (see
+[Check that the judge is used](#check-that-the-judge-is-used)). Set the log
+level with `RUST_LOG`, for example `RUST_LOG=warn`. `SIGINT`
 and `SIGTERM` stop the server.
 
-When the service requires a token, give the worker the same value:
+To require a token, put it in a variable and give the variable name:
+
+```sh
+saci-julia serve --listen 0.0.0.0:8095 --token-env SACI_JULIA_TOKEN
+```
+
+Give the worker the same value:
 
 ```yaml
 judge:
