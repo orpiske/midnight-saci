@@ -216,7 +216,7 @@ investigations:
       ref: main
       description: The orders REST service.
   prepare:                       # run in each clone, before the model
-    - ripwire . --for="{{failure.title}}: {{failure.reason}}" --token-budget=4000
+    - 'ripwire . --for="{{failure.title}}: {{failure.reason}}" --token-budget=4000'
   instructions: |
     Find code with `ripwire . --for="..."` and `ripwire . --callers=NAME`.
     Read only the lines it points to. Do not read whole files.
