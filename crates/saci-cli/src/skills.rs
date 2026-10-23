@@ -25,6 +25,13 @@ pub const SKILLS: &[Skill] = &[
         )],
     },
     Skill {
+        name: "saci-investigate",
+        files: &[(
+            "SKILL.md",
+            include_str!("../../../skills/saci-investigate/SKILL.md"),
+        )],
+    },
+    Skill {
         name: "saci-run-test-plan",
         files: &[(
             "SKILL.md",

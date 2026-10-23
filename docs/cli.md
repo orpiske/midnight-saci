@@ -120,8 +120,9 @@ read. These commands work offline.
 | `saci-convert-test-plan` | Convert an existing Markdown test plan to the Saci format, with all commands unchanged. |
 | `saci-start-backend` | Start a local backend in the background if no backend answers at the backend URL, and wait until it answers. The skill contains the bash script `ensure-backend.sh`. |
 | `saci-run-test-plan` | Validate a plan, start the backend with `saci-start-backend` if necessary, submit the run, follow it to the end and summarize the report. |
+| `saci-investigate` | Find the failed run (a run ID, or the most recent run that did not pass), start a [failure investigation](investigations.md), follow it to the end and summarize the probable cause, the cited code and the bug. |
 
-Install `saci-run-test-plan` and `saci-start-backend` together.
+Install `saci-run-test-plan` and `saci-investigate` with `saci-start-backend`.
 
 `saci skill list` shows the name and description of each skill.
 
