@@ -242,7 +242,8 @@ mod tests {
     #[test]
     fn a_concluded_investigation_shows_the_cited_code_and_the_bug() {
         let investigation: Investigation = serde_json::from_value(serde_json::json!({
-            "id": "run-9", "parent_run": "run-2b", "unit": "1.2", "lifecycle": "finished",
+            "id": "run-9", "parent_run": "run-2b", "unit": "1.2", "plan_title": "Orders", "unit_title": "Total",
+            "lifecycle": "finished",
             "outcome": "concluded", "reason": "the investigation ended concluded",
             "repositories": [{"name": "orders", "url": "https://e.com/o.git", "ref": "v2"}],
             "created_at": "2026-10-23T10:00:00Z",

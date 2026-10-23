@@ -284,3 +284,31 @@ async fn an_investigation_that_ended_in_error_is_replaced() {
         .collect();
     assert_eq!(ids, [first.as_str(), second.as_str()], "oldest first");
 }
+
+#[tokio::test]
+async fn all_investigations_are_listed_newest_first_with_their_titles() {
+    let api = backend().await;
+    let first_run = finished(&api, "failure").await;
+    let second_run = finished(&api, "failure").await;
+    let first = id(&investigate(&api, &json!({"run_id": first_run})).await);
+    let second = id(&investigate(&api, &json!({"run_id": second_run})).await);
+
+    let page = api.get("/api/v1/investigations?limit=1").await;
+    assert_eq!(page.status, StatusCode::OK, "{}", page.body);
+    let item = &page.body["items"][0];
+    assert_eq!(item["id"], json!(second), "newest first");
+    assert_eq!(item["plan_title"], "Service health");
+    assert_eq!(item["unit_title"], "Check service health");
+    let cursor = page.body["next_cursor"].as_str().unwrap();
+    let next = api
+        .get(&format!("/api/v1/investigations?limit=1&cursor={cursor}"))
+        .await;
+    assert_eq!(next.body["items"][0]["id"], json!(first));
+    assert!(next.body.get("next_cursor").is_none(), "{}", next.body);
+    let runs = api.get("/api/v1/runs").await;
+    assert_eq!(
+        runs.body["items"].as_array().unwrap().len(),
+        2,
+        "test runs only"
+    );
+}

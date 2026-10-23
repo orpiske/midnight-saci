@@ -1,4 +1,4 @@
-import { Inbox, ListChecks, Menu, PlugZap, X } from "lucide-react";
+import { Inbox, ListChecks, Menu, PlugZap, Search, X } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { Wordmark } from "./components/Brand";
@@ -6,13 +6,14 @@ import { EmptyState } from "./components/Feedback";
 import { ActionsPage } from "./features/actions/ActionsPage";
 import { ConnectionPage, TokenForm } from "./features/connection/ConnectionPage";
 import { InvestigationPage } from "./features/investigations/InvestigationPage";
+import { InvestigationsPage } from "./features/investigations/InvestigationsPage";
 import { connectionSummary, useConnection } from "./features/connection/connection";
 import { RunPage } from "./features/runs/RunPage";
 import { RunsPage } from "./features/runs/RunsPage";
 import { NewRunPage } from "./features/submission/NewRunPage";
 import { Link, match, navigate, useLocation } from "./lib/router";
 
-type Section = "runs" | "actions" | "connection";
+type Section = "runs" | "investigations" | "actions" | "connection";
 
 function NavLink({
   to,
@@ -71,6 +72,15 @@ function Navigation({
           Runs
         </NavLink>
         <NavLink
+          to="/investigations"
+          section="investigations"
+          current={current}
+          icon={<Search size={16} aria-hidden="true" />}
+          onNavigate={close}
+        >
+          Investigations
+        </NavLink>
+        <NavLink
           to="/actions"
           section="actions"
           current={current}
@@ -108,6 +118,7 @@ function Screen({ path }: { path: string }): ReactNode {
   if (path === "/runs/new") return <NewRunPage />;
   const run = match("/runs/:id", path);
   if (run?.id) return <RunPage id={run.id} />;
+  if (path === "/investigations") return <InvestigationsPage />;
   const investigation = match("/investigations/:id", path);
   if (investigation?.id) return <InvestigationPage id={investigation.id} />;
   if (path === "/actions") return <ActionsPage />;
@@ -140,7 +151,8 @@ function TokenGate() {
 }
 
 function sectionOf(path: string): Section | null {
-  if (path === "/" || path.startsWith("/runs") || path.startsWith("/investigations")) return "runs";
+  if (path === "/" || path.startsWith("/runs")) return "runs";
+  if (path.startsWith("/investigations")) return "investigations";
   if (path.startsWith("/actions")) return "actions";
   if (path.startsWith("/connection")) return "connection";
   return null;
@@ -159,6 +171,7 @@ export function App() {
   useEffect(() => {
     const titles: Record<Section, string> = {
       runs: "Runs",
+      investigations: "Investigations",
       actions: "Outcome actions",
       connection: "Connection",
     };

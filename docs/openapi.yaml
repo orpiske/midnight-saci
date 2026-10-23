@@ -275,6 +275,32 @@ paths:
                     items: { $ref: "#/components/schemas/PolicyInfo" }
         "401": { $ref: "#/components/responses/Error" }
   /api/v1/investigations:
+    get:
+      tags: [investigations]
+      summary: List the investigations of all runs, newest first.
+      operationId: listInvestigations
+      security: [{ clientToken: [] }, {}]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - name: cursor
+          in: query
+          description: "`next_cursor` of the previous page."
+          schema: { type: string }
+      responses:
+        "200":
+          description: One page of investigations.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Investigation" }
+                  next_cursor: { type: string }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
     post:
       tags: [investigations]
       summary: Investigate a failed unit of a finished run.
@@ -1104,11 +1130,13 @@ components:
         description: { type: string }
     Investigation:
       type: object
-      required: [id, parent_run, unit, lifecycle, repositories, created_at]
+      required: [id, parent_run, unit, plan_title, unit_title, lifecycle, repositories, created_at]
       properties:
         id: { type: string, description: The investigation, and the run that executes it. }
         parent_run: { type: string }
         unit: { type: string }
+        plan_title: { type: string, description: Title of the investigated run's plan. }
+        unit_title: { type: string, description: Title of the investigated unit. }
         lifecycle: { $ref: "#/components/schemas/Lifecycle" }
         outcome:
           type: string

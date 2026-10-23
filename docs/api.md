@@ -159,14 +159,18 @@ with the action, or `409 action_not_resolvable` in another state; see
 creates an investigation of a failed unit of a finished run and starts
 its worker (`202`). `unit` and `sources` are optional. The request accepts
 an `Idempotency-Key`. A second request for the same run and unit returns
-the existing investigation with `200`. The backend answers
+the current investigation with `200`, unless it ended in `error` or was
+`cancelled`: then a new investigation starts. The backend answers
 `404 not_found` when investigations are not configured or the run does
 not exist, and `422 validation_failed` when the run has not finished, is
 an investigation, the unit did not fail, or a source is not configured.
 
 `GET /api/v1/investigations/{investigation_id}` returns the investigation:
-its parent run and unit, lifecycle, outcome, repositories and result.
-`GET /api/v1/runs/{run_id}/investigations` lists a run's investigations.
+its parent run and unit with their titles, lifecycle, outcome,
+repositories and result. `GET /api/v1/investigations` lists the
+investigations of all runs, newest first, with `limit` and `cursor` as for
+`GET /api/v1/runs`. `GET /api/v1/runs/{run_id}/investigations` lists a
+run's investigations, oldest first.
 The investigation ID is a run ID: use the run routes for its events,
 evidence, report and cancellation. `GET /api/v1/runs` does not list
 investigations. See [failure investigations](investigations.md).

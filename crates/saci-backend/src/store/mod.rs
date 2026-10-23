@@ -239,8 +239,25 @@ impl Store {
         cursor: Option<String>,
         limit: u32,
     ) -> Result<Page<RunRecord>, StoreError> {
-        self.with(move |connection| list(connection, cursor.as_deref(), limit))
+        self.with(move |connection| list(connection, Listed::Runs, cursor.as_deref(), limit))
             .await
+    }
+
+    /// Lists the investigations of all runs, newest first. `cursor`
+    /// continues a previous page.
+    ///
+    /// # Errors
+    ///
+    /// Fails on an invalid cursor or a database error.
+    pub async fn list_investigations(
+        &self,
+        cursor: Option<String>,
+        limit: u32,
+    ) -> Result<Page<RunRecord>, StoreError> {
+        self.with(move |connection| {
+            list(connection, Listed::Investigations, cursor.as_deref(), limit)
+        })
+        .await
     }
 
     /// The investigations of `parent`, oldest first.
@@ -642,8 +659,29 @@ fn load(connection: &Connection, id: &str) -> Result<RunRecord, StoreError> {
     })
 }
 
+/// What a list holds: test runs, or the runs that execute investigations.
+#[derive(Debug, Clone, Copy)]
+enum Listed {
+    Runs,
+    Investigations,
+}
+
+impl Listed {
+    const fn sql(self) -> &'static str {
+        match self {
+            Self::Runs => {
+                "SELECT rowid, id FROM runs WHERE rowid < ?1 AND parent_run IS NULL ORDER BY rowid DESC LIMIT ?2"
+            }
+            Self::Investigations => {
+                "SELECT rowid, id FROM runs WHERE rowid < ?1 AND parent_run IS NOT NULL ORDER BY rowid DESC LIMIT ?2"
+            }
+        }
+    }
+}
+
 fn list(
     connection: &Connection,
+    listed: Listed,
     cursor: Option<&str>,
     limit: u32,
 ) -> Result<Page<RunRecord>, StoreError> {
@@ -654,8 +692,7 @@ fn list(
         None => i64::MAX,
     };
     let limit = limit.clamp(1, 200);
-    let mut statement = connection
-        .prepare("SELECT rowid, id FROM runs WHERE rowid < ?1 AND parent_run IS NULL ORDER BY rowid DESC LIMIT ?2")?;
+    let mut statement = connection.prepare(listed.sql())?;
     let rows = statement
         .query_map(params![before, limit + 1], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))

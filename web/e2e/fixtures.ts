@@ -309,6 +309,8 @@ export const investigation: Investigation = {
   id: INVESTIGATION,
   parent_run: RUN,
   unit: "1.2",
+  plan_title: "Service health",
+  unit_title: "List orders",
   lifecycle: "finished",
   outcome: "concluded",
   reason: "the investigation ended concluded",

@@ -64,7 +64,7 @@ export function InvestigationPage({ id }: { id: string }) {
   }
   return (
     <div className="page stack">
-      <Breadcrumb parent={data.parent_run} unit={data.unit} />
+      <Breadcrumb />
       <Header investigation={data} reload={refresh} />
       <Result investigation={data} report={report} selected={search.get("evidence")} />
       <Sources investigation={data} />
@@ -73,29 +73,25 @@ export function InvestigationPage({ id }: { id: string }) {
   );
 }
 
-function Breadcrumb({ parent, unit }: { parent?: string; unit?: string }) {
+function Breadcrumb() {
   return (
     <nav className="breadcrumb" aria-label="Breadcrumb">
-      <Link to="/runs">Runs</Link>
+      <Link to="/investigations">Investigations</Link>
       <span aria-hidden="true">/</span>
-      {parent ? (
-        <>
-          <Link to={`/runs/${seg(parent)}?unit=${encodeURIComponent(unit ?? "")}`}>Run</Link>
-          <span aria-hidden="true">/</span>
-        </>
-      ) : null}
       <span aria-current="page">Investigation</span>
     </nav>
   );
 }
 
 function Header({ investigation, reload }: { investigation: Investigation; reload: () => void }) {
-  const { id, parent_run, unit, lifecycle, outcome, reason, created_at, finished_at } = investigation;
+  const { id, parent_run, unit, unit_title, plan_title, lifecycle, outcome, reason, created_at, finished_at } = investigation;
   return (
     <header className="run-header">
       <div className="page-header">
         <div className="stack-sm">
-          <h1>Investigation of unit {unit}</h1>
+          <h1>
+            Investigation of unit {unit}: {unit_title}
+          </h1>
           <div className="row">
             <Badge look={investigationLook(lifecycle, outcome)} />
           </div>
@@ -120,6 +116,7 @@ function Header({ investigation, reload }: { investigation: Investigation; reloa
         <span>
           Investigation <CopyText value={id} title="investigation ID" />
         </span>
+        <span>Plan {plan_title}</span>
         <span>
           Run <Link to={`/runs/${seg(parent_run)}?unit=${encodeURIComponent(unit)}`} className="mono">{parent_run}</Link>
         </span>

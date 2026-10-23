@@ -250,3 +250,28 @@ test("a unit without an investigation has no link, and an unknown one is not fou
   await page.goto("/ui/investigations/run-00000000000000000000000000000000");
   await expect(page.getByText("No such investigation")).toBeVisible();
 });
+
+test("the investigations list shows each investigation with its run", async ({ page }, testInfo) => {
+  await mockBackend(page);
+  await page.goto("/ui/runs");
+  const menu = page.getByRole("button", { name: "Open navigation" });
+  if (await menu.isVisible()) await menu.click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Investigations" }).click();
+  await expect(page).toHaveURL(/\/ui\/investigations$/);
+  await expect(page.getByRole("heading", { name: "Investigations" })).toBeVisible();
+  const row = page.getByRole("row").filter({ hasText: "List orders" });
+  await expect(row).toContainText("Service health");
+  await expect(row).toContainText("Concluded");
+  await expect(row).toContainText("1 hypothesis");
+  await accessible(page, testInfo, "investigations");
+
+  await row.getByRole("link", { name: /1\.2 List orders/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/ui/investigations/${fx.INVESTIGATION}$`));
+  await expect(page.locator(`#main-nav a[href="/ui/investigations"]`)).toHaveAttribute("aria-current", "page");
+});
+
+test("an empty investigations list says how to start one", async ({ page }) => {
+  await mockBackend(page, { investigations: [] });
+  await page.goto("/ui/investigations");
+  await expect(page.getByText("No investigations yet")).toBeVisible();
+});
