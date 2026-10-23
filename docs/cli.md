@@ -282,8 +282,9 @@ an `investigations` section.
 | `--idempotency-key <key>` | Makes a repeated request safe; generated when omitted. |
 | `--json` | Prints the investigation as JSON. |
 
-A run and unit have one investigation: a second request prints the
-existing ID. The investigation ID is a run ID, so `saci follow`,
+A run and unit have one current investigation: a second request prints
+its ID. After an investigation that ended in `error` or `cancelled`, a
+request starts a new one. The investigation ID is a run ID, so `saci follow`,
 `saci report` and `saci cancel` work with it.
 
 `saci investigations show <id>` prints the state, the repositories and,
