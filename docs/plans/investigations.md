@@ -1,6 +1,6 @@
 # Design: failure investigations
 
-Status: proposal ([#107](https://github.com/orpiske/midnight-saci/issues/107)). Nothing in this document is implemented.
+Status: accepted ([#107](https://github.com/orpiske/midnight-saci/issues/107)). Tickets 1 to 5 are implemented. The user guide is [failure investigations](../investigations.md).
 
 ## Goal
 
@@ -237,7 +237,7 @@ Without this section, the A2A endpoint is not served.
 ## The A2A endpoint
 
 The backend serves a minimal A2A subset over JSON-RPC 2.0. It uses the
-same client token as the REST API.
+same client token as the REST API. The methods are served at `POST /a2a`.
 
 | Method | Behavior |
 | --- | --- |

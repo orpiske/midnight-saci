@@ -175,6 +175,11 @@ The investigation ID is a run ID: use the run routes for its events,
 evidence, report and cancellation. `GET /api/v1/runs` does not list
 investigations. See [failure investigations](investigations.md).
 
+The backend also serves investigations over A2A, outside `/api/v1`:
+`GET /.well-known/agent-card.json` and the JSON-RPC endpoint `POST /a2a`.
+They are not REST routes, so `openapi.yaml` does not describe them. See
+[A2A](investigations.md#a2a).
+
 ## Console reads
 
 These client routes describe what a run may be submitted with and what a
