@@ -15,10 +15,18 @@ own temporary directory and removes it at the end.
 
 ## The Saci under test
 
-[`start-under-test.sh`](start-under-test.sh) starts a backend on
-`127.0.0.1:18080` with the walkthrough's scripted model and orders service
-([examples/walkthrough](../examples/walkthrough)), so its runs behave the
-same way every time and need no API key:
+[`saci.yaml`](saci.yaml) points the plans at the backend that runs them:
+its `saci-under-test` environment sets `UNDER_TEST_URL` to that backend
+and `UNDER_TEST_ENVIRONMENT` to `saci-under-test`. One backend thus
+submits and tests its own runs.
+
+[`start-under-test.sh`](start-under-test.sh) starts the walkthrough's
+orders service on `127.0.0.1:18081` (`SERVICE_URL`), and a second backend
+on `127.0.0.1:18080` with the walkthrough's scripted model
+([examples/walkthrough](../examples/walkthrough)). The runs of that second
+backend behave the same way every time and need no API key. To test it
+instead, set `UNDER_TEST_URL` to `http://host.docker.internal:18080` and
+`UNDER_TEST_ENVIRONMENT` to `local`:
 
 ```sh
 cargo build --package saci-cli --package saci-testkit
@@ -29,6 +37,19 @@ test/start-under-test.sh
 It stays in the foreground until Ctrl-C. Its workers use the host network,
 so it needs Linux.
 
+## Authentication
+
+`saci.yaml` sets `backend.auth`, so every client must send the token in
+`SACI_TOKEN`. This includes the plans: the `saci-under-test` environment
+gives them the same token in the secret `UNDER_TEST_TOKEN`.
+`backend-api.md` sends it with `curl`, and `cli-runs.md` copies it to
+`SACI_TOKEN` for `saci`. When the backend under test has no
+`backend.auth`, the plans also work: that backend ignores the token.
+
+When the backend under test is a different backend with its own token, set
+`UNDER_TEST_TOKEN` to come from the variable that holds that token, for
+example `{ env: UNDER_TEST_TOKEN_VALUE }`.
+
 ## Running the plans
 
 In another terminal, start the Saci that runs the plans with
@@ -38,6 +59,7 @@ In another terminal, start the Saci that runs the plans with
 ```sh
 export PATH=$PWD/target/debug:$PATH
 export SACI_LLM_API_KEY=...        # your model provider's key
+export SACI_TOKEN=$(openssl rand -hex 32)   # the client token
 (cd test && saci backend start --config saci.yaml) &
 saci run test/plans/cli-authoring.md --environment saci-under-test --follow
 saci run test/plans/backend-api.md --environment saci-under-test --follow
