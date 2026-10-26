@@ -262,7 +262,7 @@ fn transport_message(report: &rig::ErrorReport) -> String {
     let chain = report.source_chain.join(": ");
     let all = format!("{} {chain}", report.message).to_ascii_lowercase();
     if all.contains("timed out") || all.contains("timeout") {
-        "the model request timed out; raise limits.model_request_timeout_secs or check the provider"
+        "the model request timed out after all retries; raise limits.model_request_timeout_secs or check the provider"
             .to_owned()
     } else {
         format!(
@@ -320,15 +320,18 @@ fn retry_decision(error: &http_client::Error) -> Option<Option<Duration>> {
             || (status == StatusCode::TOO_MANY_REQUESTS && !quota);
         return transient.then(|| retry_after(error));
     }
-    is_connect_error(error).then_some(None)
+    // A request that hit its deadline is repeated too: the provider was slow
+    // once, and repeating a model request never replays a tool call.
+    (is_connect_error(error) || is_timeout(error)).then_some(None)
 }
 
 /// Why a request is retried, without anything the provider sent back.
 fn retry_reason(error: &http_client::Error) -> String {
-    error.non_success_status().map_or_else(
-        || "the connection to the provider failed".to_owned(),
-        |status| format!("the provider answered HTTP {}", status.as_u16()),
-    )
+    match error.non_success_status() {
+        Some(status) => format!("the provider answered HTTP {}", status.as_u16()),
+        None if is_timeout(error) => "the model request timed out".to_owned(),
+        None => "the connection to the provider failed".to_owned(),
+    }
 }
 
 fn retry_after(error: &http_client::Error) -> Option<Duration> {
@@ -345,6 +348,10 @@ fn retry_after(error: &http_client::Error) -> Option<Duration> {
 
 fn is_connect_error(error: &http_client::Error) -> bool {
     reqwest_error(error).is_some_and(rig::rig_reqwest::reqwest::Error::is_connect)
+}
+
+fn is_timeout(error: &http_client::Error) -> bool {
+    reqwest_error(error).is_some_and(rig::rig_reqwest::reqwest::Error::is_timeout)
 }
 
 fn reqwest_error(error: &http_client::Error) -> Option<&rig::rig_reqwest::reqwest::Error> {
@@ -375,7 +382,7 @@ impl std::fmt::Display for TimedOut {
 impl std::error::Error for TimedOut {}
 
 fn describe(error: http_client::Error) -> http_client::Error {
-    if reqwest_error(&error).is_some_and(rig::rig_reqwest::reqwest::Error::is_timeout) {
+    if is_timeout(&error) {
         http_client::Error::instance(TimedOut)
     } else {
         error

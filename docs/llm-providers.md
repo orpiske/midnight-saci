@@ -67,12 +67,14 @@ llm:
 ## Retries and errors
 
 Each model request has the deadline `limits.model_request_timeout_secs`.
-A request that cannot connect, or that gets HTTP 429 (other than an
-exhausted quota) or 500, 502, 503 or 504, is repeated up to
-`limits.model_request_retries` times (default 2) after 1 s, 2 s, 4 s and so
-on, or after the `Retry-After` delay when the provider sends one, capped at
-20 s. Only the failed model request is repeated; tool calls already executed
-are never replayed. Timeouts and other statuses are not retried.
+A request that cannot connect, that reaches this deadline, or that gets
+HTTP 429 (other than an exhausted quota) or 500, 502, 503 or 504, is
+repeated up to `limits.model_request_retries` times (default 2) after 1 s,
+2 s, 4 s and so on, or after the `Retry-After` delay when the provider sends
+one, capped at 20 s. Each repeated request has the full deadline again, and
+all requests count against `limits.step_timeout_secs`. Only the failed model
+request is repeated; tool calls already executed are never replayed. Other
+statuses are not retried.
 
 When a request finally fails, the attempt ends with an `error` outcome and
 an `ExecutionError` of kind `provider` whose message says what to check.
