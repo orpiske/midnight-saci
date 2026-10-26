@@ -1,5 +1,6 @@
 //! The REST API under `/api/v1` (see `docs/api.md` and `docs/openapi.yaml`).
 
+mod a2a;
 mod actions;
 mod catalog;
 mod error;
@@ -193,12 +194,9 @@ fn client_routes() -> Router<Backend> {
         .route("/policies", get(catalog::policies))
 }
 
-/// The client and worker routes, the health check and the web console.
-pub fn router(backend: Backend, auth: ClientAuth) -> Router {
-    let runs = client_routes()
-        .merge(action_routes())
-        .route_layer(middleware::from_fn_with_state(Arc::new(auth), authorize));
-    let workers = Router::new()
+/// Worker routes, authorized by the run-scoped token.
+fn worker_routes(backend: &Backend) -> Router<Backend> {
+    Router::new()
         .route(
             "/worker/runs/{run_id}/specification",
             get(worker::specification),
@@ -211,16 +209,34 @@ pub fn router(backend: Backend, auth: ClientAuth) -> Router {
         .route_layer(middleware::from_fn_with_state(
             backend.clone(),
             worker::authorize,
-        ));
+        ))
+}
+
+/// The client and worker routes, the health check and the web console,
+/// and the A2A endpoint when investigations are configured.
+pub fn router(backend: Backend, auth: ClientAuth) -> Router {
+    let auth = Arc::new(auth);
+    let a2a = backend
+        .config
+        .investigations
+        .is_some()
+        .then(|| a2a::routes(backend.clone(), auth.clone()));
+    let runs = client_routes()
+        .merge(action_routes())
+        .route_layer(middleware::from_fn_with_state(auth, authorize));
     let api = Router::new()
         .route("/health", get(runs::health))
         .merge(runs)
-        .merge(workers)
+        .merge(worker_routes(&backend))
         .fallback(unknown_route)
         .with_state(backend);
-    Router::new()
+    let app = Router::new()
         .nest(API_BASE, api)
-        .merge(crate::console::routes())
+        .merge(crate::console::routes());
+    match a2a {
+        Some(a2a) => app.merge(a2a),
+        None => app,
+    }
 }
 
 /// Unknown API routes answer the structured error, never a page.
