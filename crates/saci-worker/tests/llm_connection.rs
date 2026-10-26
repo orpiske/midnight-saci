@@ -223,18 +223,30 @@ async fn retries_never_replay_tool_calls() {
 }
 
 #[tokio::test]
-async fn model_requests_time_out() {
+async fn timed_out_requests_are_retried_within_the_bound() {
     let slow = Reply::ok(&text_reply("late")).delayed(Duration::from_secs(5));
-    let model = FakeModel::start(vec![slow.clone(), slow]).await.unwrap();
+    let model = FakeModel::start(vec![slow.clone(), Reply::ok(&text_reply("on time"))])
+        .await
+        .unwrap();
     let limits = ExecutionLimits {
         model_request_timeout_secs: 1,
+        model_request_retries: 1,
         ..ExecutionLimits::default()
     };
+    let reply = ask(&connect(&settings(&model.base_url(), None), &limits, None)).await;
+    assert_eq!(reply.unwrap(), "on time");
+    assert_eq!(model.requests().len(), 2);
+
+    let model = FakeModel::start(vec![slow.clone(), slow.clone(), slow])
+        .await
+        .unwrap();
     let started = Instant::now();
     let error = ask(&connect(&settings(&model.base_url(), None), &limits, None))
         .await
         .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Provider);
     assert!(error.message.contains("timed out"), "{}", error.message);
+    assert_eq!(model.requests().len(), 2, "one request plus one retry");
     assert!(started.elapsed() < Duration::from_secs(4));
 }
 

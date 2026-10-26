@@ -46,8 +46,8 @@ These are the only places Saci adds behavior Rig does not provide:
    inside.
 3. **Bounded transport retries.** Rig has none. `saci_worker::llm::RetryingClient`
    wraps Rig's HTTP transport and repeats a model request that could not
-   connect or got HTTP 429 (not an exhausted quota), 500, 502, 503 or 504,
-   up to `limits.model_request_retries` times. Tool calls are executed by
+   connect, timed out, or got HTTP 429 (not an exhausted quota), 500, 502,
+   503 or 504, up to `limits.model_request_retries` times. Tool calls are executed by
    the agent loop only after a successful response, so they are never
    replayed (see [LLM providers](llm-providers.md#retries-and-errors)).
 4. **Unknown tool names.** By default Rig fails the run on an unknown tool.
