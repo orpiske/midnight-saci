@@ -13,7 +13,7 @@ use crate::investigation::{self, InvestigationsConfig, Repository, is_git_value}
 use crate::spec::{
     EnvironmentSpec, ExecutionLimits, FailureAction, JudgeProvider, JudgeSettings,
     KubernetesSecretKey, LlmSettings, McpServerSpec, McpTransport, RetryPolicy, RunPolicy,
-    SecretRef, WorkerResources,
+    SecretRef, StopAction, WorkerResources,
 };
 
 /// Name of the policy used when a run names none.
@@ -385,6 +385,8 @@ pub struct LimitsOverride {
     pub tool_calls_per_step: Option<u32>,
     /// See [`ExecutionLimits::output_limit_bytes`].
     pub output_limit_bytes: Option<u64>,
+    /// See [`ExecutionLimits::cleanup_timeout_secs`].
+    pub cleanup_timeout_secs: Option<u64>,
 }
 
 impl LimitsOverride {
@@ -408,6 +410,9 @@ impl LimitsOverride {
                 .unwrap_or(base.model_calls_per_step),
             tool_calls_per_step: self.tool_calls_per_step.unwrap_or(base.tool_calls_per_step),
             output_limit_bytes: self.output_limit_bytes.unwrap_or(base.output_limit_bytes),
+            cleanup_timeout_secs: self
+                .cleanup_timeout_secs
+                .unwrap_or(base.cleanup_timeout_secs),
         }
     }
 }
@@ -455,6 +460,10 @@ pub struct PolicyConfig {
     /// Retry behavior; a single attempt by default.
     #[serde(default)]
     pub retry: RetryPolicy,
+    /// What happens to the remaining cleanup units after an early stop, a
+    /// cancellation or the run deadline; `cleanup` by default.
+    #[serde(default)]
+    pub after_stop: StopAction,
     /// Outcome actions (names under `actions.definitions`) considered when a
     /// run under this policy finishes.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -826,6 +835,7 @@ impl Config {
             name: name.to_owned(),
             on_failure: policy.on_failure,
             retry: policy.retry,
+            after_stop: policy.after_stop,
         })
     }
 }
@@ -971,6 +981,7 @@ fn validate_limits(path: &str, limits: ExecutionLimits, issues: &mut Issues) {
         ),
         ("tool_calls_per_step", u64::from(limits.tool_calls_per_step)),
         ("output_limit_bytes", limits.output_limit_bytes),
+        ("cleanup_timeout_secs", limits.cleanup_timeout_secs),
     ];
     for (name, value) in values {
         if value == 0 {
@@ -1218,6 +1229,26 @@ mod tests {
         let policy = config.policy(DEFAULT_POLICY).unwrap();
         assert_eq!(policy.retry.max_attempts, 1);
         assert_eq!(policy.on_failure, FailureAction::Stop);
+        assert_eq!(policy.after_stop, StopAction::Cleanup);
+    }
+
+    #[test]
+    fn a_policy_can_skip_cleanup_after_a_stop_and_cleanup_time_is_a_limit() {
+        let yaml = format!(
+            "{MINIMAL}policies:\n  fast:\n    after_stop: skip\nenvironments:\n  local:\n    limits:\n      cleanup_timeout_secs: 120\n"
+        );
+        let config = Config::from_yaml(&yaml, "t.yaml").unwrap();
+        assert_eq!(config.policy("fast").unwrap().after_stop, StopAction::Skip);
+        let limits = config.environments["local"]
+            .limits
+            .apply(config.default_limits());
+        assert_eq!(limits.cleanup_timeout_secs, 120);
+        let zero = format!("{MINIMAL}limits:\n  cleanup_timeout_secs: 0\n");
+        assert!(
+            issues(&zero)
+                .iter()
+                .any(|i| i.contains("limits.cleanup_timeout_secs"))
+        );
     }
 
     #[test]

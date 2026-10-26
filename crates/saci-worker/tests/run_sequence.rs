@@ -1,5 +1,5 @@
 //! Whole runs: unit order, run context, stop, continue and retry policy,
-//! cancellation, and a report that folds every emitted event.
+//! cleanup after a stop, cancellation, and a report that folds every emitted event.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -12,6 +12,7 @@ use saci_core::plan::PlanBundle;
 use saci_core::run::{ReportHeader, RunReport};
 use saci_core::spec::{
     EnvironmentSpec, ExecutionLimits, FailureAction, LlmSettings, RetryPolicy, RunPolicy,
+    StopAction,
 };
 use saci_core::status::Outcome;
 use saci_testkit::{FakeModel, Reply, tool_calls_reply};
@@ -20,10 +21,9 @@ use saci_worker::credentials::Credentials;
 use saci_worker::events::{EventReceiver, EventSink, Recorder};
 use saci_worker::http::HttpTool;
 use saci_worker::llm::LlmConnection;
-use saci_worker::sequence::{RunEnding, RunPlan, run};
+use saci_worker::sequence::{RunEnding, RunPlan, Stops, run};
 use saci_worker::shell::{ShellConfig, ShellSession};
 use serde_json::json;
-use tokio_util::sync::CancellationToken;
 
 const PLAN: &str = "# Test Plan: Sequence
 
@@ -148,21 +148,28 @@ fn plan(documents: &[(&str, &str)]) -> ExpandedPlan {
     expand(&bundle).unwrap()
 }
 
-async fn execute(script: Vec<Reply>, policy: RunPolicy, cancel: &CancellationToken) -> Run {
-    Box::pin(execute_plan(
-        plan(&[("plan.md", PLAN)]),
-        script,
-        policy,
-        cancel,
-    ))
-    .await
+async fn execute(script: Vec<Reply>, policy: RunPolicy, stops: &Stops) -> Run {
+    let plan = plan(&[("plan.md", PLAN)]);
+    Box::pin(execute_plan(plan, script, policy, stops, CLEANUP_TIME)).await
+}
+
+const CLEANUP_TIME: Duration = Duration::from_secs(30);
+
+/// The default policy without cleanup after a stop.
+fn skipping_cleanup() -> RunPolicy {
+    RunPolicy {
+        name: "no-cleanup".into(),
+        after_stop: StopAction::Skip,
+        ..RunPolicy::default()
+    }
 }
 
 async fn execute_plan(
     plan: ExpandedPlan,
     script: Vec<Reply>,
     policy: RunPolicy,
-    cancel: &CancellationToken,
+    stops: &Stops,
+    cleanup_timeout: Duration,
 ) -> Run {
     let model = FakeModel::start(script).await.unwrap();
     let llm = LlmSettings {
@@ -179,9 +186,10 @@ async fn execute_plan(
         policy: &policy,
         step_timeout: Duration::from_secs(30),
         deadline: Instant::now() + Duration::from_secs(60),
+        cleanup_timeout,
         model: "scripted",
     };
-    let ending = Box::pin(run(&executor, run_plan, cancel)).await;
+    let ending = Box::pin(run(&executor, run_plan, stops)).await;
     executor.close().await;
     Run {
         ending,
@@ -202,7 +210,7 @@ async fn units_run_in_order_with_shared_state_and_context() {
         attempt(3, "unset READY", "passed"),
     ]
     .concat();
-    let run = execute(script, RunPolicy::default(), &CancellationToken::new()).await;
+    let run = execute(script, RunPolicy::default(), &Stops::new()).await;
     assert_eq!(run.ending.outcome, Outcome::Passed, "{:?}", run.ending);
     assert_eq!(run.report.outcome, Some(Outcome::Passed));
     let stdout = match &run.report.evidence[1].record {
@@ -221,7 +229,7 @@ async fn units_run_in_order_with_shared_state_and_context() {
 #[tokio::test]
 async fn the_default_policy_stops_and_skips_the_rest_with_a_reason() {
     let script = attempt(1, "false", "failed").to_vec();
-    let run = execute(script, RunPolicy::default(), &CancellationToken::new()).await;
+    let run = execute(script, skipping_cleanup(), &Stops::new()).await;
     assert_eq!(run.ending.outcome, Outcome::Failed);
     assert!(
         run.ending.reason.contains("stopped after 1.1 ended failed"),
@@ -262,7 +270,7 @@ async fn continue_policy_runs_every_unit() {
         on_failure: FailureAction::Continue,
         ..RunPolicy::default()
     };
-    let run = execute(script, policy, &CancellationToken::new()).await;
+    let run = execute(script, policy, &Stops::new()).await;
     assert_eq!(
         outcomes(&run.report),
         [
@@ -290,9 +298,10 @@ async fn retries_are_bounded_and_keep_every_attempt() {
             max_attempts: 2,
             on: vec![Outcome::Failed],
         },
+        after_stop: StopAction::Skip,
         ..RunPolicy::default()
     };
-    let run = execute(script, policy, &CancellationToken::new()).await;
+    let run = execute(script, policy, &Stops::new()).await;
     let first = &run.report.units[0];
     assert_eq!(first.outcome, Some(Outcome::Passed));
     let attempts: Vec<_> = first.attempts.iter().map(|a| a.outcome).collect();
@@ -304,11 +313,19 @@ async fn retries_are_bounded_and_keep_every_attempt() {
 }
 
 #[tokio::test]
-async fn a_cancelled_run_attempts_nothing_more() {
-    let cancel = CancellationToken::new();
-    cancel.cancel();
-    let run = execute(Vec::new(), RunPolicy::default(), &cancel).await;
+async fn an_aborted_run_attempts_nothing_more_not_even_cleanup() {
+    let stops = Stops::new();
+    stops.abort.cancel();
+    assert!(stops.cancel.is_cancelled(), "an abort also cancels");
+    let run = execute(Vec::new(), RunPolicy::default(), &stops).await;
     assert_eq!(run.ending.outcome, Outcome::Cancelled);
+    assert!(
+        run.report.units[2]
+            .reason
+            .as_deref()
+            .unwrap()
+            .ends_with("the worker was stopped before this cleanup unit")
+    );
     assert_eq!(run.report.outcome, Some(Outcome::Cancelled));
     assert!(
         run.report
@@ -380,8 +397,9 @@ async fn an_invoking_unit_gets_its_procedure_results_and_evidence() {
     ]
     .concat();
     let plan = plan(&[("plan.md", FOLLOWING), ("common/helper.md", HELPER)]);
-    let cancel = CancellationToken::new();
-    let run = Box::pin(execute_plan(plan, script, RunPolicy::default(), &cancel)).await;
+    let stops = Stops::new();
+    let policy = RunPolicy::default();
+    let run = Box::pin(execute_plan(plan, script, policy, &stops, CLEANUP_TIME)).await;
     assert_eq!(run.ending.outcome, Outcome::Passed, "{:?}", run.ending);
     // The parent assessed in one request, citing the procedure's evidence.
     assert_eq!(run.report.units[1].outcome, Some(Outcome::Passed));
@@ -396,4 +414,145 @@ async fn an_invoking_unit_gets_its_procedure_results_and_evidence() {
     assert!(!unrelated.contains("already ran before it"), "{unrelated}");
     // Every later unit still sees the cited evidence in the earlier results.
     assert!(unrelated.contains("evidence ev-1"), "{unrelated}");
+}
+
+#[tokio::test]
+async fn the_default_policy_runs_the_remaining_cleanup_after_a_stop() {
+    let script = [
+        attempt(1, "false", "failed"),
+        attempt(2, "unset READY", "passed"),
+    ]
+    .concat();
+    let run = execute(script, RunPolicy::default(), &Stops::new()).await;
+    assert_eq!(
+        outcomes(&run.report),
+        [
+            Some(Outcome::Failed),
+            Some(Outcome::Skipped),
+            Some(Outcome::Passed)
+        ]
+    );
+    assert_eq!(run.ending.outcome, Outcome::Failed);
+    assert!(
+        run.ending
+            .reason
+            .starts_with("stopped after 1.1 ended failed")
+            && run
+                .ending
+                .reason
+                .ends_with("; 1 cleanup unit(s) ran after the stop"),
+        "{}",
+        run.ending.reason
+    );
+    assert!(run.report.cleanup_not_run.is_empty());
+}
+
+#[tokio::test]
+async fn a_cancelled_run_still_runs_its_cleanup() {
+    let stops = Stops::new();
+    stops.cancel.cancel();
+    let script = attempt(1, "unset READY", "passed").to_vec();
+    let run = execute(script, RunPolicy::default(), &stops).await;
+    assert_eq!(run.ending.outcome, Outcome::Cancelled);
+    assert_eq!(
+        outcomes(&run.report),
+        [
+            Some(Outcome::Skipped),
+            Some(Outcome::Skipped),
+            Some(Outcome::Passed)
+        ]
+    );
+    assert!(run.report.cleanup_not_run.is_empty());
+}
+
+const TWO_CLEANUPS: &str = "# Test Plan: Two cleanups
+
+## Phase 1: Checks
+
+### Test 1.1: Check
+
+Run `false`.
+
+**Expected result:**
+
+- The command exits 0.
+
+## Phase 2: Teardown
+
+### Step 2.1: Remove the namespace
+
+Run `false`.
+
+**Expected result:**
+
+- The command exits 0.
+
+### Step 2.2: Remove the release
+
+Run `true`.
+
+**Expected result:**
+
+- The command exits 0.
+";
+
+#[tokio::test]
+async fn every_cleanup_unit_runs_after_a_stop_even_when_one_fails() {
+    let script = [
+        attempt(1, "false", "failed"),
+        attempt(2, "false", "failed"),
+        attempt(3, "true", "passed"),
+    ]
+    .concat();
+    let plan = plan(&[("plan.md", TWO_CLEANUPS)]);
+    let policy = RunPolicy::default();
+    let run = Box::pin(execute_plan(
+        plan,
+        script,
+        policy,
+        &Stops::new(),
+        CLEANUP_TIME,
+    ))
+    .await;
+    assert_eq!(
+        outcomes(&run.report),
+        [
+            Some(Outcome::Failed),
+            Some(Outcome::Failed),
+            Some(Outcome::Passed)
+        ]
+    );
+    assert!(
+        run.ending.reason.contains("2 cleanup unit(s) ran"),
+        "{}",
+        run.ending.reason
+    );
+}
+
+#[tokio::test]
+async fn cleanup_ends_when_its_own_time_runs_out() {
+    let script = attempt(1, "false", "failed").to_vec();
+    let plan = plan(&[("plan.md", PLAN)]);
+    let policy = RunPolicy::default();
+    let run = Box::pin(execute_plan(
+        plan,
+        script,
+        policy,
+        &Stops::new(),
+        Duration::ZERO,
+    ))
+    .await;
+    let cleanup = &run.report.units[2];
+    assert_eq!(cleanup.outcome, Some(Outcome::Skipped));
+    assert!(
+        cleanup
+            .reason
+            .as_deref()
+            .unwrap()
+            .ends_with("the cleanup time (limits.cleanup_timeout_secs) ran out")
+    );
+    assert_eq!(
+        run.report.cleanup_not_run,
+        [saci_core::ids::UnitKey::new("2.1")]
+    );
 }

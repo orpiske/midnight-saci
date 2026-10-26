@@ -3,9 +3,15 @@
 //! Each unit gets up to `policy.retry.max_attempts` attempts, retried only
 //! when its outcome is listed in `policy.retry.on`; every attempt stays in
 //! the report. After an unsuccessful unit the default policy stops and the
-//! remaining units, cleanup included, are skipped with the reason.
-//! `on_failure: continue` goes on with the next unit. Cancellation and the
-//! run deadline stop execution the same way.
+//! remaining units are skipped with the reason. `on_failure: continue` goes
+//! on with the next unit. Cancellation and the run deadline stop execution
+//! the same way.
+//!
+//! After a stop, the remaining cleanup units still run in document order when
+//! the policy says `after_stop: cleanup`. They get their own time,
+//! `limits.cleanup_timeout_secs`, and run even when an earlier cleanup unit
+//! failed. Only `abort` (the worker is stopped, or its events cannot be
+//! delivered) ends cleanup early.
 
 use std::fmt::Write as _;
 use std::time::{Duration, Instant};
@@ -13,7 +19,7 @@ use std::time::{Duration, Instant};
 use saci_core::bundle::{ExecutionUnit, ExpandedPlan};
 use saci_core::event::EventKind;
 use saci_core::ids::UnitKey;
-use saci_core::spec::{FailureAction, RunPolicy};
+use saci_core::spec::{FailureAction, RunPolicy, StopAction};
 use saci_core::status::{Outcome, summarize};
 use tokio_util::sync::CancellationToken;
 
@@ -40,6 +46,9 @@ pub struct RunPlan<'a> {
     pub step_timeout: Duration,
     /// When the whole run must end.
     pub deadline: Instant,
+    /// Time for the remaining cleanup units after a stop, counted from the
+    /// first of them.
+    pub cleanup_timeout: Duration,
     /// The configured model, reported in `run_started`.
     pub model: &'a str,
 }
@@ -63,7 +72,7 @@ impl Stop {
 
 /// Runs every unit and reports `run_started`, the unit events and
 /// `run_finished`.
-pub async fn run(executor: &Executor, plan: RunPlan<'_>, cancel: &CancellationToken) -> RunEnding {
+pub async fn run(executor: &Executor, plan: RunPlan<'_>, stops: &Stops) -> RunEnding {
     let events = executor.recorder().events();
     let model = plan.model.to_owned();
     let environment = Some(Box::new(environment::collect().await));
@@ -73,17 +82,69 @@ pub async fn run(executor: &Executor, plan: RunPlan<'_>, cancel: &CancellationTo
         done: Vec::new(),
         outcomes: Vec::new(),
         stop: None,
+        cleanup: None,
     };
     for unit in &plan.plan.units {
-        Box::pin(progress.unit(executor, &plan, unit, cancel)).await;
+        Box::pin(progress.unit(executor, &plan, unit, stops)).await;
     }
-    let ending = ending(&progress.outcomes, progress.stop.as_ref());
+    let mut ending = ending(&progress.outcomes, progress.stop.as_ref());
+    if let Some(cleanup) = &progress.cleanup {
+        let _ = write!(
+            ending.reason,
+            "; {} cleanup unit(s) ran after the stop",
+            cleanup.ran
+        );
+    }
     let kind = EventKind::RunFinished {
         outcome: ending.outcome,
         reason: ending.reason.clone(),
     };
     events.emit(None, None, kind);
     ending
+}
+
+/// What ends a run.
+#[derive(Debug, Clone)]
+pub struct Stops {
+    /// Cancels the run: the remaining units are skipped, except the cleanup
+    /// that the policy runs after a stop.
+    pub cancel: CancellationToken,
+    /// Stops the worker at once, cleanup included. Cancelling it also
+    /// cancels `cancel`.
+    pub abort: CancellationToken,
+}
+
+impl Stops {
+    /// New tokens, with `cancel` a child of `abort`.
+    #[must_use]
+    pub fn new() -> Self {
+        let abort = CancellationToken::new();
+        Self {
+            cancel: abort.child_token(),
+            abort,
+        }
+    }
+}
+
+impl Default for Stops {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// When an attempt must end at the latest, and what ends it earlier.
+#[derive(Clone, Copy)]
+struct Window<'a> {
+    deadline: Instant,
+    cancel: &'a CancellationToken,
+}
+
+/// Cleanup after a stop.
+struct Cleanup {
+    /// When the time for cleanup (`limits.cleanup_timeout_secs`) ends.
+    deadline: Instant,
+    /// Cleanup units attempted after the stop.
+    ran: usize,
 }
 
 /// What the run has done so far.
@@ -94,34 +155,33 @@ struct Progress {
     done: Vec<(Vec<UnitKey>, String)>,
     outcomes: Vec<Outcome>,
     stop: Option<Stop>,
+    /// Set once the first cleanup unit after a stop is reached.
+    cleanup: Option<Cleanup>,
 }
 
 impl Progress {
-    /// Attempts `unit`, or skips it once the run has stopped.
+    /// Attempts `unit`, or skips it once the run has stopped, unless it is
+    /// cleanup that the policy runs after a stop.
     async fn unit(
         &mut self,
         executor: &Executor,
         plan: &RunPlan<'_>,
         unit: &ExecutionUnit,
-        cancel: &CancellationToken,
+        stops: &Stops,
     ) {
         let events = executor.recorder().events();
-        if self.stop.is_none() {
-            self.stop = interrupted(plan, cancel);
-        }
-        if let Some(stop) = &self.stop {
-            let reason = format!("not attempted: {}", stop.reason());
-            events.emit(
-                Some(&unit.identity),
-                None,
-                EventKind::UnitSkipped { reason },
-            );
-            self.outcomes.push(Outcome::Skipped);
-            return;
-        }
+        let window = match self.window(plan, unit, stops) {
+            Ok(window) => window,
+            Err(reason) => {
+                let kind = EventKind::UnitSkipped { reason };
+                events.emit(Some(&unit.identity), None, kind);
+                self.outcomes.push(Outcome::Skipped);
+                return;
+            }
+        };
         let procedures = self.procedures(unit);
         let context = (self.context.as_str(), procedures.as_slice());
-        let result = Box::pin(attempts(executor, plan, unit, context, cancel)).await;
+        let result = Box::pin(attempts(executor, plan, unit, context, window)).await;
         let outcome = result.outcome;
         events.emit(
             Some(&unit.identity),
@@ -130,7 +190,57 @@ impl Progress {
         );
         self.remember(unit, &result);
         self.outcomes.push(outcome);
-        self.stop = after(plan, unit, outcome, cancel);
+        if let Some(cleanup) = &mut self.cleanup {
+            cleanup.ran += 1;
+        } else {
+            self.stop = after(plan, unit, outcome, &stops.cancel);
+        }
+    }
+
+    /// When and how `unit` may run, or why it is not attempted.
+    fn window<'a>(
+        &mut self,
+        plan: &RunPlan<'_>,
+        unit: &ExecutionUnit,
+        stops: &'a Stops,
+    ) -> Result<Window<'a>, String> {
+        if self.stop.is_none() {
+            self.stop = interrupted(plan.deadline, &stops.cancel);
+        }
+        let Some(stop) = &self.stop else {
+            return Ok(Window {
+                deadline: plan.deadline,
+                cancel: &stops.cancel,
+            });
+        };
+        let skipped = format!("not attempted: {}", stop.reason());
+        if !unit.identity.cleanup || plan.policy.after_stop == StopAction::Skip {
+            return Err(skipped);
+        }
+        self.cleanup_window(plan, stops)
+            .map_err(|ended| format!("{skipped}; {ended}"))
+    }
+
+    /// The window of a cleanup unit after a stop, or why it ended.
+    fn cleanup_window<'a>(
+        &mut self,
+        plan: &RunPlan<'_>,
+        stops: &'a Stops,
+    ) -> Result<Window<'a>, &'static str> {
+        let cleanup = self.cleanup.get_or_insert_with(|| Cleanup {
+            deadline: Instant::now() + plan.cleanup_timeout,
+            ran: 0,
+        });
+        if stops.abort.is_cancelled() {
+            Err("the worker was stopped before this cleanup unit")
+        } else if Instant::now() >= cleanup.deadline {
+            Err("the cleanup time (limits.cleanup_timeout_secs) ran out")
+        } else {
+            Ok(Window {
+                deadline: cleanup.deadline,
+                cancel: &stops.abort,
+            })
+        }
     }
 
     /// Adds a unit's result to the context later units see.
@@ -155,10 +265,10 @@ impl Progress {
     }
 }
 
-fn interrupted(plan: &RunPlan<'_>, cancel: &CancellationToken) -> Option<Stop> {
+fn interrupted(deadline: Instant, cancel: &CancellationToken) -> Option<Stop> {
     if cancel.is_cancelled() {
         Some(Stop::Cancelled)
-    } else if Instant::now() >= plan.deadline {
+    } else if Instant::now() >= deadline {
         Some(Stop::Deadline)
     } else {
         None
@@ -186,31 +296,31 @@ fn after(
 
 /// Attempts `unit` until an outcome the policy does not retry, or the
 /// attempts allowed run out. `context` is the run context and the results of
-/// the unit's procedures.
+/// the unit's procedures. Each attempt ends within `window`.
 async fn attempts(
     executor: &Executor,
     plan: &RunPlan<'_>,
     unit: &ExecutionUnit,
     (context, procedures): (&str, &[String]),
-    cancel: &CancellationToken,
+    window: Window<'_>,
 ) -> AttemptResult {
+    let Window { deadline, cancel } = window;
     let retry = &plan.policy.retry;
     let mut attempt = 1;
     loop {
-        let deadline = (Instant::now() + plan.step_timeout).min(plan.deadline);
         let request = AttemptRequest {
             unit,
             attempt,
             context,
             procedures,
-            deadline,
+            deadline: (Instant::now() + plan.step_timeout).min(deadline),
             cancel,
         };
         let result = Box::pin(executor.attempt(request)).await;
         let retried = retry.on.contains(&result.outcome)
             && result.outcome != Outcome::Cancelled
             && attempt < retry.max_attempts
-            && interrupted(plan, cancel).is_none();
+            && interrupted(deadline, cancel).is_none();
         if !retried {
             return result;
         }

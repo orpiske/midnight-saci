@@ -323,7 +323,7 @@ async fn a_vanished_worker_ends_the_run() {
 
 #[tokio::test]
 async fn cancellation_stops_the_worker_and_converges_to_cancelled() {
-    let harness = Harness::start("").await;
+    let harness = Harness::start("policies:\n  default:\n    after_stop: skip\n").await;
     let run = submit(&harness.url).await;
     exists(&harness.container(&run), true).await;
     let client = reqwest::Client::new();
@@ -341,11 +341,37 @@ async fn cancellation_stops_the_worker_and_converges_to_cancelled() {
 }
 
 #[tokio::test]
+async fn a_cancelled_run_keeps_its_worker_for_the_cleanup_time() {
+    let harness = Harness::start("limits:\n  cleanup_timeout_secs: 2\n").await;
+    let run = submit(&harness.url).await;
+    exists(&harness.container(&run), true).await;
+    reqwest::Client::new()
+        .post(format!("{}/runs/{run}/cancellation", harness.url))
+        .send()
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+    assert_eq!(harness.calls("stop "), 0, "cleanup may still be running");
+    let (outcome, reason) = harness.finished(&run).await;
+    assert_eq!(outcome, Outcome::Cancelled);
+    assert!(reason.contains("stopped before reporting"), "{reason}");
+    assert_eq!(harness.calls("stop "), 1);
+}
+
+#[tokio::test]
 async fn the_backend_enforces_the_run_deadline_itself() {
-    let harness = Harness::start("limits:\n  run_timeout_secs: 1\n  step_timeout_secs: 1\n").await;
+    let limits =
+        "limits:\n  run_timeout_secs: 1\n  step_timeout_secs: 1\n  cleanup_timeout_secs: 2\n";
+    let harness = Harness::start(limits).await;
     let run = submit(&harness.url).await;
     exists(&harness.container(&run), true).await;
     harness.report(&run, vec![started()]).await;
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+    assert_eq!(
+        harness.calls("stop "),
+        0,
+        "the cleanup time follows the deadline"
+    );
     let (outcome, reason) = harness.finished(&run).await;
     assert_eq!(outcome, Outcome::Error);
     assert!(reason.contains("exceeded its deadline"), "{reason}");

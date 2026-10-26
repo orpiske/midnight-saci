@@ -34,8 +34,9 @@ run with unattempted units cannot pass. When the run ends:
 - an attempt still in progress is closed as `cancelled` (on cancellation) or
   `error` (any other interruption), and so is its unit;
 - a unit that never started becomes `skipped` with the reason;
-- cleanup units (a unit or phase whose title mentions cleanup or teardown)
-  that did not run are listed in `cleanup_not_run`.
+- cleanup units (a unit or phase whose title mentions cleanup or teardown,
+  and the units of a procedure that such a unit invokes) that did not run
+  are listed in `cleanup_not_run`.
 
 ## Assessments
 

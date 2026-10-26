@@ -152,6 +152,7 @@ runs in that environment.
 | `model_calls_per_step` | `25` | Model requests per attempt, including requests whose tool calls were rejected. |
 | `tool_calls_per_step` | `40` | Tool calls per attempt, including rejected calls. |
 | `output_limit_bytes` | `65536` | Bytes kept of each captured stream or body; the rest is dropped and marked as truncated. |
+| `cleanup_timeout_secs` | `600` | Time for the remaining cleanup units after an early stop, a cancellation or the run deadline. It starts at the first of these units and is separate from `run_timeout_secs`. When the policy has `after_stop: cleanup`, the backend adds it to its own deadlines. See [cleanup](sequencing.md#cleanup). |
 
 ## `environments`
 
@@ -202,6 +203,7 @@ when not configured.
 | Setting | Default | Meaning |
 |---------|---------|---------|
 | `on_failure` | `stop` | After a `failed`, `blocked`, `inconclusive` or `error` unit: `stop` (remaining units are skipped) or `continue`. |
+| `after_stop` | `cleanup` | After an early stop, a cancellation or the run deadline: `cleanup` (the remaining cleanup units run, within `limits.cleanup_timeout_secs`) or `skip` (they are skipped). See [cleanup](sequencing.md#cleanup). |
 | `retry.max_attempts` | `1` | Attempts per unit including the first. |
 | `retry.on` | `[]` | Outcomes that permit another attempt (`failed`, `blocked`, `inconclusive`, `error`). Required when `max_attempts` is above 1. A retry is a new attempt, not a rollback. |
 | `actions` | `[]` | Names under `actions.definitions` considered when a run under this policy finishes. See [outcome actions](actions.md). |

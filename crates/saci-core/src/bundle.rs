@@ -156,6 +156,7 @@ pub fn expand(bundle: &PlanBundle) -> Result<ExpandedPlan, PlanError> {
         diagnostics: Vec::new(),
     };
     expander.plan_units(&plan, None, &[]);
+    mark_invoked_cleanup(&mut expander.units);
     if !expander.diagnostics.is_empty() {
         return Err(PlanError {
             diagnostics: expander.diagnostics,
@@ -166,6 +167,21 @@ pub fn expand(bundle: &PlanBundle) -> Result<ExpandedPlan, PlanError> {
         procedures: expander.procedures,
         units: expander.units,
     })
+}
+
+/// The units of a procedure that a cleanup unit invokes are cleanup work
+/// too, whatever their own titles say.
+fn mark_invoked_cleanup(units: &mut [ExecutionUnit]) {
+    let cleanup: Vec<UnitKey> = units
+        .iter()
+        .filter(|unit| unit.identity.cleanup)
+        .map(|unit| unit.identity.key.clone())
+        .collect();
+    for unit in units {
+        if unit.invoked_by.iter().any(|key| cleanup.contains(key)) {
+            unit.identity.cleanup = true;
+        }
+    }
 }
 
 fn check_paths(bundle: &PlanBundle) -> Result<(), PlanError> {

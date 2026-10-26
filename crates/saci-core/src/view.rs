@@ -15,7 +15,7 @@ use crate::config::{Config, DEFAULT_POLICY, PolicyConfig};
 use crate::ids::{RunId, UnitKey};
 use crate::parser::Diagnostic;
 use crate::plan::{CodeBlock, Criterion, PlanBundle, ProcedureRef, SourceLocation, UnitKind};
-use crate::spec::{ExecutionLimits, FailureAction, RetryPolicy};
+use crate::spec::{ExecutionLimits, FailureAction, RetryPolicy, StopAction};
 use crate::status::Outcome;
 
 /// A collection served whole.
@@ -51,6 +51,8 @@ pub struct PolicyInfo {
     pub on_failure: FailureAction,
     /// Retry behavior.
     pub retry: RetryPolicy,
+    /// What happens to the remaining cleanup units after a stop.
+    pub after_stop: StopAction,
     /// Outcome actions considered when a run under this policy finishes.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub actions: Vec<ActionInfo>,
@@ -102,6 +104,7 @@ pub fn policies(config: &Config) -> Vec<PolicyInfo> {
             name,
             configured,
             on_failure: policy.on_failure,
+            after_stop: policy.after_stop,
             retry: policy.retry,
             actions: action_infos(config, &policy.actions),
         })

@@ -603,6 +603,8 @@ export interface components {
             model_calls_per_step: number;
             tool_calls_per_step: number;
             output_limit_bytes: number;
+            /** @description Time for cleanup units after an early stop */
+            cleanup_timeout_secs: number;
         };
         EnvironmentInfo: {
             name: string;
@@ -617,6 +619,11 @@ export interface components {
             configured: boolean;
             /** @enum {string} */
             on_failure: "stop" | "continue";
+            /**
+             * @description Whether the remaining cleanup units run after an early stop, a cancellation or the run deadline.
+             * @enum {string}
+             */
+            after_stop: "cleanup" | "skip";
             retry: {
                 max_attempts: number;
                 on?: components["schemas"]["Outcome"][];

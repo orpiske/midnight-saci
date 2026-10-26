@@ -248,16 +248,18 @@ export const environments: EnvironmentInfo[] = [
       model_calls_per_step: 20,
       tool_calls_per_step: 40,
       output_limit_bytes: 65536,
+      cleanup_timeout_secs: 600,
     },
   },
 ];
 
 export const policies: PolicyInfo[] = [
-  { name: "default", configured: false, on_failure: "stop", retry: { max_attempts: 1 }, actions: [] },
+  { name: "default", configured: false, on_failure: "stop", after_stop: "cleanup", retry: { max_attempts: 1 }, actions: [] },
   {
     name: "review",
     configured: true,
     on_failure: "continue",
+    after_stop: "skip",
     retry: { max_attempts: 2, on: ["failed"] },
     actions: [{ name: "escalate", server: "tickets", tool: "record", on: ["failed"], approval: "required" }],
   },

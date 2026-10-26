@@ -41,11 +41,46 @@ assessed `blocked`, which counts as unsuccessful for the policy.
 
 ## Cleanup
 
-Cleanup and teardown units (by title or phase title, see
-[test plans](test-plans.md)) follow the same order and policy. They are not
-run after an early stop, cancellation or the run deadline; the report lists
-them under `cleanup_not_run`, so the target may still hold what the run
-created. Destroying the worker does not clean up the target.
+A cleanup unit is a unit whose title or phase title mentions cleanup or
+teardown (see [test plans](test-plans.md)). The units of a procedure that a
+cleanup unit invokes are cleanup units too. Cleanup units follow the same
+order and policy as the other units.
+
+After an early stop, a cancellation or the run deadline, the policy setting
+`after_stop` decides what happens to the remaining cleanup units:
+
+```yaml
+policies:
+  default:
+    after_stop: cleanup   # the default; `skip` skips them
+limits:
+  cleanup_timeout_secs: 600
+```
+
+With `after_stop: cleanup`, the worker skips the other remaining units and
+runs the remaining cleanup units in document order:
+
+- Each attempt follows the retry policy. Its deadline is
+  `limits.step_timeout_secs`, capped by what remains of
+  `limits.cleanup_timeout_secs`. The cleanup time starts at the first
+  cleanup unit after the stop and does not count against
+  `limits.run_timeout_secs`.
+- Every remaining cleanup unit runs, even when an earlier cleanup unit
+  ends unsuccessfully.
+- When the cleanup time ends, the cleanup units that did not start are
+  skipped with the reason.
+- If the worker is stopped (SIGTERM, or its events cannot be delivered),
+  the cleanup also stops.
+- The run's outcome follows the same rules as before. A cleanup unit that
+  fails counts in the summary outcome. The reason ends with the number of
+  cleanup units that ran after the stop, for example `; 2 cleanup unit(s)
+  ran after the stop`.
+
+With `after_stop: skip`, the remaining cleanup units are skipped.
+
+The report lists the cleanup units that did not run under
+`cleanup_not_run`, so the target may still hold what the run created.
+Destroying the worker does not clean up the target.
 
 ## Cancellation and the run deadline
 

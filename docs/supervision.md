@@ -38,8 +38,15 @@ The stable name means a repeated launch can never create a second worker.
 ## Cancellation
 
 `POST /runs/{run}/cancellation` (or `saci cancel`) records the request.
-The watcher then stops the worker with SIGTERM, followed by SIGKILL after
-30 seconds. On SIGTERM the worker cancels its running step, keeps the
+The worker reads the request, cancels its running step and then runs the
+remaining cleanup units (see [cleanup](sequencing.md#cleanup)). The watcher
+stops the worker with SIGTERM, followed by SIGKILL after 30 seconds:
+
+- at once, when the policy has `after_stop: skip`;
+- otherwise, when the run is still unfinished 60 seconds after the request
+  plus `limits.cleanup_timeout_secs`.
+
+On SIGTERM the worker cancels its running step and any cleanup, keeps the
 evidence it collected, and reports the run as `cancelled`. If the worker
 dies before reporting, the backend records `cancelled` with the reason
 `the run was cancelled; its worker stopped before reporting the end`.
@@ -48,8 +55,9 @@ dies before reporting, the backend records `cancelled` with the reason
 
 The worker enforces `limits.run_timeout_secs` itself and reports the run
 as timed out. The backend is the backstop: when a run is still unfinished
-60 seconds past `created_at + run_timeout_secs`, the backend stops the
-worker and records `error` with the reason `the run exceeded its deadline
+60 seconds past `created_at + run_timeout_secs` (plus
+`limits.cleanup_timeout_secs` when the policy has `after_stop: cleanup`),
+the backend stops the worker and records `error` with the reason `the run exceeded its deadline
 (limits.run_timeout_secs) and its worker was stopped`.
 
 ## Lost workers

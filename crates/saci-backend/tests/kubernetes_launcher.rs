@@ -35,7 +35,7 @@ fn config(api: &str) -> Config {
         "backend:\n  worker_url: http://saci:8080\nworker:\n  runtime: kubernetes\n  image: registry/saci-worker:1\n  \
          kubernetes:\n    api_url: {api}\n    namespace: tests\n    service_account: saci-worker\n    \
          image_pull_policy: IfNotPresent\nllm:\n  base_url: http://m/v1\n  model: m\n  api_key: env:MODEL_KEY\n  \
-         api_key_secret:\n    name: saci-llm\n    key: api-key\nenvironments:\n  local:\n    secrets:\n      \
+         api_key_secret:\n    name: saci-llm\n    key: api-key\npolicies:\n  default:\n    after_stop: skip\nenvironments:\n  local:\n    secrets:\n      \
          TARGET_TOKEN:\n        secret: target\n        key: token\n    worker:\n      cpu: 500m\n      memory: 512Mi\n"
     );
     Config::from_yaml(&yaml, "saci.yaml").unwrap()

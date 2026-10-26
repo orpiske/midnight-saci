@@ -36,6 +36,8 @@ llm:
 
 limits:
   step_timeout_secs: 300
+  # Time for cleanup units after an early stop, a cancellation or the deadline.
+  cleanup_timeout_secs: 600
 
 environments:
   local:
@@ -52,6 +54,7 @@ environments:
 policies:
   default:
     on_failure: stop
+    after_stop: cleanup   # run the remaining cleanup units after a stop
   keep-going:
     on_failure: continue
   retry-errors:

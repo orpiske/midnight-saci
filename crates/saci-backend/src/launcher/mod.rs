@@ -94,7 +94,8 @@ pub struct Assignment {
     pub memory: Option<String>,
     /// The worker image, when it is not `worker.image`.
     pub image: Option<String>,
-    /// The run's `limits.run_timeout_secs`.
+    /// The longest the run may take: `limits.run_timeout_secs`, plus
+    /// `limits.cleanup_timeout_secs` when its policy cleans up after a stop.
     pub run_timeout: Duration,
 }
 
@@ -147,7 +148,7 @@ pub fn assignment(
         secret_refs,
         cpu: spec.environment.worker.cpu.clone(),
         memory: spec.environment.worker.memory.clone(),
-        run_timeout: Duration::from_secs(spec.limits.run_timeout_secs),
+        run_timeout: Duration::from_secs(spec.limits.run_timeout_secs) + spec.cleanup_time(),
         image: worker_image(config, spec),
     })
 }
