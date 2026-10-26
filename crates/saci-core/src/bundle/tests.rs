@@ -184,3 +184,24 @@ fn a_procedure_followed_twice_by_one_unit_gets_a_key_per_occurrence() {
         .collect();
     assert_eq!(keys, ["1.1>login.md#1", "1.1>login.md@2#1", "1.1"]);
 }
+
+#[test]
+fn procedures_a_cleanup_unit_invokes_are_cleanup_work() {
+    let entry = "# Test Plan: Wait\n\n## Phase 1: Main\n\n### Step 1.1: Deploy\n\nFollow [wait](wait.md).\n\n**Expected result:**\n\n- Deployed.\n\n## Phase 2: Teardown\n\n### Step 2.1: Remove\n\nFollow [wait](wait.md).\n\n**Expected result:**\n\n- Removed.\n";
+    let wait = unit_plan("Wait", "Procedure", "Run `wait`.");
+    let expanded = expand(&bundle(&[("plan.md", entry), ("wait.md", &wait)])).unwrap();
+    let cleanup: Vec<_> = expanded
+        .units
+        .iter()
+        .map(|u| (u.identity.key.as_str().to_owned(), u.identity.cleanup))
+        .collect();
+    assert_eq!(
+        cleanup,
+        [
+            ("1.1>wait.md#1".to_owned(), false),
+            ("1.1".to_owned(), false),
+            ("2.1>wait.md#1".to_owned(), true),
+            ("2.1".to_owned(), true),
+        ]
+    );
+}

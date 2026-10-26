@@ -142,7 +142,7 @@ Infrastructure limit exhaustion is an `error` with a specific reason. A test ass
 
 Default policy is one attempt per step and stopping on the first `failed`, `blocked`, `inconclusive`, or `error` result. Mark remaining units as skipped with the triggering reason. Policy may explicitly allow continuation or bounded retries; it does not erase earlier attempts. A later passing retry must remain distinguishable from a first-attempt pass.
 
-Cleanup steps follow the same order and policy by default. They are not automatically guaranteed after an early stop. A future explicit cleanup policy can schedule authored cleanup steps after failure with separate limits. Cancellation or loss of the worker may prevent target cleanup, and the report must state which cleanup steps did not run. Destroying the worker does not imply deleting target resources.
+Cleanup steps follow the same order and policy. After an early stop, a cancellation or the run deadline, the policy's `after_stop` setting runs the remaining authored cleanup steps (the default) or skips them. Cleanup after a stop has its own limit, `limits.cleanup_timeout_secs`, and every remaining cleanup step runs even when an earlier one fails (see [run sequencing](sequencing.md#cleanup)). Loss of the worker, or a stop signal, may still prevent target cleanup, and the report must state which cleanup steps did not run. Destroying the worker does not imply deleting target resources.
 
 ## Reporting and worker termination
 

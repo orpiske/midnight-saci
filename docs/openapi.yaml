@@ -831,7 +831,7 @@ components:
         location: { $ref: "#/components/schemas/SourceLocation" }
     ExecutionLimits:
       type: object
-      required: [run_timeout_secs, step_timeout_secs, operation_timeout_secs, model_request_timeout_secs, model_request_retries, model_calls_per_step, tool_calls_per_step, output_limit_bytes]
+      required: [run_timeout_secs, step_timeout_secs, operation_timeout_secs, model_request_timeout_secs, model_request_retries, model_calls_per_step, tool_calls_per_step, output_limit_bytes, cleanup_timeout_secs]
       properties:
         run_timeout_secs: { type: integer }
         step_timeout_secs: { type: integer }
@@ -841,6 +841,7 @@ components:
         model_calls_per_step: { type: integer }
         tool_calls_per_step: { type: integer }
         output_limit_bytes: { type: integer }
+        cleanup_timeout_secs: { type: integer, description: Time for cleanup units after an early stop, a cancellation or the run deadline. }
     EnvironmentInfo:
       type: object
       required: [name, limits]
@@ -854,11 +855,15 @@ components:
           items: { type: string }
     PolicyInfo:
       type: object
-      required: [name, configured, on_failure, retry]
+      required: [name, configured, on_failure, after_stop, retry]
       properties:
         name: { type: string }
         configured: { type: boolean, description: False for the implied `default` policy. }
         on_failure: { type: string, enum: [stop, continue] }
+        after_stop:
+          type: string
+          enum: [cleanup, skip]
+          description: Whether the remaining cleanup units run after an early stop, a cancellation or the run deadline.
         retry:
           type: object
           required: [max_attempts]

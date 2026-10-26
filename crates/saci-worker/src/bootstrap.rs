@@ -29,7 +29,7 @@ use crate::http::HttpTool;
 use crate::investigate;
 use crate::llm::LlmConnection;
 use crate::mcp;
-use crate::sequence::{self, RunEnding, RunPlan};
+use crate::sequence::{self, RunEnding, RunPlan, Stops};
 use crate::shell::{ShellConfig, ShellSession};
 
 /// Backend base URL, set by the launcher.
@@ -269,10 +269,10 @@ impl std::fmt::Debug for Running {
 }
 
 /// Connects the environment's MCP servers, executes every unit until the
-/// run ends or `cancel` fires, then closes the tools and the event stream.
+/// run ends or `stops` ends it, then closes the tools and the event stream.
 /// A server that cannot be connected ends the run `error` before anything
 /// runs.
-pub async fn execute(running: Box<Running>, cancel: &CancellationToken) -> RunEnding {
+pub async fn execute(running: Box<Running>, stops: &Stops) -> RunEnding {
     let Running {
         spec,
         job,
@@ -281,14 +281,14 @@ pub async fn execute(running: Box<Running>, cancel: &CancellationToken) -> RunEn
     } = *running;
     let deadline = Instant::now() + Duration::from_secs(spec.limits.run_timeout_secs);
     let connecting = connect_mcp(&mut executor, &spec, &credentials);
-    if let Err(ending) = Box::pin(bounded(connecting, deadline, cancel)).await {
+    if let Err(ending) = Box::pin(bounded(connecting, deadline, &stops.cancel)).await {
         let (outcome, reason) = (ending.outcome, ending.reason.clone());
         let finished = EventKind::RunFinished { outcome, reason };
         executor.recorder().events().emit(None, None, finished);
         executor.close().await;
         return ending;
     }
-    let ending = Box::pin(run_job(&executor, &spec, &job, deadline, cancel)).await;
+    let ending = Box::pin(run_job(&executor, &spec, &job, deadline, stops)).await;
     executor.close().await;
     ending
 }
@@ -298,7 +298,7 @@ async fn run_job(
     spec: &RunSpec,
     job: &Job,
     deadline: Instant,
-    cancel: &CancellationToken,
+    stops: &Stops,
 ) -> RunEnding {
     match job {
         Job::Plan(plan) => {
@@ -307,15 +307,16 @@ async fn run_job(
                 policy: &spec.policy,
                 step_timeout: Duration::from_secs(spec.limits.step_timeout_secs),
                 deadline,
+                cleanup_timeout: Duration::from_secs(spec.limits.cleanup_timeout_secs),
                 model: &spec.llm.model,
             };
-            Box::pin(sequence::run(executor, run_plan, cancel)).await
+            Box::pin(sequence::run(executor, run_plan, stops)).await
         }
         Job::Investigation(investigation) => {
             let request = InvestigationRequest {
                 spec: investigation,
                 deadline,
-                cancel,
+                cancel: &stops.cancel,
             };
             Box::pin(investigate::run(executor, request, &spec.llm.model)).await
         }

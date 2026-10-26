@@ -91,6 +91,8 @@ function LimitsSummary({ env }: { env: EnvironmentInfo }) {
         <dd>{formatSeconds(l.step_timeout_secs)}</dd>
         <dt>Each command or call</dt>
         <dd>{formatSeconds(l.operation_timeout_secs)}</dd>
+        <dt>Cleanup after a stop</dt>
+        <dd>{formatSeconds(l.cleanup_timeout_secs)}</dd>
         <dt>Per attempt</dt>
         <dd>
           {plural(l.model_calls_per_step, "model request")}, {plural(l.tool_calls_per_step, "tool call")}
@@ -120,6 +122,12 @@ function PolicySummary({ policy }: { policy: PolicyInfo }) {
           {policy.on_failure === "stop"
             ? "Stop; later units are skipped"
             : "Record it and continue with the next unit"}
+        </dd>
+        <dt>After a stop</dt>
+        <dd>
+          {policy.after_stop === "cleanup"
+            ? "Run the remaining cleanup units"
+            : "Skip the remaining cleanup units"}
         </dd>
         <dt>Attempts per unit</dt>
         <dd>

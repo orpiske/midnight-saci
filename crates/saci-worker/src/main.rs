@@ -16,6 +16,7 @@ use saci_worker::events::EventReceiver;
 use saci_worker::init;
 use saci_worker::llm::Backoff;
 use saci_worker::report::{self, BackendClient};
+use saci_worker::sequence::Stops;
 use tokio::io::AsyncWriteExt as _;
 use tokio_util::sync::CancellationToken;
 
@@ -112,9 +113,9 @@ async fn assigned(process: &BTreeMap<String, String>, workspace: &Path) -> u8 {
         Ok(assigned) => assigned,
         Err(code) => return code,
     };
-    let cancel = CancellationToken::new();
+    let stops = Stops::new();
     let stop = CancellationToken::new();
-    let watcher = spawn_watcher(&client, &cancel, &stop);
+    let watcher = spawn_watcher(&client, &stops.cancel, &stop);
     let assignment = Assignment {
         expected: Some(client.run().clone()),
         process,
@@ -122,7 +123,7 @@ async fn assigned(process: &BTreeMap<String, String>, workspace: &Path) -> u8 {
     };
     let deliver =
         |events| async move { report::deliver(&client, events, Backoff::default()).await };
-    let code = Box::pin(execute(spec, assignment, deliver, &cancel)).await;
+    let code = Box::pin(execute(spec, assignment, deliver, &stops)).await;
     stop.cancel();
     let _ = watcher.await;
     code
@@ -197,13 +198,12 @@ async fn local(
     };
     let output = output.to_owned();
     let deliver = |events| async move { write_events(&output, writer, events).await };
-    let cancel = CancellationToken::new();
     let assignment = Assignment {
         expected: None,
         process,
         workspace,
     };
-    Box::pin(execute(spec, assignment, deliver, &cancel)).await
+    Box::pin(execute(spec, assignment, deliver, &Stops::new())).await
 }
 
 fn read_spec(path: &Path) -> Result<RunSpec, String> {
@@ -272,12 +272,7 @@ fn start(
 }
 
 /// Validates and runs `spec`, delivering its events with `deliver`.
-async fn execute<D, F>(
-    spec: RunSpec,
-    assignment: Assignment<'_>,
-    deliver: D,
-    cancel: &CancellationToken,
-) -> u8
+async fn execute<D, F>(spec: RunSpec, assignment: Assignment<'_>, deliver: D, stops: &Stops) -> u8
 where
     D: FnOnce(EventReceiver) -> F,
     F: Future<Output = Result<u64, ExecutionError>> + Send + 'static,
@@ -291,9 +286,9 @@ where
             return if code.is_ok() { REJECTED } else { UNDELIVERED };
         }
     };
-    let delivery = tokio::spawn(stop_on_failure(deliver(events), cancel.clone()));
-    let signals = tokio::spawn(cancel_on_signal(cancel.clone()));
-    let ending = Box::pin(bootstrap::execute(running, cancel)).await;
+    let delivery = tokio::spawn(stop_on_failure(deliver(events), stops.abort.clone()));
+    let signals = tokio::spawn(cancel_on_signal(stops.abort.clone()));
+    let ending = Box::pin(bootstrap::execute(running, stops)).await;
     signals.abort();
     eprintln!("run {run_id} ended {}: {}", ending.outcome, ending.reason);
     match delivery.await {
@@ -307,7 +302,7 @@ where
 }
 
 /// Evidence that cannot be delivered must not keep the run acting on the
-/// target: a failed delivery cancels it.
+/// target: a failed delivery stops it at once, cleanup included.
 async fn stop_on_failure<F>(delivering: F, cancel: CancellationToken) -> Result<u64, ExecutionError>
 where
     F: Future<Output = Result<u64, ExecutionError>>,
@@ -323,7 +318,8 @@ where
     delivered
 }
 
-/// Stopping the container cancels the run, so it still reports its end.
+/// Stopping the container stops the run at once, cleanup included, so it
+/// still reports its end before the stop grace runs out.
 async fn cancel_on_signal(cancel: CancellationToken) {
     let interrupt = tokio::signal::ctrl_c();
     #[cfg(unix)]

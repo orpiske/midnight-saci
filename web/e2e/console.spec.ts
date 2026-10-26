@@ -112,6 +112,7 @@ async function addPlan(page: Page) {
 test("a submission without an answer is retried with the same key", async ({ page }, testInfo) => {
   const mock = await mockBackend(page, { submit: [(route) => route.abort("connectionreset")] });
   await addPlan(page);
+  await expect(page.getByText("Run the remaining cleanup units")).toBeVisible();
   await accessible(page, testInfo, "new-run");
   await page.getByRole("button", { name: "Start run" }).click();
   await expect(page.getByText("The backend did not confirm the submission")).toBeVisible();

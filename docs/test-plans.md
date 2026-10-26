@@ -101,7 +101,7 @@ Do not mark a block that runs only under a condition, a block that the action us
 
 Prerequisites describe conditions that must hold before execution: installed tools, available credentials, existing resources, and required inputs. A missing prerequisite blocks the affected work; it does not authorize the agent to install software or invent setup procedures.
 
-Put actions needed to establish conditions into explicit setup steps. For example, creating a test resource is a step; having credentials to create it is a prerequisite. Put teardown actions into explicit cleanup steps with their own expected results. Their execution follows the run policy; a cleanup heading does not imply automatic execution after an earlier failure. Guaranteed cleanup behavior remains part of the run-policy design.
+Put actions needed to establish conditions into explicit setup steps. For example, creating a test resource is a step; having credentials to create it is a prerequisite. Put teardown actions into explicit cleanup steps with their own expected results. Mention cleanup or teardown in the step or phase title. Under the default policy, these steps run after an early stop, a cancellation or the run deadline, within their own time limit (see [cleanup](sequencing.md#cleanup)). Thus write each cleanup step so that it works when earlier steps did not run or did not finish: for example, delete a namespace only if it exists.
 
 ## Environment and execution settings
 

@@ -4,12 +4,14 @@
       "name": "default",
       "configured": false,
       "on_failure": "stop",
+      "after_stop": "cleanup",
       "retry": { "max_attempts": 1 }
     },
     {
       "name": "nightly",
       "configured": true,
       "on_failure": "continue",
+      "after_stop": "skip",
       "retry": { "max_attempts": 2, "on": ["failed"] },
       "actions": [
         {

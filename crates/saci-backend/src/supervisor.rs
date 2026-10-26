@@ -303,13 +303,20 @@ async fn is_finished(backend: &Backend, run: &RunId) -> bool {
 }
 
 /// Whether the worker must be stopped: cancellation, or a deadline it
-/// should have enforced itself.
+/// should have enforced itself. A run whose policy cleans up after a stop
+/// gets its cleanup time (`limits.cleanup_timeout_secs`) after the
+/// cancellation request and after the run deadline.
 fn should_stop(record: &RunRecord, timing: Timing) -> Stopping {
-    if record.cancel_requested_at.is_some() {
+    let now = OffsetDateTime::now_utc();
+    let cleanup = record.spec.cleanup_time();
+    if let Some(requested) = record.cancel_requested_at
+        && (cleanup.is_zero() || now >= requested + cleanup + timing.deadline_grace)
+    {
         return Stopping::Cancelled;
     }
-    let limit = Duration::from_secs(record.spec.limits.run_timeout_secs) + timing.deadline_grace;
-    if OffsetDateTime::now_utc() >= record.spec.created_at + limit {
+    let limit =
+        Duration::from_secs(record.spec.limits.run_timeout_secs) + cleanup + timing.deadline_grace;
+    if now >= record.spec.created_at + limit {
         Stopping::Deadline
     } else {
         Stopping::No

@@ -72,6 +72,19 @@ impl RunSpec {
             (Some(_), Some(_)) => Err("the specification has both a plan and an investigation"),
         }
     }
+
+    /// Time a plan run may spend on cleanup after an early stop, a
+    /// cancellation or the run deadline: `limits.cleanup_timeout_secs` when
+    /// the policy runs cleanup after a stop, otherwise zero.
+    #[must_use]
+    pub fn cleanup_time(&self) -> std::time::Duration {
+        let cleans = self.bundle.is_some() && self.policy.after_stop == StopAction::Cleanup;
+        std::time::Duration::from_secs(if cleans {
+            self.limits.cleanup_timeout_secs
+        } else {
+            0
+        })
+    }
 }
 
 /// Where a secret value comes from. Only the reference is ever stored.
@@ -271,6 +284,11 @@ pub struct ExecutionLimits {
     pub tool_calls_per_step: u32,
     /// Bytes of each captured output stream or body kept as evidence.
     pub output_limit_bytes: u64,
+    /// Time for cleanup units after an early stop, a cancellation or the
+    /// run deadline, separate from `run_timeout_secs`. Specifications
+    /// stored before this limit existed get the default.
+    #[serde(default = "default_cleanup_timeout_secs")]
+    pub cleanup_timeout_secs: u64,
 }
 
 impl Default for ExecutionLimits {
@@ -284,8 +302,25 @@ impl Default for ExecutionLimits {
             model_calls_per_step: 25,
             tool_calls_per_step: 40,
             output_limit_bytes: 64 * 1024,
+            cleanup_timeout_secs: default_cleanup_timeout_secs(),
         }
     }
+}
+
+const fn default_cleanup_timeout_secs() -> u64 {
+    600
+}
+
+/// What to do with the remaining cleanup units after an early stop, a
+/// cancellation or the run deadline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StopAction {
+    /// Run them, within `limits.cleanup_timeout_secs` (the default).
+    #[default]
+    Cleanup,
+    /// Skip them; the report lists them under `cleanup_not_run`.
+    Skip,
 }
 
 /// What to do after an attempt finishes unsuccessfully.
@@ -332,6 +367,9 @@ pub struct RunPolicy {
     /// Retry behavior.
     #[serde(default)]
     pub retry: RetryPolicy,
+    /// What happens to the remaining cleanup units after a stop.
+    #[serde(default)]
+    pub after_stop: StopAction,
 }
 
 #[cfg(test)]
@@ -381,6 +419,26 @@ mod tests {
         assert!(matches!(spec.work(), Ok(Work::Plan(bundle)) if bundle.entry == "plan.md"));
         let json = serde_json::to_value(&spec).unwrap();
         assert!(json.get("investigation").is_none(), "{json}");
+    }
+
+    #[test]
+    fn only_plan_runs_that_clean_up_after_a_stop_get_cleanup_time() {
+        let mut spec: RunSpec = serde_json::from_str(PLAN_RUN).unwrap();
+        assert_eq!(
+            spec.limits.cleanup_timeout_secs, 600,
+            "stored specs get the default"
+        );
+        assert_eq!(spec.policy.after_stop, StopAction::Cleanup);
+        assert_eq!(spec.cleanup_time(), std::time::Duration::from_secs(600));
+        spec.policy.after_stop = StopAction::Skip;
+        assert!(spec.cleanup_time().is_zero());
+        spec.policy.after_stop = StopAction::Cleanup;
+        spec.bundle = None;
+        spec.investigation = Some(Box::new(serde_json::from_str(INVESTIGATION).unwrap()));
+        assert!(
+            spec.cleanup_time().is_zero(),
+            "investigations have no cleanup units"
+        );
     }
 
     #[test]

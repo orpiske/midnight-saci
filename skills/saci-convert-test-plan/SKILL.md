@@ -66,9 +66,10 @@ Use this information to make the decisions in the subsequent sections.
   unit runs its own commands. The location of the `Follow` paragraph in the
   unit does not change this order.
 - If the title of a unit or phase contains "cleanup" or "teardown", the run
-  policy uses the unit as a cleanup unit. Do not change titles. If a title
-  contains one of these words by accident, for example "... and verify
-  cleanup", record it in the notes.
+  policy uses the unit as a cleanup unit. By default, cleanup units also run
+  after an early stop. Do not change titles. If a title contains one of
+  these words by accident, for example "... and verify cleanup", record it
+  in the notes.
 
 ## Procedure
 

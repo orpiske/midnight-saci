@@ -116,7 +116,9 @@ For run `run-1a2b…` the backend creates a Job and a Secret, both named
   have run. A second launch for the same run fails on the Job name instead
   of creating a duplicate.
 - **A deadline backstop.** `activeDeadlineSeconds` is the run's
-  `limits.run_timeout_secs` plus 300 seconds. Kubernetes enforces it even
+  `limits.run_timeout_secs` plus 300 seconds, plus
+  `limits.cleanup_timeout_secs` when the policy has `after_stop: cleanup`.
+  Kubernetes enforces it even
   when the backend is not running.
 - **Non-root, any UID.** The container sets `runAsNonRoot: true`, drops
   all capabilities, disallows privilege escalation and uses the
