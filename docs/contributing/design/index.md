@@ -15,6 +15,7 @@ documentation now covers.
 | [Issue index](issue-index.md) | Historical | The GitHub issues created from those tickets. |
 | [Failure investigations](investigations.md) | Implemented | Analyze a failed step with a second worker mode, reached over A2A. |
 | [Source watch](source-watch.md) | Implemented | Run test plans when watched Git branches change. |
+| [Credential and misuse guard](guard.md) | In progress | Find credentials in evidence, and check tool calls and output with local security classifiers. |
 
 ## Next steps
 
