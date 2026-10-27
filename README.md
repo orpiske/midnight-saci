@@ -153,6 +153,7 @@ crate.
 - [Run sequencing, retries, stopping and cleanup](docs/sequencing.md)
 - [Outcome actions and approvals](docs/actions.md)
 - [Failure investigations](docs/investigations.md)
+- [Running plans when code changes: `saci watch`](docs/watch.md)
 - [Credentials, evidence redaction and isolation limits](docs/security.md)
 
 **Deploying and operating**

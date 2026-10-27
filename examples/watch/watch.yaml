@@ -1,0 +1,25 @@
+# saci watch: run the Wanaku operator plans when the server, the operator
+# or the tests change. See docs/watch.md.
+backend:
+  url: http://127.0.0.1:18080
+  token: { env: SACI_TOKEN }
+workdir: ~/.local/state/saci-watch
+poll_interval_secs: 60
+quiet_period_secs: 180
+repositories:
+  - name: wanaku
+    url: https://github.com/wanaku-ai/wanaku.git
+    branch: main
+  - name: wanaku-operator
+    url: https://github.com/wanaku-ai/wanaku-operator.git
+    branch: main
+  - name: wanaku-tests
+    url: https://github.com/wanaku-ai/wanaku-tests.git
+    branch: main
+triggers:
+  - name: operator
+    on: [wanaku, wanaku-operator, wanaku-tests]
+    plans:
+      - plan: wanaku-tests/tests/plans/operator-basic-functionality.md
+        environment: openshift
+        policy: keep-going
