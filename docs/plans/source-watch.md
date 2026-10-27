@@ -228,12 +228,12 @@ by email.
 
 ## Tickets
 
-1. **Watcher core**: configuration, `git ls-remote` polling, the quiet
+1. **Watcher core** ([#137](https://github.com/orpiske/midnight-saci/issues/137)): configuration, `git ls-remote` polling, the quiet
    period, the clones and the snapshot, the state file, submission with
    idempotency keys, waiting for runs, `--once`, `--run-now` and
    `saci watch status`. Tests use local bare repositories (`file://`
    URLs) and the `saci-testkit` backend fixtures.
-2. **Docs and examples**: a user guide in `docs/watch.md`, the command in
+2. **Docs and examples** ([#138](https://github.com/orpiske/midnight-saci/issues/138)): a user guide in `docs/watch.md`, the command in
    `docs/cli.md`, an example configuration for a project in several
    repositories in `examples/`, and the systemd and launchd units.
 
