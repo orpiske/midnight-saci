@@ -10,6 +10,7 @@ mod new;
 mod render;
 mod run;
 mod skills;
+mod watch;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -109,6 +110,12 @@ enum Command {
     /// Show investigations.
     #[command(subcommand)]
     Investigations(investigate::InvestigationsCommand),
+    /// Watch Git repositories and run test plans when they change.
+    ///
+    /// Polls the branches in the configuration, waits until no change
+    /// arrived for the quiet period, updates its own clones to one snapshot
+    /// and submits the plans of each trigger one after the other.
+    Watch(watch::WatchArgs),
     /// Request cancellation of a run.
     ///
     /// The worker stops after its current action; the remaining units are
@@ -163,6 +170,7 @@ fn main() -> ExitCode {
             .map(|()| exit::OK)
             .map_err(CliError::from),
         Command::Backend(BackendCommand::Start { config }) => start_backend(config),
+        Command::Watch(args) => watch_command(&cli.connection, &args),
         command => {
             let connection = cli.connection;
             block_on(async move { Box::pin(remote(&Client::new(&connection)?, command)).await })
@@ -191,9 +199,18 @@ async fn remote(client: &Client, command: Command) -> Result<u8, CliError> {
         Command::Actions(command) => Box::pin(actions::run(client, command)).await,
         Command::Investigate(args) => Box::pin(investigate::start(client, args)).await,
         Command::Investigations(command) => Box::pin(investigate::run(client, command)).await,
-        Command::New(_) | Command::Check { .. } | Command::Skill(_) | Command::Backend(_) => {
-            Ok(exit::OK)
-        }
+        Command::New(_)
+        | Command::Check { .. }
+        | Command::Skill(_)
+        | Command::Backend(_)
+        | Command::Watch(_) => Ok(exit::OK),
+    }
+}
+
+fn watch_command(connection: &Connection, args: &watch::WatchArgs) -> Result<u8, CliError> {
+    match &args.command {
+        Some(watch::WatchCommand::Status { config }) => watch::status(config),
+        None => block_on(async move { Box::pin(watch::run(connection, args)).await }),
     }
 }
 

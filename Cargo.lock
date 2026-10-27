@@ -6153,6 +6153,7 @@ dependencies = [
  "anyhow",
  "axum",
  "clap",
+ "nix",
  "reqwest 0.13.5",
  "saci-backend",
  "saci-core",
@@ -6160,11 +6161,13 @@ dependencies = [
  "saci-worker",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "time",
  "tokio",
  "tracing-subscriber",
  "uuid",
+ "yaml_serde",
 ]
 
 [[package]]
