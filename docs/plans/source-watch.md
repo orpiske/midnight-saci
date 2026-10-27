@@ -1,6 +1,6 @@
 # Design: run test plans when code changes
 
-Status: proposal ([#135](https://github.com/orpiske/midnight-saci/issues/135)). Nothing in this document is implemented.
+Status: implemented ([#135](https://github.com/orpiske/midnight-saci/issues/135)). The user guide is [docs/watch.md](../watch.md).
 
 ## Goal
 

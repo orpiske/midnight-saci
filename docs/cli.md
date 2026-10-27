@@ -293,6 +293,14 @@ hypotheses with their code locations and evidence, and the bug. It exits
 0 for `concluded`, 5 for `inconclusive`, 6 for `error`, 7 for `cancelled`
 and 8 while the investigation runs.
 
+## Watching repositories
+
+`saci watch --config watch.yaml` polls Git branches and runs test plans
+when they change, one cycle at a time. `--once` polls one time and exits,
+`--run-now` starts a cycle of every trigger without a change, and
+`saci watch status` prints the state. See
+[running plans when code changes](watch.md).
+
 ## Exit codes
 
 | Code | Meaning | What to do |
