@@ -1,12 +1,14 @@
 # systemd user unit for saci watch (docs/watch.md).
 # The watcher starts the backend of backend.config, so no other unit is
-# necessary. Put the token in ~/.config/saci/watch.env as SACI_TOKEN=..., if the
-# backend needs one.
+# necessary. Put the variables that saci.yaml reads in
+# ~/.config/saci/watch.env, for example SACI_LLM_API_KEY=... and
+# OPENSHIFT_TOKEN=...
 [Unit]
 Description=Saci repository watcher
 After=network-online.target
 
 [Service]
+WorkingDirectory=%h/.config/saci
 ExecStart=/usr/local/bin/saci watch --config %h/.config/saci/watch.yaml
 EnvironmentFile=-%h/.config/saci/watch.env
 Restart=on-failure

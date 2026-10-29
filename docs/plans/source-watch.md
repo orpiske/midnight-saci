@@ -131,10 +131,10 @@ triggers:
   - name: operator
     on: [wanaku, wanaku-operator, wanaku-tests]
     plans:
-      - plan: wanaku-tests/tests/plans/operator-basic-functionality.md
+      - plan: wanaku-tests/plans/operator-basic-functionality.md
         environment: openshift
         policy: keep-going
-      - plan: wanaku-tests/tests/plans/operator-upgrade.md
+      - plan: wanaku-tests/plans/operator-upgrade.md
         environment: openshift
 ```
 

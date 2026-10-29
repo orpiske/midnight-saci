@@ -1,0 +1,29 @@
+# Backend configuration for the watch example (watch.yaml starts this
+# backend through backend.config). Reference: docs/configuration.md.
+# It defines every environment and policy that watch.yaml names.
+
+backend:
+  listen: 127.0.0.1:18080
+  data_dir: ./saci-data    # relative to the directory where the backend starts
+  worker_url: http://127.0.0.1:18080
+
+worker:
+  runtime: auto            # podman if found in PATH, otherwise docker
+  image: localhost/saci-worker:latest
+  network: host
+
+llm:
+  base_url: https://openrouter.ai/api/v1
+  model: your-tool-capable-model
+  api_key: env:SACI_LLM_API_KEY
+
+environments:
+  openshift:
+    description: The OpenShift cluster that the Wanaku plans deploy to.
+    secrets:
+      OPENSHIFT_TOKEN:
+        env: OPENSHIFT_TOKEN
+
+policies:
+  keep-going:
+    on_failure: continue   # run the remaining units after a failed one

@@ -76,9 +76,8 @@ pub async fn run(connection: &Connection, args: &WatchArgs) -> Result<u8, CliErr
         Some(state) => state,
         None => baseline(&config, args.run_now).await?,
     };
-    let forced = config.triggers.iter().filter(|_| args.run_now);
     let mut watcher = Watcher {
-        forced: forced.map(|t| t.name.clone()).collect(),
+        forced: forced(&config, &state, args.run_now),
         local: start_local(&config, &client).await?,
         config,
         client,
@@ -92,6 +91,18 @@ pub async fn run(connection: &Connection, args: &WatchArgs) -> Result<u8, CliErr
     }
     result?;
     Ok(exit::OK)
+}
+
+/// The triggers that `--run-now` starts. A resumed cycle is the cycle of
+/// its trigger.
+fn forced(config: &WatchConfig, state: &State, run_now: bool) -> BTreeSet<String> {
+    let resumed = state.cycle.as_ref().map(|c| c.trigger.as_str());
+    config
+        .triggers
+        .iter()
+        .filter(|t| run_now && resumed != Some(&t.name))
+        .map(|t| t.name.clone())
+        .collect()
 }
 
 /// With `backend.config`, makes sure that a backend answers, and starts

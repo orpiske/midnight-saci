@@ -1,26 +1,39 @@
-# saci watch: run the Wanaku operator plans when the server, the operator
-# or the tests change. See docs/watch.md.
+# saci watch: run the Wanaku plans when Wanaku or one of its components
+# changes. See docs/watch.md. The environments and the keep-going policy
+# are defined in saci.yaml, the backend configuration next to this file.
 backend:
   url: http://127.0.0.1:18080
   token: { env: SACI_TOKEN }
-  config: saci.yaml   # start this backend when none answers
+  config: saci.yaml          # start this backend when none answers
 workdir: ~/.local/state/saci-watch
 poll_interval_secs: 60
-quiet_period_secs: 180
+quiet_period_secs: 600
 repositories:
   - name: wanaku
     url: https://github.com/wanaku-ai/wanaku.git
     branch: main
-  - name: wanaku-operator
-    url: https://github.com/wanaku-ai/wanaku-operator.git
+  - name: wanaku-barn
+    url: https://github.com/wanaku-ai/wanaku-barn.git
     branch: main
-  - name: wanaku-tests
-    url: https://github.com/wanaku-ai/wanaku-tests.git
+  - name: camel-integration-capability
+    url: https://github.com/wanaku-ai/camel-integration-capability.git
+    branch: main
+  - name: wanaku-tests       # supplies the plans; no trigger watches it
+    url: git@github.com:wanaku-ai/wanaku-tests.git
     branch: main
 triggers:
-  - name: operator
-    on: [wanaku, wanaku-operator, wanaku-tests]
+  - name: wanaku-tests
+    on: [wanaku, wanaku-barn]
     plans:
-      - plan: wanaku-tests/tests/plans/operator-basic-functionality.md
+      - plan: wanaku-tests/plans/operator-basic-functionality.md
+        environment: openshift
+        policy: keep-going
+      - plan: wanaku-tests/plans/operator-service-catalog.md
+        environment: openshift
+        policy: keep-going
+  - name: camel-integration-capability-tests
+    on: [wanaku, wanaku-barn, camel-integration-capability]
+    plans:
+      - plan: wanaku-tests/plans/camel-integration-capability.md
         environment: openshift
         policy: keep-going

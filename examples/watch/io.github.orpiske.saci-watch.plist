@@ -13,6 +13,8 @@
     <string>--config</string>
     <string>/Users/USER/.config/saci/watch.yaml</string>
   </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/USER/.config/saci</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
