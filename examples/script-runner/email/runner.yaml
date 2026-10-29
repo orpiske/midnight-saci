@@ -62,4 +62,5 @@ tools:
       - name: summary
         description: "One line per finished unit, after a text prefix such as 'Units:'"
         type: string
+        max_bytes: 65536
         binding: {kind: option, flag: --summary}

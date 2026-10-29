@@ -13,9 +13,6 @@ use serde_json::{Map, Value, json};
 
 use crate::config::{ArgumentConfig, Binding, Config, ConfigError};
 
-/// Longest accepted argument value, in bytes.
-pub const MAX_VALUE_BYTES: usize = 4096;
-
 /// A configured script.
 #[derive(Debug, Clone)]
 pub struct ScriptTool {
@@ -39,6 +36,7 @@ struct Parameter {
     required: bool,
     allowed: Option<Vec<String>>,
     pattern: Option<Regex>,
+    max_bytes: usize,
     binding: Binding,
 }
 
@@ -108,7 +106,7 @@ impl ScriptTool {
             if let Some(pattern) = &parameter.pattern {
                 property.insert("pattern".to_owned(), json!(pattern.as_str()));
             }
-            property.insert("maxLength".to_owned(), json!(MAX_VALUE_BYTES));
+            property.insert("maxLength".to_owned(), json!(parameter.max_bytes));
             properties.insert(parameter.name.clone(), Value::Object(property));
         }
         let required: Vec<&str> = self
@@ -175,6 +173,7 @@ impl Parameter {
             required: argument.required,
             allowed: argument.allowed.clone(),
             pattern,
+            max_bytes: argument.max_bytes,
             binding: argument.binding.clone(),
         })
     }
@@ -183,7 +182,7 @@ impl Parameter {
         let Value::String(text) = value else {
             return Err("must be a string".to_owned());
         };
-        check_value_text(text).map_err(str::to_owned)?;
+        check_value_text(text, self.max_bytes)?;
         if let Some(allowed) = &self.allowed
             && !allowed.contains(text)
         {
@@ -198,19 +197,20 @@ impl Parameter {
     }
 }
 
-/// Checks that apply to every value: not too long, no NUL character, and no
-/// leading `-`, so that a value cannot act as a flag of the script.
+/// Checks that apply to every value: at most `max_bytes` long, no NUL
+/// character, and no leading `-`, so that a value cannot act as a flag of
+/// the script.
 ///
 /// # Errors
 ///
 /// Returns the reason the value is not permitted.
-pub fn check_value_text(text: &str) -> Result<(), &'static str> {
-    if text.len() > MAX_VALUE_BYTES {
-        Err("is longer than 4096 bytes")
+pub fn check_value_text(text: &str, max_bytes: usize) -> Result<(), String> {
+    if text.len() > max_bytes {
+        Err(format!("is longer than {max_bytes} bytes"))
     } else if text.contains('\0') {
-        Err("contains a NUL character")
+        Err("contains a NUL character".to_owned())
     } else if text.starts_with('-') {
-        Err("must not start with `-`")
+        Err("must not start with `-`".to_owned())
     } else {
         Ok(())
     }
@@ -230,6 +230,7 @@ mod tests {
             required,
             allowed: None,
             pattern: None,
+            max_bytes: crate::config::DEFAULT_VALUE_BYTES,
             binding,
         }
     }
@@ -245,7 +246,8 @@ mod tests {
         environment.allowed = Some(vec!["staging".to_owned(), "production".to_owned()]);
         let mut version = argument("version", true, option("--version"));
         version.pattern = Some("^[a-zA-Z0-9._-]+$".to_owned());
-        let target = argument("target", false, Binding::Positional {});
+        let mut target = argument("target", false, Binding::Positional {});
+        target.max_bytes = 8192;
         let config = Config {
             server: ServerConfig::default(),
             execution: ExecutionConfig {
@@ -293,6 +295,8 @@ mod tests {
         );
         assert_eq!(schema["properties"]["target"]["type"], "string");
         assert!(schema["properties"]["target"].get("enum").is_none());
+        assert_eq!(schema["properties"]["target"]["maxLength"], 8192);
+        assert_eq!(schema["properties"]["version"]["maxLength"], 4096);
     }
 
     #[test]
@@ -359,7 +363,12 @@ mod tests {
             |value: &str| json!({"environment": "staging", "version": "1", "target": value});
         rejects(&target("--force"), "must not start with `-`");
         rejects(&target("a\u{0}b"), "NUL");
-        rejects(&target(&"x".repeat(5000)), "longer");
+        rejects(&target(&"x".repeat(8193)), "is longer than 8192 bytes");
+        rejects(
+            &json!({"environment": "staging", "version": "x".repeat(4097)}),
+            "is longer than 4096 bytes",
+        );
+        assert!(call(&deploy(), &target(&"x".repeat(8192))).is_ok());
     }
 
     #[test]
