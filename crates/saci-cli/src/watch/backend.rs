@@ -72,6 +72,8 @@ impl LocalBackend {
             .arg(&self.config)
             .stdin(Stdio::null())
             .kill_on_drop(true)
+            // Its own process group: the watcher stops it after Ctrl-C.
+            .process_group(0)
             .spawn()
             .context("cannot start the backend")?;
         log(&format!(

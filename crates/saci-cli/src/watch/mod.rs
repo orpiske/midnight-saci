@@ -15,6 +15,7 @@ use reqwest::Method;
 use saci_core::api::{IDEMPOTENCY_KEY, RunSummary, SubmitRun};
 use saci_core::bundle;
 use saci_core::ids::RunId;
+use saci_core::plan::PlanBundle;
 use saci_core::status::{Lifecycle, Outcome};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
@@ -295,7 +296,9 @@ impl Watcher {
     async fn start_cycle(&mut self, trigger: &str) -> anyhow::Result<bool> {
         let snapshot: Snapshot = self.state.seen.clone();
         if let Err(error) = self.update_clones(&snapshot).await {
-            log(&format!("trigger {trigger}: {error:#}"));
+            if !*self.stop.borrow() {
+                log(&format!("trigger {trigger}: {error:#}"));
+            }
             return Ok(false);
         }
         log(&format!(
@@ -320,6 +323,9 @@ impl Watcher {
 
     async fn update_clones(&self, snapshot: &Snapshot) -> anyhow::Result<()> {
         for repository in &self.config.repositories {
+            if *self.stop.borrow() {
+                anyhow::bail!("stopping");
+            }
             let name = &repository.name;
             let dir = self.config.repos_dir().join(name);
             let commit = snapshot.get(name).with_context(|| {
@@ -424,10 +430,9 @@ impl Watcher {
         index: usize,
         entry: &PlanEntry,
     ) -> anyhow::Result<Submitted> {
-        let path = self.config.repos_dir().join(&entry.plan);
-        let bundle = match bundle::load(&path) {
+        let bundle = match self.load_plan(&trigger.name, &entry.plan) {
             Ok(bundle) => bundle,
-            Err(error) => return self.skip(trigger, entry, &format!("not a valid plan: {error}")),
+            Err(reason) => return self.skip(trigger, entry, &reason),
         };
         let key = self.key(&trigger.name, index);
         let request = SubmitRun {
@@ -451,6 +456,25 @@ impl Watcher {
                 Err(error) => return self.skip(trigger, entry, &error.message),
             }
         }
+    }
+
+    /// Reads a plan from the clones; the error is why it cannot run.
+    fn load_plan(&self, trigger: &str, plan: &str) -> Result<PlanBundle, String> {
+        let path = self.config.repos_dir().join(plan);
+        if !path.is_file() {
+            return Err(self.missing(trigger, plan));
+        }
+        bundle::load(&path).map_err(|error| format!("not a valid plan: {error}"))
+    }
+
+    /// Why a plan path finds no file, with the commit of its clone.
+    fn missing(&self, trigger: &str, plan: &str) -> String {
+        let (repository, path) = plan.split_once('/').unwrap_or((plan, ""));
+        let snapshot = self.state.triggers.get(trigger).map(|l| &l.snapshot);
+        let commit = snapshot
+            .and_then(|s| s.get(repository))
+            .map_or("?", |c| short(c));
+        format!("{path} does not exist in {repository} at {commit}; check the plan path")
     }
 
     /// `watch:<trigger>:<snapshot hash>:<plan index>`.
