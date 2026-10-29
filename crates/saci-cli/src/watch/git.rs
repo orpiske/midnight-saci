@@ -62,7 +62,10 @@ async fn git(dir: Option<&Path>, args: &[&str]) -> anyhow::Result<String> {
         .args(args)
         .env("GIT_TERMINAL_PROMPT", "0")
         .stdin(Stdio::null())
-        .kill_on_drop(true);
+        .kill_on_drop(true)
+        // Its own process group: Ctrl-C in a terminal stops the watcher
+        // after this command instead of breaking a fetch.
+        .process_group(0);
     let output = tokio::time::timeout(TIMEOUT, command.output())
         .await
         .with_context(|| {
