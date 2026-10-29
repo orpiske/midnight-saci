@@ -262,7 +262,10 @@ async fn a_change_runs_the_plans_in_order_and_once_per_snapshot() {
     assert_eq!(fixture.plan_title(&upgrade).await, "Upgrade");
     fixture.finish(&upgrade, Outcome::Failed).await;
     let log = ends_ok(watcher).await;
-    assert!(log.contains("tests/plans/missing.md skipped"), "{log}");
+    assert!(
+        log.contains("plans/missing.md does not exist in tests at"),
+        "{log}"
+    );
 
     let again = fixture.saci(&["--once"]).await;
     assert!(again.status.success());
@@ -270,7 +273,10 @@ async fn a_change_runs_the_plans_in_order_and_once_per_snapshot() {
     let status = text(&fixture.saci(&["status"]).await.stdout);
     assert!(status.contains(&format!("{smoke} error")), "{status}");
     assert!(status.contains(&format!("{upgrade} failed")), "{status}");
-    assert!(status.contains("skipped: not a valid plan"), "{status}");
+    assert!(
+        status.contains("skipped: plans/missing.md does not exist in tests"),
+        "{status}"
+    );
 }
 
 #[tokio::test]
