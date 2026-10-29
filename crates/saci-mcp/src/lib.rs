@@ -25,7 +25,7 @@ use saci_core::run::{ErrorKind, ExecutionError};
 use saci_core::spec::{HttpServer, McpServerSpec, McpTransport, StdioServer};
 
 pub use rmcp;
-pub use schema::check_arguments;
+pub use schema::{check_arguments, fit_arguments};
 
 /// What a server may receive: the variables of a stdio server process, and
 /// the values `${NAME}` expands to in its settings.

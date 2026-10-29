@@ -10,7 +10,9 @@ mod common;
 use std::time::Duration;
 
 use axum::http::StatusCode;
-use common::actions::{TICKETS_TOKEN, action, actions, finish, recorded, settled, start};
+use common::actions::{
+    ACTIONS, TICKETS_TOKEN, action, actions, finish, recorded, settled, start, start_from,
+};
 use saci_core::ids::RunId;
 use serde_json::{Value, json};
 
@@ -130,4 +132,34 @@ async fn only_the_outcomes_an_action_names_trigger_it() {
         .get("/api/v1/runs/run-00000000000000000000000000000000/actions")
         .await;
     assert_eq!(unknown.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn long_arguments_are_shortened_to_the_tool_limit() {
+    // `record` declares `maxLength: 64` for `note`; the summary is longer.
+    let template = ACTIONS.replace(
+        "        title: '{{plan.title}}: {{run.outcome}}'\n",
+        "        title: '{{plan.title}}: {{run.outcome}}'\n        note: '{{summary}}'\n",
+    );
+    let fixture = start_from(&template, true).await;
+    let api = &fixture.api;
+    let run = finish(api, "failure").await;
+    let ticket = action(&settled(api, &run).await, "open-ticket").clone();
+    assert_eq!(ticket["state"], "completed", "{ticket}");
+    assert_eq!(
+        ticket["result"],
+        "recorded action 1\n[shortened to the tool's maxLength: note]"
+    );
+    let full = ticket["arguments"]["note"].as_str().unwrap();
+    assert!(full.len() > 64, "the recorded payload keeps the full text");
+    let calls = recorded(&fixture.record);
+    let sent = calls[0]["arguments"]["note"].as_str().unwrap();
+    assert!(sent.len() <= 64, "{sent}");
+    assert!(sent.ends_with("\n[truncated]"), "{sent}");
+    let kept = sent.trim_end_matches("\n[truncated]");
+    assert!(full.starts_with(kept), "{sent}");
+    assert!(
+        kept.starts_with("- [failed] 1.1 Check service health"),
+        "{sent}"
+    );
 }

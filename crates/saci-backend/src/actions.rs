@@ -13,6 +13,7 @@
 //! action stays `unknown` until a person reconciles or redispatches it.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::time::Duration;
 
 use saci_core::action::{ActionRecord, ActionState};
@@ -269,7 +270,7 @@ async fn call(
     timeout: Duration,
     redactor: &Redactor,
 ) -> Delivery {
-    let Value::Object(arguments) = action.arguments.clone() else {
+    let Value::Object(mut arguments) = action.arguments.clone() else {
         return failed("the recorded arguments are not an object");
     };
     let Some(tool) = server.tools().first() else {
@@ -281,13 +282,30 @@ async fn call(
             action.tool
         ));
     }
+    // A shortened report is better than none: the tool's own limit wins.
+    let shortened = saci_mcp::fit_arguments(tool, &mut arguments);
     let request = CallToolRequestParams::new(tool.name.clone()).with_arguments(arguments);
     let redact = |text: &str| bounded(&redactor.redact(text));
     match tokio::time::timeout(timeout, Box::pin(server.peer().call_tool(request))).await {
-        Ok(Ok(result)) => answered(redact(&saci_mcp::result_text(&result)), &result),
+        Ok(Ok(result)) => {
+            let text = redact(&saci_mcp::result_text(&result));
+            answered(noted(text, &shortened), &result)
+        }
         Ok(Err(error)) => uncertain(&redact(&format!("the call failed: {error}"))),
         Err(_) => uncertain(&format!("no answer within {}s", timeout.as_secs())),
     }
+}
+
+/// `text` with the names of the shortened arguments, if any.
+fn noted(mut text: String, shortened: &[String]) -> String {
+    if !shortened.is_empty() {
+        let _ = write!(
+            text,
+            "\n[shortened to the tool's maxLength: {}]",
+            shortened.join(", ")
+        );
+    }
+    text
 }
 
 /// The delivery of a call the server answered.
