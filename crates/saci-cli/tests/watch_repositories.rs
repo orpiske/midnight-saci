@@ -322,3 +322,46 @@ async fn changes_within_the_quiet_period_give_one_cycle() {
     let log = ends_ok(watcher).await;
     assert_eq!(log.matches("cycle started").count(), 1, "{log}");
 }
+
+/// Points the watcher at a backend on a free port that only it can start,
+/// whose environments do not include the plans' environment.
+async fn local_backend(fixture: &Fixture) -> u16 {
+    let port = {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        listener.local_addr().unwrap().port()
+    };
+    let backend = format!(
+        "backend:\n  listen: 127.0.0.1:{port}\n  data_dir: {}\nllm:\n  base_url: http://m/v1\n  \
+         model: m\nenvironments:\n  local: {{}}\n",
+        fixture.dir.path().join("started").display()
+    );
+    std::fs::write(fixture.dir.path().join("saci.yaml"), backend).unwrap();
+    let path = fixture.dir.path().join("watch.yaml");
+    let watch = std::fs::read_to_string(&path)
+        .unwrap()
+        .replace("environment: local", "environment: nowhere");
+    let section = format!("backend:\n  url: http://127.0.0.1:{port}\n  config: saci.yaml\n");
+    std::fs::write(&path, section + &watch).unwrap();
+    port
+}
+
+#[tokio::test]
+async fn the_watcher_starts_a_local_backend_and_stops_it_on_exit() {
+    let fixture = Fixture::start(0).await;
+    let port = local_backend(&fixture).await;
+    let log = ends_ok(fixture.spawn(&["--once", "--run-now"])).await;
+    assert!(
+        log.contains("started `saci backend start --config"),
+        "{log}"
+    );
+    assert_eq!(
+        log.matches("skipped").count(),
+        3,
+        "the started backend refuses the environment: {log}"
+    );
+    let address = format!("127.0.0.1:{port}");
+    assert!(
+        tokio::net::TcpStream::connect(&address).await.is_err(),
+        "the started backend still answers"
+    );
+}

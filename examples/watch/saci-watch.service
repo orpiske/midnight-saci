@@ -1,5 +1,6 @@
 # systemd user unit for saci watch (docs/watch.md).
-# Put the token in ~/.config/saci/watch.env as SACI_TOKEN=..., if the
+# The watcher starts the backend of backend.config, so no other unit is
+# necessary. Put the token in ~/.config/saci/watch.env as SACI_TOKEN=..., if the
 # backend needs one.
 [Unit]
 Description=Saci repository watcher
