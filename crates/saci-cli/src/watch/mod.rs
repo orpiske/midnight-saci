@@ -1,6 +1,7 @@
 //! `saci watch`: polls Git repositories and runs test plans when they
 //! change (`docs/watch.md`).
 
+mod backend;
 mod config;
 mod git;
 mod state;
@@ -20,6 +21,7 @@ use time::format_description::well_known::Rfc3339;
 use tokio::sync::watch;
 
 use crate::client::{CliError, Client, Connection, exit};
+use backend::LocalBackend;
 use config::{PlanEntry, Trigger, WatchConfig};
 use state::{Cycle, LastCycle, PlanRun, Snapshot, State, snapshot_hash};
 
@@ -65,31 +67,57 @@ pub enum WatchCommand {
 pub async fn run(connection: &Connection, args: &WatchArgs) -> Result<u8, CliError> {
     let config = WatchConfig::load(&args.config)?;
     std::fs::create_dir_all(config.repos_dir()).map_err(|error| {
-        CliError::new(
-            exit::INVALID,
-            format!("cannot create {}: {error}", config.workdir.display()),
-        )
+        let dir = config.workdir.display();
+        CliError::new(exit::INVALID, format!("cannot create {dir}: {error}"))
     })?;
     let client = Client::new(&backend(connection, &config))?;
     let state = match State::load(&config.state_file())? {
         Some(state) => state,
         None => baseline(&config, args.run_now).await?,
     };
-    let forced = if args.run_now {
-        config.triggers.iter().map(|t| t.name.clone()).collect()
-    } else {
-        BTreeSet::new()
-    };
+    let forced = config.triggers.iter().filter(|_| args.run_now);
     let mut watcher = Watcher {
+        forced: forced.map(|t| t.name.clone()).collect(),
+        local: start_local(&config, &client).await?,
         config,
         client,
         state,
-        forced,
         stop: stop_signal(),
         last_change: None,
     };
-    Box::pin(watcher.watch(args.once)).await?;
+    let result = Box::pin(watcher.watch(args.once)).await;
+    if let Some(local) = &mut watcher.local {
+        local.stop().await;
+    }
+    result?;
     Ok(exit::OK)
+}
+
+/// With `backend.config`, makes sure that a backend answers, and starts
+/// one when none does.
+async fn start_local(
+    config: &WatchConfig,
+    client: &Client,
+) -> Result<Option<LocalBackend>, CliError> {
+    let Some(file) = &config.backend.config else {
+        return Ok(None);
+    };
+    if !backend::is_local(client.base()) {
+        return Err(CliError::new(
+            exit::INVALID,
+            format!(
+                "backend.config starts only local backends, but the backend URL is {}; use \
+                 http://127.0.0.1:<port>, or remove backend.config",
+                client.base()
+            ),
+        ));
+    }
+    let mut local = LocalBackend::new(file.clone());
+    local
+        .ensure(client)
+        .await
+        .map_err(|error| CliError::new(exit::BACKEND, format!("{error:#}")))?;
+    Ok(Some(local))
 }
 
 /// The backend settings of the file, else those of the command line.
@@ -168,6 +196,8 @@ struct Watcher {
     stop: watch::Receiver<bool>,
     /// When the last change was seen.
     last_change: Option<Instant>,
+    /// The backend that the watcher starts when none answers.
+    local: Option<LocalBackend>,
 }
 
 impl Watcher {
@@ -413,6 +443,7 @@ impl Watcher {
                         "trigger {}: cannot submit {} yet: {}",
                         trigger.name, entry.plan, error.message
                     ));
+                    self.ensure_backend().await;
                     if self.sleep(Duration::from_secs(RETRY_SECS)).await {
                         return Ok(Submitted::Stopped);
                     }
@@ -492,6 +523,7 @@ impl Watcher {
                 Ok(_) => {}
                 Err(error) if error.retryable => {
                     log(&format!("cannot read run {run} yet: {}", error.message));
+                    self.ensure_backend().await;
                 }
                 Err(error) => {
                     log(&format!("cannot read run {run}: {}", error.message));
@@ -501,6 +533,15 @@ impl Watcher {
             if self.sleep(interval).await {
                 return None;
             }
+        }
+    }
+
+    /// Starts the local backend again when it is configured and stopped.
+    async fn ensure_backend(&mut self) {
+        if let Some(local) = &mut self.local
+            && let Err(error) = local.ensure(&self.client).await
+        {
+            log(&format!("{error:#}"));
         }
     }
 

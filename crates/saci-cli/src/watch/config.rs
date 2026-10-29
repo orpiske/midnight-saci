@@ -35,6 +35,10 @@ pub struct BackendSettings {
     pub url: Option<String>,
     /// The client token.
     pub token: Option<SecretRef>,
+    /// Backend configuration file. When set and no backend answers at the
+    /// URL, the watcher starts `saci backend start --config <file>`. A
+    /// relative path is relative to the watch configuration file.
+    pub config: Option<PathBuf>,
 }
 
 /// A credential, in the format of the Saci backend configuration.
@@ -102,6 +106,11 @@ impl WatchConfig {
         let mut config: Self = serde_yaml::from_str(&text)
             .with_context(|| format!("cannot parse {}", path.display()))?;
         config.workdir = expand_home(&config.workdir, home().as_deref())?;
+        if let Some(backend) = &config.backend.config {
+            let backend = expand_home(backend, home().as_deref())?;
+            let base = path.parent().unwrap_or_else(|| Path::new(""));
+            config.backend.config = Some(base.join(backend));
+        }
         config
             .validate(home().as_deref())
             .with_context(|| format!("invalid configuration {}", path.display()))?;

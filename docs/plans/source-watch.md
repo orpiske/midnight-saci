@@ -62,6 +62,10 @@ tag or a clone of the branch in the worker.
 
 Thus the backend, the worker and the plan format do not change.
 
+The watcher can also start a local backend when none answers
+([#141](https://github.com/orpiske/midnight-saci/issues/141)). Then one
+service runs both. See [starting the backend](../watch.md#starting-the-backend).
+
 ## Detecting changes
 
 The watcher uses `git ls-remote <url> refs/heads/<branch>`, not the GitHub
