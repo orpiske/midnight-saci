@@ -3,6 +3,7 @@
 backend:
   url: http://127.0.0.1:18080
   token: { env: SACI_TOKEN }
+  config: saci.yaml   # start this backend when none answers
 workdir: ~/.local/state/saci-watch
 poll_interval_secs: 60
 quiet_period_secs: 180

@@ -35,6 +35,7 @@ image tag or a `git clone` of a branch in the worker.
 backend:
   url: http://127.0.0.1:18080       # optional; else --backend or SACI_BACKEND_URL
   token: { env: SACI_TOKEN }        # optional; else --token-env
+  config: saci.yaml                 # optional; start this backend when none answers
 workdir: ~/.local/state/saci-watch
 poll_interval_secs: 60
 quiet_period_secs: 180
@@ -58,6 +59,7 @@ triggers:
 | --- | --- | --- |
 | `backend.url` | `--backend` | Backend base URL. |
 | `backend.token` | `--token-env` | `{ env: NAME }`: the variable that holds the client token. |
+| `backend.config` | none | A backend configuration file. When no backend answers at the backend URL, the watcher starts `saci backend start --config <file>`. A relative path is relative to the watch configuration file. See [starting the backend](#starting-the-backend). |
 | `workdir` | required | Directory for the clones (`repos/<name>`) and the state file (`state.json`). An absolute path, or a path that starts with `~/`. |
 | `poll_interval_secs` | `60` | Seconds between two polls. Also the upper limit of the time between two checks of a run. |
 | `quiet_period_secs` | `180` | Seconds without a change before a cycle starts. |
@@ -84,6 +86,26 @@ log line at each poll.
 runs `git checkout --force` and `git clean -ffdx` in them, so local
 changes are lost. Do not edit the clones. The watcher refuses a `workdir`
 that is the home directory or is in a Git working tree.
+
+## Starting the backend
+
+With `backend.config`, the watcher and the backend run as one service:
+
+- At start, the watcher sends `GET /api/v1/health` to the backend URL. When
+  a backend answers, the watcher uses it and starts nothing.
+- When no backend answers, the watcher starts
+  `saci backend start --config <file>` and waits up to 60 seconds until it
+  answers. Else the command exits 3. The backend writes its log to the
+  standard error of the watcher.
+- When the backend stops during a cycle, the watcher starts it again
+  before it submits or checks the next run.
+- When the watcher stops, it sends SIGTERM to the backend that it started,
+  and waits up to 30 seconds. A backend that the watcher did not start
+  continues.
+
+The watcher starts only local backends. The backend URL must start with
+`http://127.0.0.1:`, `http://localhost:` or `http://[::1]:`, and must agree
+with `backend.listen` in the backend configuration.
 
 ## Command line
 
@@ -149,6 +171,7 @@ On Linux:
 ```sh
 mkdir -p ~/.config/saci ~/.config/systemd/user
 cp examples/watch/watch.yaml ~/.config/saci/watch.yaml
+cp saci.yaml ~/.config/saci/saci.yaml     # the backend configuration, for backend.config
 cp examples/watch/saci-watch.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now saci-watch

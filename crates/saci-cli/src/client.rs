@@ -175,6 +175,12 @@ impl Client {
         Err(self.refusal(status, &bytes))
     }
 
+    /// The backend base URL.
+    #[must_use]
+    pub fn base(&self) -> &str {
+        &self.base
+    }
+
     /// `GET route`.
     ///
     /// # Errors
