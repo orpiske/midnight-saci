@@ -122,7 +122,17 @@ The dispatcher connects to the server, initializes it and lists its tools
 within `limits.operation_timeout_secs`. It then checks the recorded
 arguments against the tool's input schema: required properties, property
 types, and `additionalProperties: false`. A mismatch is an `error`, and
-nothing is sent. The call itself must answer within the same limit.
+nothing is sent.
+
+When the schema gives a `maxLength` for a string property and the value is
+longer, the dispatcher shortens the value before the call. It counts the
+limit in bytes, so the value also fits a server that counts characters. It
+cuts the value at a character boundary, at the last line break in the
+second half of the kept text when there is one, and adds a `[truncated]`
+line. The recorded arguments keep the full value. The action's `result`
+ends with `[shortened to the tool's maxLength: <names>]`.
+
+The call itself must answer within `limits.operation_timeout_secs`.
 Whatever happens to an action, the run's outcome stays as it was.
 
 ## Retries and restarts

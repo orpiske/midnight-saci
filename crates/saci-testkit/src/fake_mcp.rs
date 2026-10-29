@@ -119,6 +119,7 @@ fn record_schema() -> Value {
             "title": {"type": "string"},
             "body": {"type": "string"},
             "key": {"type": "string"},
+            "note": {"type": "string", "maxLength": 64},
             "pause": {"type": "number"}
         },
         "required": ["title"]
