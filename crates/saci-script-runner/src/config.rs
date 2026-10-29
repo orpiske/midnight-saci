@@ -17,6 +17,11 @@ pub const MAX_CONCURRENT_LIMIT: usize = 256;
 pub const TIMEOUT_LIMIT_SECONDS: u64 = 3600;
 /// Upper bound for `max_output_bytes` (16 MiB per stream).
 pub const OUTPUT_LIMIT_BYTES: usize = 16 * 1024 * 1024;
+/// Default `max_bytes` of an argument value.
+pub const DEFAULT_VALUE_BYTES: usize = 4096;
+/// Upper bound for `max_bytes`: the Linux limit for one command line
+/// argument (`MAX_ARG_STRLEN`, 128 KiB).
+pub const VALUE_LIMIT_BYTES: usize = 128 * 1024;
 
 /// A configuration that cannot be used.
 #[derive(Debug, thiserror::Error)]
@@ -148,6 +153,10 @@ const fn default_timeout() -> u64 {
     30
 }
 
+const fn default_max_bytes() -> usize {
+    DEFAULT_VALUE_BYTES
+}
+
 const fn default_max_output() -> usize {
     65536
 }
@@ -194,6 +203,9 @@ pub struct ArgumentConfig {
     /// A regular expression the value must match.
     #[serde(default)]
     pub pattern: Option<String>,
+    /// Longest accepted value, in bytes. Default 4096.
+    #[serde(default = "default_max_bytes")]
+    pub max_bytes: usize,
     /// How the value goes on the command line.
     pub binding: Binding,
 }
@@ -381,6 +393,9 @@ impl ArgumentConfig {
                 "flag `{flag}` must be `-` or `--` followed by letters, digits, `_` or `-`"
             ));
         }
+        if !(1..=VALUE_LIMIT_BYTES).contains(&self.max_bytes) {
+            return Err(format!("`max_bytes` must be 1 to {VALUE_LIMIT_BYTES}"));
+        }
         let pattern = match &self.pattern {
             Some(pattern) => Some(
                 regex::Regex::new(pattern)
@@ -389,13 +404,17 @@ impl ArgumentConfig {
             None => None,
         };
         if let Some(values) = &self.allowed {
-            check_enum(values, pattern.as_ref())?;
+            check_enum(values, pattern.as_ref(), self.max_bytes)?;
         }
         Ok(())
     }
 }
 
-fn check_enum(values: &[String], pattern: Option<&regex::Regex>) -> Result<(), String> {
+fn check_enum(
+    values: &[String],
+    pattern: Option<&regex::Regex>,
+    max_bytes: usize,
+) -> Result<(), String> {
     if values.is_empty() {
         return Err("`enum` is empty".to_owned());
     }
@@ -404,7 +423,7 @@ fn check_enum(values: &[String], pattern: Option<&regex::Regex>) -> Result<(), S
         if !seen.insert(value.as_str()) {
             return Err(format!("`enum` lists `{value}` twice"));
         }
-        if let Err(reason) = crate::registry::check_value_text(value) {
+        if let Err(reason) = crate::registry::check_value_text(value, max_bytes) {
             return Err(format!("`enum` value `{value}`: {reason}"));
         }
         if pattern.is_some_and(|pattern| !pattern.is_match(value)) {
@@ -662,6 +681,28 @@ mod tests {
             &argument("        enum: [abc]\n        pattern: '^[0-9]+$'\n"),
             "does not match",
         );
+        rejected(
+            &fixture,
+            &argument("        enum: [abcd]\n        max_bytes: 3\n"),
+            "longer than 3 bytes",
+        );
+    }
+
+    #[test]
+    fn max_bytes_must_fit_one_command_line_argument() {
+        let fixture = Fixture::new();
+        let argument = |max_bytes: usize| {
+            fixture.tool(&format!(
+                "    arguments:\n      - name: a\n        type: string\n        max_bytes: {max_bytes}\n        binding: {{kind: positional}}\n"
+            ))
+        };
+        rejected(&fixture, &argument(0), "`max_bytes` must be 1 to 131072");
+        rejected(
+            &fixture,
+            &argument(131_073),
+            "`max_bytes` must be 1 to 131072",
+        );
+        assert!(fixture.parse(&argument(131_072)).is_ok());
     }
 
     #[test]

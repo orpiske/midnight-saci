@@ -118,8 +118,10 @@ contains the run ID, the outcome and reason, the finish time, the number of
 units, the counts and one line for each unit.
 
 The action puts `Units:` before `{{summary}}`, because the runner rejects
-values that start with `-`. If the summary is longer than 4096 bytes, the
-runner rejects the call and the action is recorded as `error`.
+values that start with `-`. The `summary` argument accepts up to 65536
+bytes (`max_bytes`). If the summary is longer, the backend shortens it to
+that limit and adds a `[truncated]` line (see
+[Outcome actions](actions.md)).
 
 ## Configuration
 
@@ -209,6 +211,7 @@ All sections reject unknown fields.
 | `required` | Default `false`. If an optional parameter is not in the call, nothing goes on the command line for it. |
 | `enum` | Permitted values. The list must not be empty or contain duplicates. |
 | `pattern` | A regular expression that the value must match. The runner uses the Rust `regex` syntax. The pattern is not anchored: add `^` and `$` to match the full value. |
+| `max_bytes` | The longest permitted value, in bytes. Default 4096. The maximum is 131072, the Linux limit for one command line argument. The schema gives it as `maxLength`. |
 | `binding.kind` | `option` or `positional`. |
 | `binding.flag` | For `option`: the flag, `-` or `--` followed by letters, digits, `_` or `-`. A flag can be bound only once in a tool. |
 
@@ -225,7 +228,7 @@ The runner rejects a call when:
 - A value is not a string, is not in `enum`, or does not match `pattern`.
 - A value starts with `-`. Thus a value cannot act as a flag of the script.
   For the same reason, `enum` values cannot start with `-`.
-- A value is longer than 4096 bytes or contains a NUL character.
+- A value is longer than `max_bytes` or contains a NUL character.
 
 ### Script checks
 
