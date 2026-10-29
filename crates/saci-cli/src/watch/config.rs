@@ -336,6 +336,30 @@ triggers:
         assert!(error(&yaml).contains("Git working tree"));
     }
 
+    /// The watch example names only environments and policies that the
+    /// backend example defines, and the two agree on the address.
+    #[test]
+    fn the_examples_agree_with_each_other() {
+        let watch: WatchConfig =
+            serde_yaml::from_str(include_str!("../../../../examples/watch/watch.yaml")).unwrap();
+        let mut checked = watch.clone();
+        checked.workdir = PathBuf::from("/var/lib/saci-watch");
+        checked.validate(None).unwrap();
+        let backend = include_str!("../../../../examples/watch/saci.yaml");
+        let backend = saci_core::config::Config::from_yaml(backend, "saci.yaml").unwrap();
+        let url = watch.backend.url.unwrap();
+        assert_eq!(url, format!("http://{}", backend.backend.listen));
+        for entry in watch.triggers.iter().flat_map(|t| &t.plans) {
+            assert!(
+                backend.environment(&entry.environment).is_ok(),
+                "{}",
+                entry.environment
+            );
+            let policy = entry.policy.as_deref().unwrap_or("default");
+            assert!(backend.policy(policy).is_ok(), "{policy}");
+        }
+    }
+
     #[test]
     fn a_leading_tilde_is_the_home_directory() {
         let home = Path::new("/home/me");

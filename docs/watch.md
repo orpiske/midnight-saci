@@ -50,7 +50,7 @@ triggers:
   - name: operator
     on: [wanaku, wanaku-tests]
     plans:
-      - plan: wanaku-tests/tests/plans/operator-basic-functionality.md
+      - plan: wanaku-tests/plans/operator-basic-functionality.md
         environment: openshift
         policy: keep-going
 ```
@@ -70,7 +70,7 @@ triggers:
 | `triggers[].on` | required | Repositories whose changes start the trigger. |
 | `triggers[].plans[].plan` | required | `<repository>/<path>`: the entry document of a plan in the clones. |
 | `triggers[].plans[].environment` | required | A configured environment of the backend. |
-| `triggers[].plans[].policy` | `default` | A configured run policy of the backend. |
+| `triggers[].plans[].policy` | `default` | A run policy in the `policies` section of the backend configuration. Only `default` exists without configuration. The examples define `keep-going` in [`examples/watch/saci.yaml`](../examples/watch/saci.yaml). |
 
 A repository that only supplies plans, for example a test repository, can
 be left out of every `on`. Its clone is still updated for each cycle. When
@@ -118,7 +118,7 @@ saci watch status --config watch.yaml
 | --- | --- |
 | `--config <file>` | The configuration. Default: `watch.yaml`. |
 | `--once` | Polls one time, runs the triggers that have a change, then exits. The quiet period does not apply. Use it with cron or a systemd timer, or to test a configuration. |
-| `--run-now` | Starts a cycle of every trigger, also without a change. |
+| `--run-now` | Starts a cycle of every trigger, also without a change. A cycle that a restart continues counts as the cycle of its trigger. |
 
 `saci watch` writes one log line on standard error for each event: a
 change, a cycle start, a submitted run, an ended run and a skipped plan.
@@ -171,7 +171,7 @@ On Linux:
 ```sh
 mkdir -p ~/.config/saci ~/.config/systemd/user
 cp examples/watch/watch.yaml ~/.config/saci/watch.yaml
-cp saci.yaml ~/.config/saci/saci.yaml     # the backend configuration, for backend.config
+cp examples/watch/saci.yaml ~/.config/saci/saci.yaml
 cp examples/watch/saci-watch.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now saci-watch

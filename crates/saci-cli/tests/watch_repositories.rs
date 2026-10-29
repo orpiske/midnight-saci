@@ -292,12 +292,17 @@ async fn a_restart_waits_for_the_recorded_run_instead_of_submitting_again() {
         "{status}"
     );
 
-    let restarted = fixture.spawn(&["--once"]);
+    // With --run-now again, the resumed cycle is the one that runs.
+    let restarted = fixture.spawn(&["--once", "--run-now"]);
     fixture.no_run_for(Duration::from_millis(1500)).await;
     fixture.finish(&smoke, Outcome::Passed).await;
     let upgrade = fixture.next_run().await;
     fixture.finish(&upgrade, Outcome::Passed).await;
-    ends_ok(restarted).await;
+    let log = ends_ok(restarted).await;
+    assert!(
+        !log.contains("cycle started"),
+        "a second cycle started: {log}"
+    );
     fixture.no_run_for(Duration::from_millis(200)).await;
 }
 
