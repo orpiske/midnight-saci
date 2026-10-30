@@ -35,7 +35,8 @@ pub struct LlmConfig {
     /// API base URL, or `env:NAME`. Loading replaces `env:NAME` with the
     /// value of `NAME`.
     pub base_url: String,
-    /// Explicit tool-capable model identifier.
+    /// Explicit tool-capable model identifier, or `env:NAME`. Loading
+    /// replaces `env:NAME` with the value of `NAME`.
     pub model: String,
     /// The API credential, or `env:NAME` to read it from `NAME`. When
     /// omitted, no `Authorization` header is sent.
@@ -96,7 +97,8 @@ pub struct JudgeConfig {
     /// Kubernetes Secret key that supplies the credential to cluster workers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key_secret: Option<KubernetesSecretKey>,
-    /// The judge model identifier; the provider's default when omitted.
+    /// The judge model identifier, or `env:NAME`; the provider's default
+    /// when omitted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// The complete evaluation endpoint URL, or `env:NAME`; the provider's
@@ -558,7 +560,7 @@ impl Config {
         Self::from_yaml_with_env(text, source_name, |_| None)
     }
 
-    /// Like [`Config::from_yaml`], but replaces `llm.base_url: env:NAME`
+    /// Like [`Config::from_yaml`], but replaces each `env:NAME` reference
     /// with the value `env` gives for `NAME`.
     ///
     /// # Errors
@@ -592,17 +594,24 @@ impl Config {
         }
     }
 
-    /// Replaces each `env:NAME` in `llm.base_url`, `judge.endpoint` and in environment
-    /// parameters with the value `env` gives for `NAME`. Returns an issue
-    /// for each variable that is not set.
+    /// Replaces each `env:NAME` in `llm.base_url`, `llm.model`,
+    /// `judge.endpoint`, `judge.model` and in environment parameters with the
+    /// value `env` gives for `NAME`. Returns an issue for each variable that
+    /// is not set.
     fn resolve_env_references(
         &mut self,
         env: &impl Fn(&str) -> Option<String>,
     ) -> Vec<ConfigIssue> {
         let mut issues = Issues::default();
         resolve_env_reference(&mut self.llm.base_url, "llm.base_url", env, &mut issues);
-        if let Some(endpoint) = self.judge.as_mut().and_then(|j| j.endpoint.as_mut()) {
-            resolve_env_reference(endpoint, "judge.endpoint", env, &mut issues);
+        resolve_env_reference(&mut self.llm.model, "llm.model", env, &mut issues);
+        if let Some(judge) = self.judge.as_mut() {
+            if let Some(endpoint) = judge.endpoint.as_mut() {
+                resolve_env_reference(endpoint, "judge.endpoint", env, &mut issues);
+            }
+            if let Some(model) = judge.model.as_mut() {
+                resolve_env_reference(model, "judge.model", env, &mut issues);
+            }
         }
         for (name, environment) in &mut self.environments {
             for (key, value) in &mut environment.parameters {
@@ -1312,6 +1321,45 @@ mod tests {
         let env = |_: &str| Some("internal:8000".to_owned());
         let found = invalid(Config::from_yaml_with_env(yaml, "t.yaml", env));
         assert_eq!(found, ["llm.base_url: must be an http:// or https:// URL"]);
+    }
+
+    #[test]
+    fn env_models_read_the_named_variable() {
+        let yaml = "llm:\n  base_url: http://ollama:11434/v1\n  model: env:SACI_MODEL\n\
+                    judge:\n  provider: julia-1\n  model: env:JUDGE_MODEL\n";
+        let env = |name: &str| match name {
+            "SACI_MODEL" => Some("qwen3-coder".to_owned()),
+            "JUDGE_MODEL" => Some("julia-1-large".to_owned()),
+            _ => None,
+        };
+        let config = Config::from_yaml_with_env(yaml, "t.yaml", env).unwrap();
+        assert_eq!(config.llm.settings().model, "qwen3-coder");
+        let judge = config.judge.as_ref().unwrap();
+        assert_eq!(judge.settings().model, "julia-1-large");
+    }
+
+    #[test]
+    fn env_models_report_an_unset_or_empty_variable() {
+        let yaml = "llm:\n  base_url: http://ollama:11434/v1\n  model: env:SACI_MODEL\n\
+                    judge:\n  provider: julia-1\n  model: env:JUDGE_MODEL\n";
+        let found = invalid(Config::from_yaml_with_env(yaml, "t.yaml", |_| None));
+        assert_eq!(
+            found,
+            [
+                "llm.model: names SACI_MODEL, which is not set in the environment",
+                "judge.model: names JUDGE_MODEL, which is not set in the environment",
+            ]
+        );
+        let found = invalid(Config::from_yaml_with_env(yaml, "t.yaml", |_| {
+            Some(String::new())
+        }));
+        assert_eq!(
+            found,
+            [
+                "llm.model: must name a tool-capable model",
+                "judge.model: must not be empty",
+            ]
+        );
     }
 
     #[test]
