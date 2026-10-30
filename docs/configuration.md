@@ -45,33 +45,36 @@ for OpenRouter and Ollama settings, retries and error messages.
 | Setting | Default | Meaning |
 |---------|---------|---------|
 | `base_url` | required | OpenAI-compatible API base URL including any prefix (`/v1`, `/api/v1`), or `env:NAME`. `chat/completions` is appended once. |
-| `model` | required | Explicit tool-capable model identifier. |
+| `model` | required | Explicit tool-capable model identifier, or `env:NAME`. |
 | `api_key` | none | The API credential, or `env:NAME`. When omitted no `Authorization` header is sent. |
 | `api_key_secret.name`, `.key` | none | Kubernetes Secret key that supplies the credential to worker Jobs. Requires `api_key: env:NAME`; the pod receives the key as `NAME`. |
 
 ### Values from the environment
 
-`base_url` and `api_key` accept a value or an `env:NAME` reference. With
-`env:NAME`, the backend reads the value from the environment variable `NAME`.
+`base_url`, `model` and `api_key` accept a value or an `env:NAME` reference.
+With `env:NAME`, the backend reads the value from the environment variable
+`NAME`.
 Any other value is used as written. Use a reference to keep an internal
-hostname or a credential out of the configuration file:
+hostname or a credential out of the configuration file, or to select the
+model for each deployment:
 
 ```yaml
 llm:
   base_url: env:MODEL_URL
-  model: your-tool-capable-model
+  model: env:SACI_MODEL
   api_key: env:SACI_LLM_API_KEY
 ```
 
 ```sh
 export MODEL_URL=http://model.internal.example:8000/v1
+export SACI_MODEL=your-tool-capable-model
 export SACI_LLM_API_KEY=...
 saci backend start --config saci.yaml
 ```
 
-- `base_url`: the backend reads `NAME` when it loads the configuration. If
-  `NAME` is not set, the configuration is invalid. Workers receive the
-  resulting URL from the backend.
+- `base_url` and `model`: the backend reads `NAME` when it loads the
+  configuration. If `NAME` is not set, the configuration is invalid. Workers
+  receive the resulting value from the backend.
 - `api_key`: the backend reads `NAME` when it starts a worker. If `NAME` is
   not set, the run fails to start. The worker receives the key as `NAME`.
 - `api_key` written as a value: the worker receives it as `SACI_LLM_API_KEY`.
@@ -105,7 +108,7 @@ Two providers are available:
 | `provider` | `typesafe` | `typesafe` or `julia-1`. |
 | `api_key` | required for `typesafe` | `env:NAME`. The backend reads the credential from `NAME` when it starts a worker. The worker receives it as `NAME`. A value written in the file is not accepted. For `julia-1`, set it to the variable that `saci-julia serve --token-env` reads. |
 | `api_key_secret.name`, `.key` | none | Kubernetes Secret key that supplies the credential to worker Jobs as `NAME`. Requires `api_key`. |
-| `model` | `jev-latest` (`typesafe`), `julia-1` (`julia-1`) | The judge model identifier. |
+| `model` | `jev-latest` (`typesafe`), `julia-1` (`julia-1`) | The judge model identifier, or `env:NAME`. The backend reads `NAME` when it loads the configuration. |
 | `endpoint` | `https://api.typesafe.ai/v1/systemone` (`typesafe`), `http://127.0.0.1:8095/v1/evaluate` (`julia-1`) | The complete evaluation URL, or `env:NAME`. |
 | `threshold_percent` | `90` | The lowest probability, in percent (1 to 100), that each expected result must get. |
 

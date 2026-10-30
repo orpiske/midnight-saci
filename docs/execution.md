@@ -43,7 +43,7 @@ Configure one backend-default LLM connection, inherited by workers:
 | Setting | Requirement |
 |---------|-------------|
 | `base_url` | Required API base URL, including any API prefix such as `/v1` or `/api/v1`, or `env:NAME`. Append `chat/completions` once. |
-| `model` | Required explicit model identifier, interpreted by the configured provider. |
+| `model` | Required explicit model identifier, interpreted by the configured provider, or `env:NAME`. |
 | `api_key` | Optional API credential, or `env:NAME` to read it from the environment variable `NAME`. A configured but missing credential is an error. If omitted, do not send an Authorization header. |
 | Request timeout | Finite and configurable as an execution setting. |
 
