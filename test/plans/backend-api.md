@@ -20,16 +20,18 @@ scripted model knows.
 - The environment provides `UNDER_TEST_ENVIRONMENT`, an environment
   name configured on that backend whose `SERVICE_URL` is the walkthrough
   orders service.
-- The backend under test requires no client token (it listens on
-  loopback without `backend.auth`).
+- When the backend under test sets `backend.auth`, the environment
+  provides its client token in the secret `UNDER_TEST_TOKEN`. Without
+  `backend.auth`, `UNDER_TEST_TOKEN` is not necessary.
 - `curl` and `jq` are available.
 
 ## Phase 1: Setup
 
 ### Step 1.1: Prepare the plans to submit
 
-Write the two plans this plan submits, and a helper that turns a plan
-file into a submission body:
+Write the two plans this plan submits, a helper that turns a plan file
+into a submission body, and a helper `api` that sends the client token
+with each request:
 
 ````bash
 export API="$UNDER_TEST_URL/api/v1"
@@ -69,13 +71,22 @@ body() {  # body <plan file> [environment]
   jq -n --rawfile plan "$1" --arg env "${2:-$UNDER_TEST_ENVIRONMENT}" \
     '{bundle: {entry: "plan.md", documents: {"plan.md": $plan}}, environment: $env}'
 }
+api() {  # curl with the client token, when the backend under test needs one
+  if [ -n "${UNDER_TEST_TOKEN:-}" ]; then
+    curl -sS -H "Authorization: Bearer $UNDER_TEST_TOKEN" "$@"
+  else
+    curl -sS "$@"
+  fi
+}
 body "$WORK/health.md" | jq -c '{entry: .bundle.entry, environment}'
+[ -n "${UNDER_TEST_TOKEN:-}" ] && echo "token set" || echo "no token"
 ````
 
 **Expected result:**
 
-- The output is a JSON object with `"entry":"plan.md"` and the
+- The first line is a JSON object with `"entry":"plan.md"` and the
   environment named by `UNDER_TEST_ENVIRONMENT`.
+- The last line is `token set` or `no token`.
 
 ## Phase 2: Health and errors
 
@@ -93,8 +104,8 @@ curl -sS -w '\nstatus %{http_code}\n' "$API/health"
 ### Test 2.2: An unknown run is not found
 
 ```bash
-curl -sS -w '\nstatus %{http_code}\n' "$API/runs/run-00000000000000000000000000000000"
-curl -sS -w '\nstatus %{http_code}\n' "$API/runs/not-a-run-id"
+api -w '\nstatus %{http_code}\n' "$API/runs/run-00000000000000000000000000000000"
+api -w '\nstatus %{http_code}\n' "$API/runs/not-a-run-id"
 ```
 
 **Expected result:**
@@ -105,9 +116,9 @@ curl -sS -w '\nstatus %{http_code}\n' "$API/runs/not-a-run-id"
 ### Test 2.3: Out-of-range list limits are rejected
 
 ```bash
-curl -sS -w '\nstatus %{http_code}\n' "$API/runs?limit=0"
-curl -sS -w '\nstatus %{http_code}\n' "$API/runs?limit=201"
-curl -sS -o /dev/null -w 'status %{http_code}\n' "$API/runs?limit=200"
+api -w '\nstatus %{http_code}\n' "$API/runs?limit=0"
+api -w '\nstatus %{http_code}\n' "$API/runs?limit=201"
+api -o /dev/null -w 'status %{http_code}\n' "$API/runs?limit=200"
 ```
 
 **Expected result:**
@@ -119,10 +130,10 @@ curl -sS -o /dev/null -w 'status %{http_code}\n' "$API/runs?limit=200"
 ### Test 2.4: The catalog shows names and limits, not secrets
 
 ```bash
-curl -sS -w '\nstatus %{http_code}\n' "$API/environments"
-curl -sS "$API/environments" | jq --arg env "$UNDER_TEST_ENVIRONMENT" \
+api -w '\nstatus %{http_code}\n' "$API/environments"
+api "$API/environments" | jq --arg env "$UNDER_TEST_ENVIRONMENT" \
   '{listed: any(.items[]; .name == $env), has_parameters: any(..; type == "object" and (has("parameters") or has("secrets")))}'
-curl -sS -w '\nstatus %{http_code}\n' "$API/policies"
+api -w '\nstatus %{http_code}\n' "$API/policies"
 ```
 
 **Expected result:**
@@ -143,7 +154,7 @@ Submit a plan whose only test has no expected result:
 
 ```bash
 printf '# Test Plan: Broken\n\n## Phase 1: Checks\n\n### Test 1.1: Do something\n\nRun `true`.\n' >"$WORK/broken.md"
-body "$WORK/broken.md" | curl -sS -w '\nstatus %{http_code}\n' \
+body "$WORK/broken.md" | api -w '\nstatus %{http_code}\n' \
   -H 'Content-Type: application/json' --data-binary @- "$API/runs"
 ```
 
@@ -159,7 +170,7 @@ body "$WORK/broken.md" | curl -sS -w '\nstatus %{http_code}\n' \
 ### Test 3.2: An unknown environment is rejected
 
 ```bash
-body "$WORK/health.md" no-such-environment | curl -sS -w '\nstatus %{http_code}\n' \
+body "$WORK/health.md" no-such-environment | api -w '\nstatus %{http_code}\n' \
   -H 'Content-Type: application/json' --data-binary @- "$API/runs"
 ```
 
@@ -172,9 +183,9 @@ body "$WORK/health.md" no-such-environment | curl -sS -w '\nstatus %{http_code}\
 ### Test 3.3: Unknown fields and malformed JSON are bad requests
 
 ```bash
-body "$WORK/health.md" | jq '. + {surprise: true}' | curl -sS -w '\nstatus %{http_code}\n' \
+body "$WORK/health.md" | jq '. + {surprise: true}' | api -w '\nstatus %{http_code}\n' \
   -H 'Content-Type: application/json' --data-binary @- "$API/runs"
-curl -sS -w '\nstatus %{http_code}\n' -H 'Content-Type: application/json' \
+api -w '\nstatus %{http_code}\n' -H 'Content-Type: application/json' \
   --data-binary '{"bundle":' "$API/runs"
 ```
 
@@ -189,7 +200,7 @@ curl -sS -w '\nstatus %{http_code}\n' -H 'Content-Type: application/json' \
 
 ```bash
 export KEY="saci-self-test-$(date +%s)-$RANDOM"
-body "$WORK/health.md" | curl -sS -D "$WORK/headers" -o "$WORK/accepted.json" \
+body "$WORK/health.md" | api -D "$WORK/headers" -o "$WORK/accepted.json" \
   -w 'status %{http_code}\n' -H 'Content-Type: application/json' \
   -H "Idempotency-Key: $KEY" --data-binary @- "$API/runs"
 export RUN_ID=$(jq -r .id "$WORK/accepted.json")
@@ -207,7 +218,7 @@ grep -i '^location:' "$WORK/headers"
 ### Test 4.2: Repeating the same submission returns the same run
 
 ```bash
-body "$WORK/health.md" | curl -sS -o "$WORK/again.json" -w 'status %{http_code}\n' \
+body "$WORK/health.md" | api -o "$WORK/again.json" -w 'status %{http_code}\n' \
   -H 'Content-Type: application/json' -H "Idempotency-Key: $KEY" \
   --data-binary @- "$API/runs"
 echo "first $RUN_ID, again $(jq -r .id "$WORK/again.json")"
@@ -221,7 +232,7 @@ echo "first $RUN_ID, again $(jq -r .id "$WORK/again.json")"
 ### Test 4.3: Reusing the key with another plan is a conflict
 
 ```bash
-body "$WORK/export.md" | curl -sS -w '\nstatus %{http_code}\n' \
+body "$WORK/export.md" | api -w '\nstatus %{http_code}\n' \
   -H 'Content-Type: application/json' -H "Idempotency-Key: $KEY" \
   --data-binary @- "$API/runs"
 ```
@@ -234,7 +245,7 @@ body "$WORK/export.md" | curl -sS -w '\nstatus %{http_code}\n' \
 ### Test 4.4: The run is listed
 
 ```bash
-curl -sS "$API/runs?limit=200" | jq --arg id "$RUN_ID" '[.items[] | select(.id == $id)] | length'
+api "$API/runs?limit=200" | jq --arg id "$RUN_ID" '[.items[] | select(.id == $id)] | length'
 ```
 
 **Expected result:**
@@ -250,13 +261,13 @@ only at a page that is empty or ends with the `run_finished` event:
 ```bash
 after=0; seqs=""
 for _ in $(seq 1 20); do
-  page=$(curl -sS "$API/runs/$RUN_ID/events?after=$after&wait=30")
+  page=$(api "$API/runs/$RUN_ID/events?after=$after&wait=30")
   seqs="$seqs $(echo "$page" | jq -r '[.items[].seq] | map(tostring) | join(" ")')"
   after=$(echo "$page" | jq -r .next_after)
   [ "$(echo "$page" | jq -r '.items | length == 0 or .[-1].type == "run_finished"')" = true ] && break
 done
 echo "sequence:$seqs"
-curl -sS "$API/runs/$RUN_ID" | jq '{lifecycle, outcome, passed: .counts.passed}'
+api "$API/runs/$RUN_ID" | jq '{lifecycle, outcome, passed: .counts.passed}'
 ```
 
 **Expected result:**
@@ -269,7 +280,7 @@ curl -sS "$API/runs/$RUN_ID" | jq '{lifecycle, outcome, passed: .counts.passed}'
 ### Test 4.6: The report ties the verdict to evidence
 
 ```bash
-curl -sS "$API/runs/$RUN_ID/report" | jq .
+api "$API/runs/$RUN_ID/report" | jq .
 ```
 
 **Expected result:**
@@ -281,8 +292,8 @@ curl -sS "$API/runs/$RUN_ID/report" | jq .
 ### Test 4.7: The run keeps the plan it executed
 
 ```bash
-curl -sS "$API/runs/$RUN_ID/plan" | jq '{run_id, title, entry, units: [.units[] | {key, title, criteria: [.criteria[].text]}]}'
-curl -sS "$API/runs/$RUN_ID/plan" | jq -j '.documents["plan.md"]' | diff - "$WORK/health.md" && echo "same document"
+api "$API/runs/$RUN_ID/plan" | jq '{run_id, title, entry, units: [.units[] | {key, title, criteria: [.criteria[].text]}]}'
+api "$API/runs/$RUN_ID/plan" | jq -j '.documents["plan.md"]' | diff - "$WORK/health.md" && echo "same document"
 ```
 
 **Expected result:**
@@ -298,7 +309,7 @@ curl -sS "$API/runs/$RUN_ID/plan" | jq -j '.documents["plan.md"]' | diff - "$WOR
 ### Test 4.8: A finished run cannot be cancelled
 
 ```bash
-curl -sS -w '\nstatus %{http_code}\n' -X POST "$API/runs/$RUN_ID/cancellation"
+api -w '\nstatus %{http_code}\n' -X POST "$API/runs/$RUN_ID/cancellation"
 ```
 
 **Expected result:**
@@ -314,16 +325,16 @@ Submit the slow export, wait until its step has started, and cancel it
 twice:
 
 ```bash
-export SLOW_ID=$(body "$WORK/export.md" | curl -sS -H 'Content-Type: application/json' \
+export SLOW_ID=$(body "$WORK/export.md" | api -H 'Content-Type: application/json' \
   --data-binary @- "$API/runs" | jq -r .id)
 for _ in $(seq 1 120); do
-  [ "$(curl -sS "$API/runs/$SLOW_ID" | jq .last_event_seq)" -ge 2 ] && break
+  [ "$(api "$API/runs/$SLOW_ID" | jq .last_event_seq)" -ge 2 ] && break
   sleep 1
 done
-curl -sS "$API/runs/$SLOW_ID" | jq -c '{lifecycle, last_event_seq}'
+api "$API/runs/$SLOW_ID" | jq -c '{lifecycle, last_event_seq}'
 sleep 2
-curl -sS -o "$WORK/cancel1.json" -w 'first status %{http_code}\n' -X POST "$API/runs/$SLOW_ID/cancellation"
-curl -sS -o "$WORK/cancel2.json" -w 'second status %{http_code}\n' -X POST "$API/runs/$SLOW_ID/cancellation"
+api -o "$WORK/cancel1.json" -w 'first status %{http_code}\n' -X POST "$API/runs/$SLOW_ID/cancellation"
+api -o "$WORK/cancel2.json" -w 'second status %{http_code}\n' -X POST "$API/runs/$SLOW_ID/cancellation"
 jq -r .cancel_requested_at "$WORK/cancel1.json" "$WORK/cancel2.json"
 ```
 
@@ -338,10 +349,10 @@ jq -r .cancel_requested_at "$WORK/cancel1.json" "$WORK/cancel2.json"
 
 ```bash
 for _ in $(seq 1 60); do
-  [ "$(curl -sS "$API/runs/$SLOW_ID" | jq -r .lifecycle)" = finished ] && break
+  [ "$(api "$API/runs/$SLOW_ID" | jq -r .lifecycle)" = finished ] && break
   sleep 1
 done
-curl -sS "$API/runs/$SLOW_ID" | jq '{lifecycle, outcome, created_at, finished_at}'
+api "$API/runs/$SLOW_ID" | jq '{lifecycle, outcome, created_at, finished_at}'
 ```
 
 **Expected result:**

@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use saci_core::bundle;
 use saci_core::config::Config;
+use saci_core::spec::SecretRef;
 
 fn repository() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -58,5 +59,14 @@ fn the_self_test_configuration_loads() {
             .unwrap_or_else(|| panic!("saci-under-test does not define {name}"));
         assert!(!value.is_empty(), "{name} is empty");
     }
+    // The plans test this same backend, so they get its own client token.
+    let auth = config.backend.auth.as_ref().expect("backend.auth is set");
+    assert_eq!(
+        environment.secrets.get("UNDER_TEST_TOKEN"),
+        Some(&SecretRef::Env {
+            env: auth.token_env.clone()
+        }),
+        "UNDER_TEST_TOKEN must come from backend.auth.token_env"
+    );
     assert_eq!(config.worker.network.as_deref(), Some("host"));
 }

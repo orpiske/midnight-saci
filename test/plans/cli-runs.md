@@ -21,7 +21,9 @@ it is cancelled.
 - The environment provides `UNDER_TEST_ENVIRONMENT`, an environment
   name configured on that backend whose `SERVICE_URL` is the walkthrough
   orders service.
-- The backend under test requires no client token.
+- When the backend under test sets `backend.auth`, the environment
+  provides its client token in the secret `UNDER_TEST_TOKEN`. Without
+  `backend.auth`, `UNDER_TEST_TOKEN` is not necessary.
 - `saci` and `jq` are on `PATH` (both are in the Saci worker image).
 
 ## Phase 1: Setup
@@ -30,6 +32,7 @@ it is cancelled.
 
 ```bash
 export SACI_BACKEND_URL="$UNDER_TEST_URL"
+export SACI_TOKEN="${UNDER_TEST_TOKEN:-}"
 export ENV_NAME="$UNDER_TEST_ENVIRONMENT"
 saci list --limit 1 >/dev/null; echo "exit $?"
 ```
