@@ -2,9 +2,9 @@
 
 The backend serves a browser console at `/ui/` on the same address as the
 REST API. It submits runs, follows them live, shows reports with their
-criteria and evidence, cancels runs, and reviews outcome actions. It uses
-only the [client routes](api.md); it adds no capability the API and the
-CLI do not have.
+criteria and evidence, cancels runs, runs a finished plan again, and
+reviews outcome actions. It uses only the [client routes](api.md); it
+adds no capability the API and the CLI do not have.
 
 ## Opening it
 
@@ -98,6 +98,12 @@ are never fetched or turned into links.
 - **Cancel run** asks for confirmation. The run shows *Cancellation
   requested* until its lifecycle reaches `finished`
   ([cancelling](api.md#cancelling)).
+- **Run again** is on a finished run that has a plan (not on an
+  investigation). After a confirmation, it submits a new run with the plan
+  documents of this run (`GET /api/v1/runs/{run_id}/plan`) and the same
+  environment and policy, and then opens the new run. The new run uses the
+  current configuration of that environment and policy. The submission is
+  retry-safe, as described in [submissions and lost answers](#submissions-and-lost-answers).
 - **Approve and send** or **Reject** an action waiting for approval. The
   decision names the digest of the arguments on screen. If the action
   changed meanwhile (`digest_mismatch`, `action_not_pending`), the console

@@ -31,6 +31,7 @@ import { PerformanceTab } from "./PerformanceTab";
 import { PlanTab } from "./PlanTab";
 import { completed } from "./progress";
 import { ResultsTab } from "./ResultsTab";
+import { RunAgain } from "./RunAgain";
 
 type TabKey = "results" | "activity" | "performance" | "plan" | "environment" | "actions";
 
@@ -178,7 +179,13 @@ export function RunPage({ id }: { id: string }) {
   return (
     <div className="page">
       <Breadcrumb />
-      <RunHeader run={run} report={report.resource.data} onChanged={summary.set} reload={refresh} />
+      <RunHeader
+        run={run}
+        report={report.resource.data}
+        plan={plan.resource.data}
+        onChanged={summary.set}
+        reload={refresh}
+      />
       {report.resource.data?.units.some((unit) => unit.key === INVESTIGATION_UNIT) ? (
         <Callout tone="neutral" title="This run executes an investigation">
           <Link to={`/investigations/${seg(id)}`}>Open the investigation</Link> to see its result,
@@ -234,11 +241,13 @@ function Breadcrumb() {
 function RunHeader({
   run,
   report,
+  plan,
   onChanged,
   reload,
 }: {
   run: RunSummary;
   report: RunReport | undefined;
+  plan: RunPlan | undefined;
   onChanged: (run: RunSummary) => void;
   reload: () => void;
 }) {
@@ -263,6 +272,7 @@ function RunHeader({
           </button>
           <DownloadReport run={run} report={report} />
           {active ? <CancelRun run={run} onChanged={onChanged} /> : null}
+          {!active && plan ? <RunAgain run={run} plan={plan} /> : null}
         </div>
       </div>
       {run.reason ? (
