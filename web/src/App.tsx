@@ -117,7 +117,7 @@ function Screen({ path }: { path: string }): ReactNode {
   if (path === "/" || path === "/runs") return <RunsPage />;
   if (path === "/runs/new") return <NewRunPage />;
   const run = match("/runs/:id", path);
-  if (run?.id) return <RunPage id={run.id} />;
+  if (run?.id) return <RunPage key={run.id} id={run.id} />;
   if (path === "/investigations") return <InvestigationsPage />;
   const investigation = match("/investigations/:id", path);
   if (investigation?.id) return <InvestigationPage id={investigation.id} />;

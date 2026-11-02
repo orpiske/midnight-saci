@@ -276,3 +276,43 @@ test("an empty investigations list says how to start one", async ({ page }) => {
   await page.goto("/ui/investigations");
   await expect(page.getByText("No investigations yet")).toBeVisible();
 });
+
+test("run again submits the retained plan with the same settings and opens the new run", async ({ page }, testInfo) => {
+  const mock = await mockBackend(page, { submit: [(route) => route.abort("connectionreset")] });
+  await page.goto(`/ui/runs/${fx.RUN}`);
+  await page.getByRole("button", { name: "Run again" }).click();
+  const dialog = page.getByRole("dialog", { name: "Run this plan again?" });
+  await expect(dialog).toContainText("environment local with policy review");
+  await accessible(page, testInfo, "run-again");
+  await dialog.getByRole("button", { name: "Start run" }).click();
+  await expect(dialog.getByText("The backend did not confirm the submission")).toBeVisible();
+  await dialog.getByRole("button", { name: "Retry start" }).click();
+  await expect(page).toHaveURL(new RegExp(`/ui/runs/${fx.LIVE}$`));
+  await expect(page.getByRole("heading", { name: "Checkout flow" })).toBeVisible();
+
+  const posts = mock.requests.filter((r) => r.method() === "POST" && r.url().endsWith("/api/v1/runs"));
+  expect(posts).toHaveLength(2);
+  expect(posts[0]?.headers()["idempotency-key"]).toBeTruthy();
+  expect(posts[1]?.headers()["idempotency-key"]).toBe(posts[0]?.headers()["idempotency-key"]);
+  expect(posts[1]?.postDataJSON()).toEqual({
+    bundle: { entry: fx.plan.entry, documents: fx.plan.documents },
+    environment: fx.failedRun.environment,
+    policy: fx.failedRun.policy,
+  });
+});
+
+test("a run without a retained plan offers no run again", async ({ page }) => {
+  await mockBackend(page, { runs: [{ ...fx.failedRun, id: fx.INVESTIGATION, plan_title: "Investigation" }] });
+  await page.route(`**/api/v1/runs/${fx.INVESTIGATION}/plan`, (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "not_found", message: "the run has no plan" } }),
+    }),
+  );
+  const planAnswer = page.waitForResponse(`**/api/v1/runs/${fx.INVESTIGATION}/plan`);
+  await page.goto(`/ui/runs/${fx.INVESTIGATION}`);
+  await planAnswer;
+  await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run again" })).toHaveCount(0);
+});
