@@ -1,0 +1,33 @@
+name: release
+
+# A stable release (docs/contributing/releases.md). Push a bare version tag, for example
+# 0.1.0, or start the workflow by hand with the version.
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, for example 0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    uses: ./.github/workflows/publish.yml
+    permissions:
+      contents: write
+    secrets: inherit
+    with:
+      version: ${{ inputs.version || github.ref_name }}
+      release-tag: ${{ inputs.version || github.ref_name }}
+      image-tags: ${{ inputs.version || github.ref_name }}
+      prerelease: false

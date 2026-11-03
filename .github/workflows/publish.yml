@@ -1,0 +1,204 @@
+name: publish
+
+# Builds the release archives and the multi-arch Saci image, then creates the
+# GitHub release. The release and early-access workflows call it
+# (docs/contributing/releases.md).
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The workspace version to publish, for example 0.1.0
+        required: true
+        type: string
+      release-tag:
+        description: The Git tag of the GitHub release
+        required: true
+        type: string
+      image-tags:
+        description: Space-separated tags of the Saci image to push
+        required: true
+        type: string
+      prerelease:
+        description: Publish a rolling prerelease that replaces the previous one
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CONTAINER_REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'quay.io' }}
+  CONTAINER_GROUP: ${{ vars.CONTAINER_GROUP || github.repository_owner }}
+  VERSION: ${{ inputs.version }}
+  # Unique per run so a manifest cannot combine images from different builds.
+  IMAGE_BUILD_TAG: ${{ github.sha }}-${{ github.run_id }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+      - name: The version matches the workspace version
+        run: |
+          workspace_version=$(cargo metadata --locked --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "saci-cli") | .version')
+          if [ "$workspace_version" != "$VERSION" ]; then
+            echo "Version $VERSION does not match the workspace version $workspace_version" >&2
+            exit 1
+          fi
+
+  archives:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x86_64
+          - os: ubuntu-24.04-arm
+            platform: linux-aarch64
+          - os: macos-15-intel
+            platform: macos-x86_64
+          - os: macos-15
+            platform: macos-aarch64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: Swatinem/rust-cache@v2
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+      - name: Build the web console
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+      - name: Build the binaries
+        run: |
+          cargo build --locked --release --package saci-cli --bin saci \
+            --package saci-backend --bin saci-backend --package saci-worker --bin saci-worker \
+            --package saci-script-runner --bin saci-script-runner \
+            --package saci-julia --bin saci-julia
+      - name: Package the binaries
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          archive="saci-${VERSION}-${PLATFORM}"
+          mkdir -p "dist/$archive"
+          for bin in saci saci-backend saci-worker saci-script-runner saci-julia; do
+            install -m 0755 "target/release/$bin" "dist/$archive/$bin"
+          done
+          cp LICENSE README.md "dist/$archive/"
+          tar -C dist -czf "dist/$archive.tar.gz" "$archive"
+          rm -rf "dist/$archive"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: saci-${{ matrix.platform }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  images:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Build and push the architecture image
+        env:
+          IMAGE_ARCH: ${{ matrix.arch }}
+        run: |
+          image="$CONTAINER_REGISTRY/$CONTAINER_GROUP/saci-worker:$IMAGE_BUILD_TAG-$IMAGE_ARCH"
+          docker build -f Containerfile --build-arg SACI_BUILD_COMMIT="$GITHUB_SHA" -t "$image" .
+          docker push "$image"
+
+  manifest:
+    needs: images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Create and push the multi-arch manifests
+        env:
+          IMAGE_TAGS: ${{ inputs.image-tags }}
+        run: |
+          image="$CONTAINER_REGISTRY/$CONTAINER_GROUP/saci-worker"
+          for tag in $IMAGE_TAGS; do
+            docker manifest create "$image:$tag" \
+              "$image:$IMAGE_BUILD_TAG-amd64" \
+              "$image:$IMAGE_BUILD_TAG-arm64"
+            docker manifest push "$image:$tag"
+          done
+
+  release:
+    # The release waits for the images, so its notes never name a missing tag.
+    needs: [archives, manifest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.release-tag }}
+      PRERELEASE: ${{ inputs.prerelease }}
+      IMAGE_TAGS: ${{ inputs.image-tags }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: saci-*
+          merge-multiple: true
+      - name: Write the checksums
+        working-directory: dist
+        run: sha256sum ./*.tar.gz | sed 's| \./| |' > checksums_sha256.txt
+      - name: Write the image section of the notes
+        run: |
+          image="$CONTAINER_REGISTRY/$CONTAINER_GROUP/saci-worker"
+          {
+            echo "## Container image"
+            echo
+            for tag in $IMAGE_TAGS; do
+              echo "- \`$image:$tag\` (linux/amd64, linux/arm64)"
+            done
+          } > "$RUNNER_TEMP/notes.md"
+      - name: Create the GitHub release
+        run: |
+          if [ "$PRERELEASE" = "true" ]; then
+            # The rolling prerelease moves to this commit.
+            gh release delete "$RELEASE_TAG" --cleanup-tag --yes || true
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$RELEASE_TAG" || true
+            gh release create "$RELEASE_TAG" dist/* \
+              --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "Saci $VERSION early access" \
+              --notes-file "$RUNNER_TEMP/notes.md" --generate-notes
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --target "$GITHUB_SHA" --latest \
+              --title "Saci $VERSION" \
+              --notes-file "$RUNNER_TEMP/notes.md" --generate-notes
+          fi

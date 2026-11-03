@@ -9,6 +9,7 @@ These pages are for contributors. They tell you how to build and test Saci, how 
 - [Saci internals](internals.md): the agent library, the MCP SDK, the backend API and the script runner inside.
 - [Build and develop the web console](web-console.md): build, development server, accessibility and the brand.
 - [Write documentation](documentation.md): the page conventions and the documentation checks.
+- [Releases](releases.md): stable releases, early-access builds and Dependabot updates.
 - [Design notes](design/index.md): the reasons behind the main decisions.
 - [Brand guide](../../artwork/BRAND.md): the visual identity.
 

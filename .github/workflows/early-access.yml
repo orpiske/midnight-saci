@@ -1,0 +1,42 @@
+name: early-access
+
+# A rolling early-access build of the selected branch (docs/contributing/releases.md). Each
+# run replaces the `early-access` prerelease and moves the early-access image
+# tags.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: early-access-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+      - name: Read the workspace version
+        id: read
+        run: |
+          version=$(cargo metadata --locked --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "saci-cli") | .version')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: version
+    uses: ./.github/workflows/publish.yml
+    permissions:
+      contents: write
+    secrets: inherit
+    with:
+      version: ${{ needs.version.outputs.version }}
+      release-tag: early-access
+      image-tags: ${{ needs.version.outputs.version }}-early-access early-access
+      prerelease: true
