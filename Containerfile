@@ -8,7 +8,7 @@
 #
 # The worker runs as a non-root user that may be replaced by any UID in
 # group 0 (OpenShift's restricted policy). Extend the tool set with a
-# derived image; see docs/reference/worker.md#adding-utilities.
+# derived image; see docs/operate/worker-image.md#adding-utilities.
 
 ARG RUST_IMAGE=docker.io/library/rust:1.96-slim-trixie
 ARG BASE_IMAGE=registry.fedoraproject.org/fedora:44

@@ -7,7 +7,7 @@
   first `cargo` command.
 - Optional: Podman or Docker to build the worker image and run local workers.
 - Optional: Node.js 22 or later with npm to build the
-  [web console](../run-tests/web-console.md#building-from-source) in `web/`.
+  [web console](web-console.md#building-from-source) in `web/`.
 
 The workspace uses Rust edition 2024. The minimum supported Rust version is
 declared once as `rust-version = "1.96"` in `Cargo.toml` and matches the pinned
@@ -23,7 +23,7 @@ cargo run -p saci-worker -- --help
 ```
 
 Build the worker image and run a fixture-backed plan in it with
-`make image-check` ([the worker](../reference/worker.md#the-image)); CI does the same in
+`make image-check` ([the worker](../operate/worker-image.md)); CI does the same in
 its `worker-image` job.
 
 `Cargo.lock` is committed so a fresh checkout resolves the same dependency
@@ -105,7 +105,7 @@ make check   # cargo fmt --check, cargo clippy -D warnings, cargo test
 CI (`.github/workflows/ci.yml`) runs the same three jobs on every push to
 `main` and on pull requests, using the pinned toolchain. Its `web` job
 checks the console (`make web-check`,
-[web console](../run-tests/web-console.md#developing-the-console)).
+[web console](web-console.md#developing-the-console)).
 
 The lint baseline is adopted from the
 [Wanaku Rust project](https://github.com/wanaku-ai/wanaku):
@@ -128,3 +128,9 @@ Scoped exceptions:
   Production code never does.
 - Any other `#[allow(...)]` must sit on the narrowest item and carry a
   comment that explains why.
+
+## Next steps
+
+- [Testing](testing.md): the test gates and fixtures.
+- [Saci internals](internals.md): how Saci uses its main libraries.
+- [Write documentation](documentation.md): the page conventions and checks.

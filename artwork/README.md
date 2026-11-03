@@ -22,5 +22,5 @@ favicon (`web/index.html`), as section 2 of the guide describes.
 A few guide colors are adjusted where they would miss WCAG 2.2 AA
 contrast, for example white text on Cap Red buttons. The adjustments and
 their contrast ratios are listed in
-[the console's accessibility notes](../docs/run-tests/web-console.md#accessibility-and-the-brand)
+[the console's accessibility notes](../docs/contributing/web-console.md#accessibility-and-the-brand)
 and checked by `web/src/styles/contrast.test.ts`.

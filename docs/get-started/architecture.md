@@ -45,7 +45,7 @@ flowchart LR
    Docker container ([launchers](../operate/container-workers.md)) or a Kubernetes Job
    ([Kubernetes](../operate/kubernetes-jobs.md)).
 3. The worker's agent works through the plan step by step
-   ([execution](../contributing/design/execution-contract.md), [sequencing](../run-tests/how-a-run-executes.md)). It asks the
+   ([how a run executes](../run-tests/how-a-run-executes.md)). It asks the
    LLM what to do and calls bounded shell, HTTP and MCP tools against the
    system under test ([tools](../reference/worker-tools.md), [MCP](../connect/mcp-servers.md)).
 4. The worker sends events and evidence to the backend with a token valid
@@ -62,13 +62,13 @@ API ([CLI](../reference/cli.md)). Runs survive a backend restart
 
 ## Crates
 
-| Crate | Role |
-| --- | --- |
-| `saci-core` | Shared types: plans, configuration, run contracts, events, reports and outcome actions. |
-| `saci-cli` | The `saci` command line. |
-| `saci-backend` | REST API, SQLite store, supervisor, launchers and action dispatcher. |
-| `saci-worker` | The worker: the agent, its tools and reporting to the backend. |
-| `saci-mcp` | MCP client code shared by the worker (step tools) and the backend (actions). |
-| `saci-testkit` | Test fixtures: fake model, target, MCP and Kubernetes servers. |
-| `saci-script-runner` | Separate MCP server, not required to run Saci, that exposes configured scripts as tools ([script runner](../connect/script-runner.md)). |
-| `saci-julia` | Separate judge service, not required to run Saci, that runs the open Julia 1 model ([Julia 1 judge](../operate/julia-judge.md)). |
+Saci is a Rust workspace. [Development](../contributing/development.md#workspace-layout)
+lists each crate and what it owns. The `saci-script-runner` and
+`saci-julia` services are optional: Saci runs without them.
+
+## Next steps
+
+- [Quickstart](quickstart.md): see a run from start to end.
+- [How a run executes](../run-tests/how-a-run-executes.md): attempts,
+  retries, stops and cleanup.
+- [Security](../operate/security.md): where each credential goes.

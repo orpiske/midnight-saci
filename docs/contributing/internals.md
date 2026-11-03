@@ -1,9 +1,15 @@
-# Agent library decision
+# Saci internals
+
+This page is for contributors. It records how Saci uses its main libraries
+and how the backend and the script runner are built inside. For the crate
+layout, see [development](development.md#workspace-layout).
+
+## Agent library
 
 **Decision:** Saci uses [Rig](https://rig.rs/) `rig = "=0.44.0"` (the facade
 crate over `rig-core`, `rig-agent`, `rig-reqwest` and `rig-rmcp`) for model
 interaction, conversation state and tool-call orchestration. Rig was the
-first candidate in the plan and satisfies the execution contract with the
+first candidate in the plan and satisfies the [execution contract](design/execution-contract.md) with the
 small adapters listed below, so no alternative was needed.
 
 The version is pinned exactly because Rig's API changes substantially
@@ -11,11 +17,11 @@ between minor releases (0.44 is a redesign; older documentation and examples
 do not apply). Upgrades must keep
 `crates/saci-worker/tests/rig_compatibility.rs` passing.
 
-Enabled features: `agent`, `reqwest`, `rustls` (and `rmcp` once MCP tools
-are added). Default features, derive macros, vector stores and websocket
-support are off. Rig's MSRV is 1.95, below Saci's 1.96.
+Enabled features: `agent`, `reqwest`, `rustls`, `rmcp` and `typesafeai`
+(the System One judge). Default features, derive macros, vector stores and
+websocket support are off. Rig's MSRV is 1.95, below Saci's 1.96.
 
-## Contract checks
+### Contract checks
 
 `crates/saci-worker/tests/rig_compatibility.rs` runs Rig against
 `saci-testkit`'s scripted OpenAI-compatible server and verifies:
@@ -35,7 +41,7 @@ support are off. Rig's MSRV is 1.95, below Saci's 1.96.
 | Fixture-based testing | `saci-testkit::FakeModel` checks the real wire format without a paid API. |
 | MCP | `rig-rmcp` turns `rmcp` client tools into Rig tools and depends on `rmcp` 2.x (2.2). Saci therefore uses `rmcp` 2.x through Rig's re-export rather than the newer 3.x line, so there is a single SDK version. |
 
-## Thin adapters
+### Thin adapters
 
 These are the only places Saci adds behavior Rig does not provide:
 
@@ -60,66 +66,87 @@ These are the only places Saci adds behavior Rig does not provide:
    against every OpenAI-compatible server; one that only accepts string
    content will reject Saci's requests with a provider error.
 
-## How an attempt runs
 
-`saci_worker::agent::Executor` runs one attempt of one unit as one Rig agent
-run (`Executor::attempt`):
+## MCP SDK
 
-1. It runs the unit's `run` code blocks (```` ```bash run ````) in order in the
-   run's shell session, before any model request. Each counts as a tool
-   call and is recorded as evidence. It stops at a block that does not
-   exit normally (timeout, cancellation, or a lost or ended session).
-   When a [judge](../reference/configuration.md#judge) is configured, every code block
-   of the unit is marked `run`, and each block ran and exited normally,
-   `agent::judge::Judge` asks the judge (TypeSafe or a
-   [`saci-julia`](../operate/julia-judge.md) service, which use the same wire format)
-   with one Noul question per expected result. If every probability is at or above the threshold, the attempt
-   ends with that passed assessment, without a model request. Otherwise the
-   attempt continues with step 2.
-2. It builds an agent on the configured chat model with the system prompt
-   (`agent::prompt::system`: the rules in `PREAMBLE`, then the environment
-   parameters and secret names), registers `shell`, `http` and `assess` as
-   `DynamicTool`s, and prompts it with the plan context, earlier results
-   (with the evidence IDs that each assessment cites), the unit's action, notes on
-   code blocks in unsupported languages, the results of the procedures
-   that the unit follows (which ran before it, with the evidence IDs
-   that their assessments cite), the evidence of the `run` blocks
-   that already ran, and the numbered expected results. When that evidence
-   is enough, the model assesses in its first request; it can still call
-   every tool.
-3. The `Controls` hook sees every boundary. Before each model request and
-   each tool call it checks cancellation and the attempt deadline and counts
-   the operation; the first operation over `limits.model_calls_per_step` or
-   `limits.tool_calls_per_step` stops the run with `DispatchAction::stop`.
-   Unknown tools and malformed arguments arrive in `on_invalid_tool_call`,
-   are recorded as rejected evidence and counted too, so repeated invalid
-   requests end the attempt. Tool concurrency is fixed at 1, so several
-   calls in one reply run in order and each is counted before it runs.
-4. A reply without a tool call and without an accepted assessment is sent
-   back with `ModelTurnAction::retry_with_feedback`, which consumes the same
-   model-request budget. Once `assess` accepts an assessment, `on_outcome`
-   stops the run.
-5. Cancellation and the attempt deadline cancel an attempt-scoped token
-   that the shell and HTTP tools watch. A running tool gets five seconds to
-   stop and record its evidence; a pending model request is dropped at once.
-   If a shell command is abandoned that way, its session is replaced on the
-   next call and that call's evidence says so.
-6. The result is the accepted assessment's outcome; otherwise `cancelled`
-   when the run was cancelled, or `error` with the limit, deadline,
-   provider or tool failure that ended the attempt, or `invalid_assessment`
-   when the model stopped without a valid assessment.
+Saci uses the [`rmcp`](https://crates.io/crates/rmcp) SDK 2.2 for transports,
+initialization and protocol-version negotiation; the protocol versions it
+supports are those of that release. It is the same major version Rig 0.44's
+`rmcp` bridge (`rig-rmcp`) depends on, and Cargo resolves both to one copy;
+upgrading one requires upgrading the other.
 
-The attempt emits `attempt_started`, one `observation` per recorded
-evidence, and `attempt_finished`. The hook measures each model request from
-its dispatch to its answer and adds up the token usage of each response,
-and the recorder adds up the tool durations; `attempt_finished` reports
-them as `timing`. Every observation goes through the run's `Recorder`,
-which numbers evidence across the run, redacts it with the run's
-credentials, and reports it.
+The connection code lives in the `saci-mcp` crate. The worker uses it for
+step tools, and the backend for [outcome actions](../connect/outcome-actions.md), each with
+its own servers and credentials.
 
-The tool definitions and the system prompt are the same for every attempt
-of a run, and the user prompt starts with the plan context and the earlier
-results, which only grow. Providers that cache prompt prefixes can reuse
-that prefix from one request to the next. Keep it that way: do not put
-unit-specific values, such as the number of criteria, into a tool schema
-or the system prompt.
+Enabled `rmcp` features:
+
+| Feature | Provides |
+|---------|----------|
+| `client` | The MCP client role. |
+| `transport-child-process` | Stdio servers started as child processes. |
+| `transport-streamable-http-client-reqwest`, `reqwest` | Streamable HTTP servers, over rustls. |
+
+The legacy HTTP+SSE transport, WebSocket and OAuth flows are not enabled.
+
+## Backend API implementation
+
+`saci_backend::api::router` serves these routes with axum. A submission is
+validated and stored in one step (`api::submit::prepare`, then
+`Store::create_run`); only a newly created run is handed to the
+`Supervisor`, which starts its worker. A cancellation request is recorded
+first and then handed to the supervisor. Long polls wait on a change signal
+that the backend raises whenever it stores events or changes a run, then
+re-read the database, so a reply always reflects persisted state.
+
+### Worker credentials and the worker client
+
+`saci_backend::api::issue_token` creates a worker token (256 random bits as
+hex) when a worker is launched and stores only its SHA-256 hash. Worker
+routes look the hash up: an unknown or missing token is `401`, a token for
+another run is `403`. The client token never matches a worker hash, so it
+cannot use worker routes either.
+
+Before storing a batch, the backend also redacts the secret values it can
+read itself (environment secrets with an `env` reference, the LLM key), on
+top of the worker's own redaction, in every free-text field: evidence,
+assessment and criterion explanations, error messages, and skip and run-end
+reasons. Long-polling clients are woken as soon as
+the batch is committed.
+
+`saci_worker::report` is the worker side: `fetch_specification` retries
+while the backend is unreachable; `deliver` reads the run's event channel,
+sends batches of up to 100 events and 16 MiB of JSON
+(`saci_core::api::MAX_EVENT_BATCH_BYTES`, the body limit of the events
+route), drops what the backend acknowledges,
+resends the rest (from the acknowledged sequence on a `sequence_gap`), and
+returns once the channel is closed and every event is acknowledged;
+`watch_cancellation` polls `control` and cancels the run's token. Delivery
+retries an unreachable or failing (5xx) backend with backoff for up to five
+minutes, then the worker reports itself lost; a refusal (401, 403, 409
+`run_finished`, 422) ends delivery at once. An observation too large for
+one request on its own has its captured output halved until it fits; the
+cut is recorded as truncation, with the original size kept.
+
+## Script runner
+
+The code is in `crates/saci-script-runner`:
+
+| Module | Owns |
+|--------|------|
+| `config` | YAML types and startup checks. |
+| `registry` | The fixed tool list, input schemas and argument validation. |
+| `executor` | Process execution, deadlines, output limits and process group cleanup. It does not use MCP. |
+| `server` | The `rmcp` handler, the HTTP router, the token and `Origin` checks, and audit events. |
+
+The runner uses `rmcp` 2.2 (the workspace version) in stateful Streamable
+HTTP mode. Stateful mode is necessary because a cancellation notification
+must reach the session that runs the call. The tests in
+`crates/saci-script-runner/tests` start the server on a local port and use
+the `rmcp` client over HTTP.
+
+## Next steps
+
+- [Development](development.md): build, layout and quality gates.
+- [Testing](testing.md): what each test suite checks.
+- [Design notes](design/index.md): the reasons behind each feature.

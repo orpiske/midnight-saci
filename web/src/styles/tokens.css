@@ -1,5 +1,5 @@
 /* Midnight Saci design tokens (artwork/BRAND.md section 9), plus the
- * functional tokens docs/run-tests/web-console.md#accessibility documents. Contrast of
+ * functional tokens docs/contributing/web-console.md#accessibility-and-the-brand documents. Contrast of
  * every pair the components use is checked by src/styles/contrast.test.ts. */
 :root {
   /* Surfaces */

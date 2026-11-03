@@ -66,37 +66,6 @@ are stopped, and HTTP sessions closed, when the run ends.
 These failures are infrastructure errors, never outcomes of the tested
 system.
 
-## SDK and compatibility
-
-Saci uses the [`rmcp`](https://crates.io/crates/rmcp) SDK 2.2 for transports,
-initialization and protocol-version negotiation; the protocol versions it
-supports are those of that release. It is the same major version Rig 0.44's
-`rmcp` bridge (`rig-rmcp`) depends on, and Cargo resolves both to one copy;
-upgrading one requires upgrading the other.
-
-The connection code lives in the `saci-mcp` crate. The worker uses it for
-step tools, and the backend for [outcome actions](outcome-actions.md), each with
-its own servers and credentials.
-
-Enabled `rmcp` features:
-
-| Feature | Provides |
-|---------|----------|
-| `client` | The MCP client role. |
-| `transport-child-process` | Stdio servers started as child processes. |
-| `transport-streamable-http-client-reqwest`, `reqwest` | Streamable HTTP servers, over rustls. |
-
-The legacy HTTP+SSE transport, WebSocket and OAuth flows are not enabled.
-
-## Testing with the fake server
-
-`saci-fake-mcp` (in `crates/saci-testkit`) is a controlled MCP server with
-`echo`, `fail`, `sleep` and `env` tools, and `record`, which stands in for an
-external action: it appends each call to the file named by
-`FAKE_MCP_RECORD`. It speaks stdio by default, or
-Streamable HTTP with `saci-fake-mcp --http 127.0.0.1:9090` (endpoint `/mcp`,
-requiring `Authorization: Bearer $FAKE_MCP_TOKEN` when that variable is set).
-
 ## Tools in steps
 
 Every selected tool of every connected server is offered to the model in
@@ -133,7 +102,8 @@ shown]`. Structured content is appended as JSON.
 Runs whose environment enables no server connect to nothing, and their
 steps are offered only `shell`, `http` and `assess`.
 
-`crates/saci-worker/tests/mcp_tools.rs` runs whole plans through the
-`saci-worker` binary with the fake server. It checks the report, the
-redacted evidence, the offered tool names and schemas, tool and protocol
-errors, a server that cannot start, and runs without MCP.
+## Next steps
+
+- [Outcome actions](outcome-actions.md): MCP tool calls that the backend makes after a run.
+- [MCP script runner](script-runner.md): make your scripts available as MCP tools.
+- [Configuration reference](../reference/configuration.md#mcp_servers).

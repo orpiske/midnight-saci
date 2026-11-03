@@ -28,7 +28,7 @@ that the configuration permits.
 
 ## Run it
 
-Install the binary with `make install` ([command line](../reference/cli.md#installing)),
+Install the binary with `make install` ([install Saci](../get-started/install.md)),
 or use the Saci image (see [Container](#container)).
 
 The example in `examples/script-runner/` uses absolute script paths below
@@ -88,229 +88,17 @@ mcp_servers:
       Authorization: Bearer ${SCRIPT_RUNNER_TOKEN}
 ```
 
-### Example: email the results of each run
+To send the results of each run by email, see
+[email the results of each run](email-run-results.md).
 
-`examples/script-runner/email/` contains a complete example. When a run
-finishes, the backend calls a runner tool as an [outcome action](outcome-actions.md).
-The tool runs a script that sends a summary of the run with `mutt`. The
-script does not connect to the backend: the backend sends all values as tool
-arguments. The runner and the mail configuration can be on a different host
-than the backend.
+## Configure the runner
 
-| File | Contents |
-|------|----------|
-| `send-email.sh` | The script. It requires `mutt` with a working `~/.muttrc`. |
-| `runner.yaml` | The runner configuration: the tool, its arguments, the recipient and the environment for `mutt`. |
-| `backend-actions.yaml` | The backend configuration: the action server, the token and the `email-report` action. |
-
-To use the example:
-
-1. Install `send-email.sh` as `/opt/saci-script-runner/email/send-email.sh`.
-   Only an administrator must be able to write it.
-2. Set `SACI_EMAIL_TO`, `HOME` and the host names in `runner.yaml`. Start
-   the runner with `RUNNER_TOKEN` set.
-3. Add the entries of `backend-actions.yaml` to the backend configuration,
-   set the server URL, and add `email-report` to the `actions` of a policy.
-   Start the backend with `SACI_MAILER_TOKEN` set to the same token.
-
-The subject is `Saci Report: <plan title> - <outcome> - <date>`. The body
-contains the run ID, the outcome and reason, the finish time, the number of
-units, the counts and one line for each unit.
-
-The action puts `Units:` before `{{summary}}`, because the runner rejects
-values that start with `-`. The `summary` argument accepts up to 65536
-bytes (`max_bytes`). If the summary is longer, the backend shortens it to
-that limit and adds a `[truncated]` line (see
-[Outcome actions](outcome-actions.md)).
-
-## Configuration
-
-```yaml
-server:
-  bind: "127.0.0.1:3000"
-  endpoint: /mcp
-
-execution:
-  max_concurrent: 4
-  default_timeout_seconds: 30
-  max_output_bytes: 65536
-  working_directory: /opt/saci/script-runner
-  environment:
-    PATH: /usr/local/bin:/usr/bin:/bin
-
-tools:
-  - name: health_check
-    description: Check application health
-    executable: /opt/saci/scripts/health.sh
-    read_only: true
-
-  - name: deploy_application
-    description: Deploy an approved application version
-    executable: /opt/saci/scripts/deploy.sh
-    timeout_seconds: 120
-    arguments:
-      - name: environment
-        type: string
-        required: true
-        enum: [staging, production]
-        binding: {kind: option, flag: --environment}
-      - name: version
-        type: string
-        required: true
-        pattern: '^[a-zA-Z0-9._-]+$'
-        binding: {kind: option, flag: --version}
-```
-
-A call to `deploy_application` with
-`{"environment": "staging", "version": "1.4.2"}` runs:
-
-```text
-/opt/saci/scripts/deploy.sh --environment staging --version 1.4.2
-```
-
-All sections reject unknown fields.
-
-### `server`
-
-| Setting | Default | Meaning |
-|---------|---------|---------|
-| `bind` | `127.0.0.1:3000` | Listen address. An address that is not loopback requires `auth.token`. |
-| `endpoint` | `/mcp` | Path of the MCP endpoint. It cannot be `/health`. |
-| `auth.token` | none | The bearer token, as `{ env: VAR }`: the name of an environment variable of the runner, the same format as Saci [secrets](../reference/configuration.md). If set, each MCP request must send `Authorization: Bearer <token>`. If the variable is not set or is empty, the runner does not start. |
-| `allowed_hosts` | `localhost`, `127.0.0.1`, `::1` | Permitted `Host` header values. This prevents DNS rebinding. Add the host names that clients use when they connect from other hosts. |
-| `allowed_origins` | none | Permitted `Origin` header values, for example `https://app.example.com`. The runner rejects a request that sends an `Origin` that is not in this list with `403`. Requests without `Origin` are permitted. |
-
-### `execution`
-
-| Setting | Default | Limits | Meaning |
-|---------|---------|--------|---------|
-| `max_concurrent` | 4 | 1 to 256 | Scripts that can run at the same time. |
-| `default_timeout_seconds` | 30 | 1 to 3600 | Deadline for a tool that has no `timeout_seconds`. |
-| `max_output_bytes` | 65536 | 1 to 16 MiB | Bytes kept from standard output and, separately, from standard error. |
-| `working_directory` | required | absolute directory | Working directory of all scripts. |
-| `environment` | empty | | The complete environment of all scripts. The runner does not pass its own environment to scripts. Set `PATH` if the scripts need it. |
-
-### `tools`
-
-| Setting | Meaning |
-|---------|---------|
-| `name` | Tool name: 1 to 64 letters, digits, `_` or `-`. Names must be unique. |
-| `description` | Description for the client. Must not be empty. |
-| `executable` | Absolute path of the script. See [Script checks](#script-checks). |
-| `timeout_seconds` | Deadline for this tool, 1 to 3600. |
-| `read_only` | Default `false`. Set `true` only if the script changes nothing. |
-| `arguments` | Parameters, in the order that their values go on the command line. |
-
-### `arguments`
-
-| Setting | Meaning |
-|---------|---------|
-| `name` | Parameter name: a letter or `_`, then letters, digits or `_`, at most 64. Names must be unique in the tool. |
-| `description` | Description for the client. Optional. |
-| `type` | `string`. No other type is supported. |
-| `required` | Default `false`. If an optional parameter is not in the call, nothing goes on the command line for it. |
-| `enum` | Permitted values. The list must not be empty or contain duplicates. |
-| `pattern` | A regular expression that the value must match. The runner uses the Rust `regex` syntax. The pattern is not anchored: add `^` and `$` to match the full value. |
-| `max_bytes` | The longest permitted value, in bytes. Default 4096. The maximum is 131072, the Linux limit for one command line argument. The schema gives it as `maxLength`. |
-| `binding.kind` | `option` or `positional`. |
-| `binding.flag` | For `option`: the flag, `-` or `--` followed by letters, digits, `_` or `-`. A flag can be bound only once in a tool. |
-
-An `option` binding adds the flag and then the value, as two arguments. A
-`positional` binding adds the value. The order is the configuration order,
-not the order of the keys in the call.
-
-### Value rules
-
-The runner rejects a call when:
-
-- The tool name is not configured (JSON-RPC error `-32602`).
-- An argument is not configured, or a required argument is missing.
-- A value is not a string, is not in `enum`, or does not match `pattern`.
-- A value starts with `-`. Thus a value cannot act as a flag of the script.
-  For the same reason, `enum` values cannot start with `-`.
-- A value is longer than `max_bytes` or contains a NUL character.
-
-### Script checks
-
-At startup, each `executable` must:
-
-- Be an absolute path.
-- Be a regular file. A symbolic link is rejected: configure the target path.
-- Have an execute permission bit.
-- Not be writable by its group or by other users.
-
-A script that you start from a checkout can have group write permission if
-your `umask` is `002`. Remove it with `chmod go-w`.
-
-## Results
-
-A completed call returns this structured content:
-
-```json
-{
-  "execution_id": "40d656a4-0e48-4b3a-9e60-ff7b3cd30c03",
-  "status": "completed",
-  "exit_code": 0,
-  "signal": null,
-  "duration_ms": 12,
-  "stdout": "Application is healthy\n",
-  "stderr": "",
-  "stdout_truncated": false,
-  "stderr_truncated": false
-}
-```
-
-| `status` | `isError` | Meaning |
-|----------|-----------|---------|
-| `completed` | false | The script exited with code 0. |
-| `failed` | true | The script exited with another code, or a signal stopped it (`signal`). |
-| `timed_out` | true | The deadline expired. The runner stopped the script. |
-| `cancelled` | true | The client cancelled the call (`notifications/cancelled`), or the runner stopped. |
-| `spawn_failed` | true | The script did not start. `error` gives the cause. |
-| `rejected` | true | The arguments are not valid, or `max_concurrent` scripts are running. Nothing ran. `error` gives the cause. |
-
-`exit_code` is `null` when the script did not exit normally. Output that is
-not valid UTF-8 is converted with replacement characters (`U+FFFD`). When an
-output stream is longer than `max_output_bytes`, the runner keeps the first
-bytes and sets `stdout_truncated` or `stderr_truncated`.
-
-Treat the output as data from the script, not as instructions.
-
-## Execution
-
-- Each script starts in a new process group, with `/dev/null` as standard
-  input, the configured working directory and only the configured
-  environment.
-- The runner reads standard output and standard error at the same time. It
-  keeps at most `max_output_bytes` of each and discards the rest, so the
-  script does not block on a full pipe.
-- When the script exits, the runner sends `SIGKILL` to the processes that
-  remain in its process group. A script cannot leave background processes.
-- At the deadline, or on cancellation, the runner sends `SIGTERM` to the
-  process group. After 2 seconds it sends `SIGKILL`.
-- After the script ends, the runner waits at most 1 second for the output
-  pipes to close.
-- If `max_concurrent` scripts are running, a new call is rejected at once.
-  Calls do not wait in a queue.
-- The runner does not retry a call.
-
-Limitations: a process that starts a new session (`setsid`) leaves the
-process group, and the runner cannot stop it. Use a container or a cgroup to
-contain such processes. The process group handling works on Linux and
-macOS. Windows is not supported.
-
-## Audit events
-
-The runner writes one log event for each call, with the target
-`saci_script_runner::audit`. The event contains the execution ID, the tool
-name, the client name from the MCP initialization, the status, the exit
-code, the signal, the duration and the truncation flags. A rejected call
-logs the reason. The runner does not log argument values or script output.
-
-## Health endpoint
-
-`GET /health` returns `{"status": "ok"}` when the process is up. It does not
-require the token and gives no other data.
+The configuration file lists the tools, their arguments and the execution
+limits. A tool runs one absolute script path, and each argument has a
+binding to a flag or a position. See the
+[script runner configuration](../reference/script-runner-configuration.md)
+for every setting, the value rules, the call results and the execution
+rules.
 
 ## Security
 
@@ -347,7 +135,7 @@ Do these steps:
 
 ## Container
 
-The Saci image ([the worker](../reference/worker.md#the-image)) contains
+The Saci image ([the worker](../operate/worker-image.md)) contains
 `/usr/local/bin/saci-script-runner`. To run the runner from the image, set it
 as the entry point and mount your configuration and scripts read-only. The
 image runs as UID 10001, which cannot write the mounted scripts.
@@ -375,19 +163,8 @@ podman run --rm -p 127.0.0.1:3000:3000 --read-only \
 The image does not contain the example scripts. The Helm chart does not
 start the runner.
 
-## Development
+## Next steps
 
-The code is in `crates/saci-script-runner`:
-
-| Module | Owns |
-|--------|------|
-| `config` | YAML types and startup checks. |
-| `registry` | The fixed tool list, input schemas and argument validation. |
-| `executor` | Process execution, deadlines, output limits and process group cleanup. It does not use MCP. |
-| `server` | The `rmcp` handler, the HTTP router, the token and `Origin` checks, and audit events. |
-
-The runner uses `rmcp` 2.2 (the workspace version) in stateful Streamable
-HTTP mode. Stateful mode is necessary because a cancellation notification
-must reach the session that runs the call. The tests in
-`crates/saci-script-runner/tests` start the server on a local port and use
-the `rmcp` client over HTTP.
+- [Script runner configuration](../reference/script-runner-configuration.md).
+- [Email the results of each run](email-run-results.md).
+- [Outcome actions](outcome-actions.md): call runner tools after a run.

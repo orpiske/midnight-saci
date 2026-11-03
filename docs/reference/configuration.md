@@ -27,7 +27,7 @@ Complete examples:
 | Setting | Default | Meaning |
 |---------|---------|---------|
 | `runtime` | `auto` | `podman`, `docker`, `kubernetes`, or `auto` (`podman` if it is in the backend's `PATH`, otherwise `docker`). |
-| `image` | `localhost/saci-worker:latest` | Worker image reference; see [the worker image](worker.md#the-image). |
+| `image` | `localhost/saci-worker:latest` | Worker image reference; see [the worker image](../operate/worker-image.md). |
 | `network` | none | Local runtimes: container network passed as `--network`; see [networking](../operate/container-workers.md#networking). |
 | `add_hosts` | `[]` | Local runtimes: `name:address` entries passed as `--add-host`. |
 | `image_pull_policy` | runtime default | When to pull the worker image: `Always`, `IfNotPresent` or `Never`. Podman and Docker receive it as `--pull`; see [what a worker is started with](../operate/container-workers.md#what-a-worker-is-started-with). Kubernetes Jobs use it as `imagePullPolicy` when `kubernetes.image_pull_policy` is not set. |
@@ -38,8 +38,8 @@ Complete examples:
 
 ## `llm`
 
-One backend-default connection, inherited by every worker. See the
-[execution contract](../contributing/design/execution-contract.md#llm-connection) and [LLM providers](../operate/llm-providers.md)
+One backend-default connection, inherited by every worker. See
+[LLM providers](../operate/llm-providers.md)
 for OpenRouter and Ollama settings, retries and error messages.
 
 | Setting | Default | Meaning |
@@ -126,7 +126,7 @@ judge:
 
 The worker asks the judge only for a step that has expected results and
 whose code blocks are all marked `run`, when each of these blocks ran and
-exited normally (see [run blocks as written](../write-plans/write-a-test-plan.md#run-blocks-as-written)).
+exited normally (see [run blocks](test-plan-format.md#run-blocks)).
 The judge gets the step title, the action, the environment parameters and
 secret names, the procedure results and the evidence of the blocks.
 
@@ -223,7 +223,7 @@ Failure investigations: an agent finds the probable cause of a failed
 unit in the source code and reports a bug. The section is optional. Without
 it, the backend runs no investigations. See
 [failure investigations](../run-tests/investigate-failures.md) for how to start one. With
-this section, the backend also serves the [A2A endpoint](../run-tests/investigate-failures.md#a2a).
+this section, the backend also serves the [A2A endpoint](../connect/a2a.md).
 
 | Setting | Default | Meaning |
 |---------|---------|---------|
@@ -260,3 +260,9 @@ investigations:
     run_timeout_secs: 1800
     output_limit_bytes: 8192
 ```
+
+## Next steps
+
+- [LLM providers](../operate/llm-providers.md): OpenRouter and Ollama examples.
+- [Run workers with Podman or Docker](../operate/container-workers.md): the worker and network settings in practice.
+- [Security](../operate/security.md): where each credential goes.

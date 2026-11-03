@@ -229,49 +229,8 @@ Actions (delivery does not change the outcome):
 `GET /api/v1/runs/{run_id}/actions` returns them with the exact arguments
 and their SHA-256 digest ([API](../reference/rest-api.md#outcome-actions)).
 
-## Checked by
+## Next steps
 
-`crates/saci-backend/tests/outcome_actions.rs` replays recorded runs
-through the worker API, and the backend dispatches to a stdio
-`saci-fake-mcp`. The tests check the following:
-
-- the server receives exactly the recorded arguments, rendered from the
-  report, with no environment parameters or secret values;
-- the server process gets only `PATH` and its configured variables;
-- tool errors and schema mismatches end in `error`, and the run outcome
-  and report are unchanged;
-- approval-required actions stay `pending_approval`;
-- only the outcomes an action names trigger it.
-
-`crates/saci-backend/tests/action_approvals.rs` checks that:
-
-- approval with the reviewed digest sends exactly that payload, and a
-  wrong digest changes nothing;
-- rejected actions are never sent;
-- automatic and already decided actions refuse decisions;
-- pending approvals and decisions survive a restart, and only approved
-  actions are sent afterwards.
-
-`crates/saci-backend/tests/action_recovery.rs` uses
-[`fixtures/recovery.yaml`](../../crates/saci-backend/tests/fixtures/recovery.yaml)
-and [`fixtures/lost-responses.yaml`](../../crates/saci-backend/tests/fixtures/lost-responses.yaml).
-The fake server records each call and ignores repeated idempotency keys.
-The tests check that:
-
-- events resent after the final report, and two dispatchers at once,
-  still record and send each action once;
-- after a crash before the call was sent, the keyed action is replayed
-  and sent once, and the unkeyed one becomes `unknown`, unsent, until it
-  is redispatched;
-- after a crash once the server acted, the keyed replay is deduplicated
-  by the server, and the unkeyed action becomes `unknown` and is
-  reconciled without a second call;
-- after a lost answer (a timeout), only the keyed action is replayed;
-- the run's outcome stays `failed` throughout.
-
-`crates/saci-cli/tests/action_commands.rs` drives `saci actions list`,
-`show`, `approve`, `reject`, `redispatch` and `reconcile` and the actions
-section of `saci report`.
-
-`saci-core` unit tests check template rendering and configuration
-validation.
+- [Email the results of each run](email-run-results.md): a complete action example.
+- [MCP servers](mcp-servers.md): how server definitions are written.
+- [REST API](../reference/rest-api.md#outcome-actions): the action routes.

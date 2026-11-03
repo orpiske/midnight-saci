@@ -1,4 +1,4 @@
-//! A minimal A2A server for investigations (`docs/run-tests/investigate-failures.md#a2a`):
+//! A minimal A2A server for investigations (`docs/connect/a2a.md`):
 //! the agent card and the JSON-RPC 2.0 methods `message/send`, `tasks/get`
 //! and `tasks/cancel`. A task is an investigation: the task ID is the
 //! investigation ID and the context ID is the ID of the investigated run.

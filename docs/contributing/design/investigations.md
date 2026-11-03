@@ -1,5 +1,8 @@
 # Design: failure investigations
 
+> [!NOTE]
+> Implemented (issue #107). The user documentation is in [investigate failures](../../run-tests/investigate-failures.md) and [A2A](../../connect/a2a.md).
+
 Status: accepted ([#107](https://github.com/orpiske/midnight-saci/issues/107)). Tickets 1 to 5 are implemented. The user guide is [failure investigations](../../run-tests/investigate-failures.md).
 
 ## Goal

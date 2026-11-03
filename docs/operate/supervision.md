@@ -92,12 +92,7 @@ not know are left alone, since another backend may own them.
 When no runtime is usable at start-up, every unfinished run ends `error`
 with the launch failure.
 
-## Checked by
+## Next steps
 
-- `crates/saci-backend/tests/supervision.rs` uses a fake runtime to cover
-  uncertain launches, cancellation, deadlines, exits with and without a
-  report, disappearance, cleanup, each recovery case and leftover removal.
-- `crates/saci-backend/tests/container_launcher.rs` uses Docker or Podman
-  and the real image (`SACI_WORKER_IMAGE`). It launches a worker that runs
-  a plan to the end, and cancels one in the middle of `sleep 60`, which
-  ends `cancelled` with the step's evidence. Both containers are removed.
+- [How a run executes](../run-tests/how-a-run-executes.md): what the worker does inside a run.
+- [Data and backups](data-and-backups.md): what the backend stores.

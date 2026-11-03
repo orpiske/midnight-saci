@@ -128,3 +128,9 @@ Invalid calls never run. An unknown tool, arguments that are not a JSON
 object, or arguments that do not match the schema are recorded as
 `rejected` evidence and answered with what was wrong. They count against
 `limits.tool_calls_per_step` like any other call.
+
+## Next steps
+
+- [How a run executes](../run-tests/how-a-run-executes.md): how an attempt uses the tools.
+- [MCP servers](../connect/mcp-servers.md): more tools for steps.
+- [Security](../operate/security.md): redaction and isolation limits.

@@ -14,7 +14,8 @@ fenced commands. They do not have explicit expected results. Usually,
 
 Before you convert the first file, read these documents:
 
-- [docs/write-plans/write-a-test-plan.md](https://github.com/orpiske/midnight-saci/blob/main/docs/write-plans/write-a-test-plan.md): the plan format.
+- [docs/reference/test-plan-format.md](https://github.com/orpiske/midnight-saci/blob/main/docs/reference/test-plan-format.md): the plan format.
+- [docs/write-plans/write-a-test-plan.md](https://github.com/orpiske/midnight-saci/blob/main/docs/write-plans/write-a-test-plan.md): how to write a plan.
 - [docs/reference/worker-tools.md](https://github.com/orpiske/midnight-saci/blob/main/docs/reference/worker-tools.md): how the worker runs commands.
 
 ## Rules

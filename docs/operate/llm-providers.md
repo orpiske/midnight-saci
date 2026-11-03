@@ -2,8 +2,8 @@
 
 Saci talks to one OpenAI-compatible Chat Completions endpoint, configured in
 the backend's `llm` section and inherited by every worker (see the
-[configuration reference](../reference/configuration.md#llm) and the
-[execution contract](../contributing/design/execution-contract.md#llm-connection)). The endpoint and model
+[configuration reference](../reference/configuration.md#llm)).
+The endpoint and model
 must support function tool calling: an OpenAI-compatible URL alone does not
 establish that. Saci never switches provider or model on error.
 
@@ -122,3 +122,8 @@ echo saci-ok
 Run it with `saci run smoke.md --environment <name>` and confirm the run
 passes. A provider error names the setting to fix. This sends a few model
 requests and may incur provider charges.
+
+## Next steps
+
+- [Configuration reference](../reference/configuration.md#llm): every model setting.
+- [Julia 1 judge](julia-judge.md): pass steps without a model request.

@@ -1,4 +1,4 @@
-# Walkthrough: from installation to a report
+# Quickstart: from installation to a report
 
 This walkthrough runs Saci end to end on one Linux machine. It uses a real
 worker container, a small orders service as the system under test, and a
@@ -29,7 +29,7 @@ by hand.
 You need no credentials: the orders service has no authentication, and
 the scripted model needs no API key. The worker image already includes the
 utilities the plans use (`sleep`, a POSIX shell). See
-[adding utilities](../reference/worker.md#adding-utilities) for your own plans.
+[adding utilities](../operate/worker-image.md#adding-utilities) for your own plans.
 
 On macOS (Podman machine or Docker Desktop), containers run in a virtual
 machine, so `127.0.0.1` inside a worker is that machine, not your Mac. The
@@ -232,34 +232,6 @@ when its run ends. The backend also removes the container of any run that
 finished while the backend was stopping
 (`podman ps --all --filter label=io.saci.managed=true` lists none).
 
-## Using a real model
-
-To see a real model drive the same plans, keep the orders service and
-point `llm` in `saci.yaml` at a tool-capable model. See
-[LLM providers](../operate/llm-providers.md) for both options:
-
-```yaml
-# OpenRouter (export SACI_LLM_API_KEY=... before starting the backend)
-llm:
-  base_url: https://openrouter.ai/api/v1
-  model: your-tool-capable-model
-  api_key: env:SACI_LLM_API_KEY
-```
-
-```yaml
-# Ollama on the host (workers share the host network)
-llm:
-  base_url: http://127.0.0.1:11434/v1
-  model: qwen3:8b
-```
-
-A real model decides its own requests and explanations, so the wording
-and the evidence numbering differ from the output above. Its verdicts
-should still match: the health check and order lookup pass, order
-creation fails, and the export is cancelled. These provider smoke tests
-are optional and are not part of CI. Model calls on OpenRouter are billed
-to your account, and their spending is managed there.
-
 ## Troubleshooting
 
 | Symptom | Cause |
@@ -268,3 +240,11 @@ to your account, and their spending is managed there.
 | Run ends `error` with a connection error to `127.0.0.1:18080`, or the worker log repeats `backend unreachable; retrying` | The worker cannot reach the backend. On Linux, check `worker.network: host`. On macOS, use the host alias in `worker_url` (the script does this unless `NETWORK=host`) |
 | Run ends `error` with `the playbook has no entry for unit ...` | You changed a unit title; add it to `playbook.json` |
 | `address already in use` | Another process uses port 18080, 18081 or 11435; change the ports in `saci.yaml` and on the command lines |
+
+## Next steps
+
+- [Run with a real model](run-with-a-real-model.md): the same plans with
+  your model provider.
+- [Write a test plan](../write-plans/write-a-test-plan.md): plans for your
+  own system.
+- [Architecture](architecture.md): the parts of Saci and how a run flows.

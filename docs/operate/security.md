@@ -79,3 +79,8 @@ including `/proc/1/environ` of the worker process, which holds the LLM key, the 
 and worker token. Treat the plans you run, and the targets they talk to, as
 trusted with the credentials of the environment you select. Use dedicated,
 least-privilege target credentials and a provider key with a spending limit.
+
+## Next steps
+
+- [Configuration reference](../reference/configuration.md#environments): parameters and secrets.
+- [Worker tools](../reference/worker-tools.md): what each tool records as evidence.

@@ -1,5 +1,8 @@
 # Implementation ticket drafts
 
+> [!NOTE]
+> Historical. These are the ticket drafts for the first implementation.
+
 The reviewed breakdown is published as 12 parent issues and 33 bounded task issues. See the [created issue index](issue-index.md) for the assignable tasks and their GitHub links. The sections below retain the feature-group requirements; they are not single implementation assignments.
 
 These are local drafts for the maintainer to turn into issues. Numbers below identify dependencies within this document; they are not GitHub issue numbers. The [system plan](system-plan.md), [authoring guide](../../write-plans/write-a-test-plan.md), and [execution contract](execution-contract.md) define the intended behavior.
