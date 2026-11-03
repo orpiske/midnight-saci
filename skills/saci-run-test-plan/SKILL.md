@@ -17,7 +17,8 @@ the two skills together, for example with
 For more information, read these documents:
 
 - [docs/reference/cli.md](https://github.com/orpiske/midnight-saci/blob/main/docs/reference/cli.md): the `saci` commands and exit codes.
-- [docs/write-plans/write-a-test-plan.md](https://github.com/orpiske/midnight-saci/blob/main/docs/write-plans/write-a-test-plan.md): the plan format.
+- [docs/reference/test-plan-format.md](https://github.com/orpiske/midnight-saci/blob/main/docs/reference/test-plan-format.md): the plan format.
+- [docs/write-plans/write-a-test-plan.md](https://github.com/orpiske/midnight-saci/blob/main/docs/write-plans/write-a-test-plan.md): how to write a plan.
 
 ## Rules
 

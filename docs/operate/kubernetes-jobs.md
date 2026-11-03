@@ -125,7 +125,7 @@ For run `run-1a2b…` the backend creates a Job and a Secret, both named
   `RuntimeDefault` seccomp profile. It does not set `runAsUser`: the image
   runs as UID 10001 by default, and OpenShift's `restricted-v2` SCC may
   assign another UID. The image works with any UID in group 0
-  ([worker](../reference/worker.md#the-image)).
+  ([worker](worker-image.md)).
 - **Credentials.**
   - `SACI_BACKEND_URL` and `SACI_RUN_ID` are plain values.
   - The worker token and any value taken from the backend's environment
@@ -151,14 +151,7 @@ For run `run-1a2b…` the backend creates a Job and a Secret, both named
 | The Job disappears | The run ends `error` (`the worker disappeared`). |
 | The backend restarts | Jobs of unfinished runs are watched again. Runs never handed to a worker are launched. Other unfinished runs end `error` and are not repeated. Jobs of runs that had finished are deleted. Jobs of runs this backend does not know are left alone. |
 
-## Checked by
+## Next steps
 
-- `crates/saci-backend/tests/kubernetes_launcher.rs` runs the supervisor
-  against an in-memory Kubernetes API
-  (`saci_testkit::fake_kubernetes`). It covers the Job and Secret shape,
-  identities, Secret references, removal, cancellation, failure with
-  logs, restart recovery, a repeated launch, and API refusals.
-- The CI `kubernetes` job creates a kind cluster and loads the image. A
-  backend outside the cluster, using `kubectl proxy`, runs a plan to a
-  pass in a real Job, then cancels a second run in the middle of
-  `sleep 120`. Both Jobs are removed.
+- [Helm](helm.md): install the backend and the permissions in a namespace.
+- [Supervision](supervision.md): cancellation, deadlines and restarts.

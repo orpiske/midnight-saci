@@ -25,8 +25,21 @@ are separate. Runs only move forward; any non-terminal state may go to
 `finished` is terminal.
 
 Outcomes are `passed`, `failed`, `blocked`, `inconclusive`, `error`,
-`skipped` and `cancelled`, with the meanings in the
-[execution contract](../contributing/design/execution-contract.md#statuses). A run's summary outcome is the
+`skipped` and `cancelled`. Units and runs use the same outcomes:
+
+| Outcome | Meaning |
+|---------|---------|
+| `passed` | Every expected criterion is supported by evidence. |
+| `failed` | Evidence contradicts at least one expected criterion. |
+| `blocked` | A prerequisite or required input prevents execution. |
+| `inconclusive` | Execution produced insufficient evidence to establish the expected result. |
+| `error` | The agent, worker, tool infrastructure, provider, or execution limit prevented reliable completion. |
+| `skipped` | A unit was not attempted, with its reason recorded. |
+| `cancelled` | A user or external controller explicitly stopped execution. |
+
+A command failure can be a passing negative test, and a command that exits
+0 can be evidence of a failed test: the outcome follows the authored
+expectation, not the transport status. A run's summary outcome is the
 highest of its unit outcomes in the order cancelled, error, failed, blocked,
 inconclusive, passed. A skipped unit counts as blocked for the summary, so a
 run with unattempted units cannot pass. When the run ends:
@@ -170,3 +183,8 @@ The report keeps the result as its `investigation` field.
 Public types hold secret *references* only: `{ "env": "NAME" }` for a backend
 environment variable or `{ "secret": "name", "key": "key" }` for a
 Kubernetes Secret. No serializable type has a field for a secret value.
+
+## Next steps
+
+- [REST API](rest-api.md): the routes that carry these types.
+- [How a run executes](../run-tests/how-a-run-executes.md): how outcomes come about.

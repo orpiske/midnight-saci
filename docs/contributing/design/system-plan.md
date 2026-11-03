@@ -1,5 +1,8 @@
 # AI-Based Test Engineer: General Plan
 
+> [!NOTE]
+> Historical. This is the first plan for Saci, written before the implementation. The user documentation describes the current behavior.
+
 ## Goal
 
 Build a simple AI-based test engineer that executes human-authored Markdown test plans against configured environments. The system follows the plan and records evidence. It can change test resources when instructed by the plan, but does not invent repair steps or patch application code.

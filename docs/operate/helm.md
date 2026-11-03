@@ -136,22 +136,8 @@ apply to new runs only; each accepted run keeps its own specification.
 report again. Delete them yourself to remove the data:
 `kubectl -n saci delete pvc saci-data secret saci-auth`.
 
-## Checked by
+## Next steps
 
-- `crates/saci-backend/tests/helm_chart.rs` renders the chart with Helm
-  and checks the following:
-  - the generated `saci.yaml` loads as a valid configuration;
-  - nothing cluster-wide is created;
-  - the Role grants no wildcard verbs;
-  - one non-root `Recreate` replica runs on the claim;
-  - with the OpenShift API present, no `fsGroup` is set;
-  - existing claims and Secrets are used;
-  - values reach the configuration.
-- The CI `kubernetes` job installs the chart on kind with the built image
-  and checks the API through `kubectl port-forward`. It then upgrades the
-  release and checks that one backend pod remains and the token is
-  unchanged.
-- The same job runs the [namespace workflow](namespace-workflow.md):
-  runs, a backend restart, cancellation, retained reports and Job removal.
-  That page also lists the platforms tested so far. OpenShift is not among
-  them.
+- [Kubernetes Jobs](kubernetes-jobs.md): how the backend runs workers in the namespace.
+- [Namespace workflow](namespace-workflow.md): a verified end-to-end example.
+- [Security](security.md): where each credential goes.

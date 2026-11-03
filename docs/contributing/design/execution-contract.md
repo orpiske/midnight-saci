@@ -1,5 +1,8 @@
 # Worker execution contract
 
+> [!NOTE]
+> Historical. This is the execution contract that the first implementation was built against. The current behavior is in [how a run executes](../../run-tests/how-a-run-executes.md), [run contracts](../../reference/run-contracts.md) and [LLM providers](../../operate/llm-providers.md).
+
 This document specifies the first implementation. See the [system plan](system-plan.md) and [plan authoring guide](../../write-plans/write-a-test-plan.md) for deployment and input conventions.
 
 ## Run inputs

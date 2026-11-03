@@ -193,3 +193,8 @@ tokenizer:
 SACI_JULIA_MODEL_DIR=~/.cache/saci-julia/<revision> \
     cargo test -p saci-julia --test reference -- --ignored
 ```
+
+## Next steps
+
+- [Configuration reference](../reference/configuration.md#judge): every judge setting.
+- [Test plan format](../reference/test-plan-format.md#run-blocks): which steps the judge can assess.

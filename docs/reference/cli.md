@@ -4,31 +4,7 @@
 submits plans to a local or remote backend through the [REST API](rest-api.md).
 It never starts workers or containers itself: the backend does.
 
-## Installing
-
-To build the binaries in release mode and install them, run this command
-from the repository root:
-
-```sh
-make install                      # installs in /usr/local/bin
-make install BINDIR=$HOME/bin     # installs in a directory that you select
-make install PREFIX=/opt/saci     # installs in /opt/saci/bin
-```
-
-The target installs `saci`, `saci-backend`, `saci-worker`,
-`saci-script-runner` ([MCP script runner](../connect/script-runner.md)) and
-`saci-julia` ([Julia 1 judge](../operate/julia-judge.md)). It uses only
-`cargo` and the standard `install` tool, and works on Linux and macOS.
-
-Do not run `sudo make install`. The target builds as the current user. If
-you do not have write access to the directory, the target uses `sudo` only
-to copy the binaries, and `sudo` asks for your password. To use a different
-command, set `SUDO`, for example `make install SUDO=doas`. To disable it,
-set `SUDO=`. Packagers can set `DESTDIR` to install into a staging root.
-
-To embed the [web console](../run-tests/web-console.md), run `make web` before
-`make install`. To remove the installed binaries, run `make uninstall` with
-the same `PREFIX` or `BINDIR`.
+To install `saci` and the other binaries, see [install Saci](../get-started/install.md).
 
 ## Connecting to a backend
 
@@ -59,6 +35,26 @@ The `saci-backend` binary does the same and exists for container images.
 An invalid configuration, a missing client token variable or an unusable
 listen address or data directory exits 2 with the offending setting.
 
+## `saci new test-plan`
+
+```sh
+saci new test-plan <file>
+```
+
+Writes an editable starter plan to `<file>` (see
+[write a test plan](../write-plans/write-a-test-plan.md)). The command:
+
+- Works offline, without a backend, a model or network access.
+- Uses the starter template that is embedded in `saci`, so it works after
+  installation.
+- Derives an editable title from the file name.
+- Prints the location of the new file.
+- Does not overwrite an existing file: it leaves the file unchanged and
+  exits with a nonzero code.
+- Gives an error if the file cannot be written or its directory does not
+  exist.
+- Does not run the plan.
+
 ## `saci check`
 
 ```sh
@@ -66,7 +62,7 @@ saci check plan.md [--strict] [--original <dir>]
 ```
 
 `saci check` reads `plan.md` and each procedure that it invokes. It
-validates them with the same rules as `saci run` ([test plans](../write-plans/write-a-test-plan.md))
+validates them with the same rules as `saci run` ([test plan format](test-plan-format.md))
 and prints a summary. It works offline. It does not connect to a backend.
 
 ```text
@@ -318,3 +314,11 @@ exits, `--run-now` starts a cycle of every trigger without a change, and
 
 Codes 0, 1 and 5 to 8 come from the run's summary outcome, which the backend
 computes; the CLI never combines unit results itself.
+
+## Next steps
+
+- [Run and follow plans](../run-tests/run-and-follow.md): the commands as
+  tasks.
+- [Configuration reference](configuration.md): the backend configuration
+  that `saci backend start` reads.
+- [REST API](rest-api.md): the routes that the commands use.

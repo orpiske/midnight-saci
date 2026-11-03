@@ -184,3 +184,9 @@ On macOS, replace `USER` in the file with your user name, then:
 cp examples/watch/io.github.orpiske.saci-watch.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/io.github.orpiske.saci-watch.plist
 ```
+
+## Next steps
+
+- [Outcome actions](outcome-actions.md): report the results of watched runs.
+- [Run and follow plans](../run-tests/run-and-follow.md).
+- [Source watch design](../contributing/design/source-watch.md): the reasons for each decision.

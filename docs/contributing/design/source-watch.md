@@ -1,5 +1,8 @@
 # Design: run test plans when code changes
 
+> [!NOTE]
+> Implemented (issue #135). The user documentation is in [watch repositories](../../connect/watch-repositories.md).
+
 Status: implemented ([#135](https://github.com/orpiske/midnight-saci/issues/135)). The user guide is [docs/connect/watch-repositories.md](../../connect/watch-repositories.md).
 
 ## Goal

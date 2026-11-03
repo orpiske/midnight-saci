@@ -30,7 +30,7 @@ const PLACEHOLDER: &str = "<!doctype html>
 <html lang=\"en\"><head><meta charset=\"utf-8\"><title>Midnight Saci</title></head>
 <body><h1>The web console is not built into this backend</h1>
 <p>Build it with <code>make console</code>, or run <code>npm run dev</code> in
-<code>web/</code> against this backend; see docs/run-tests/web-console.md. The REST API is
+<code>web/</code> against this backend; see docs/contributing/web-console.md. The REST API is
 available under <code>/api/v1</code>.</p></body></html>
 ";
 

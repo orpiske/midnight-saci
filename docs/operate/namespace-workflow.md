@@ -59,7 +59,7 @@ The CI `kubernetes` job runs these checks on every change:
 
 | Platform | Version | What runs there |
 | --- | --- | --- |
-| kind on GitHub Actions `ubuntu-latest` | kind v0.26.0, Kubernetes v1.32.0 (`kindest/node:v1.32.0`), local-path storage | the launcher test against the real API ([Kubernetes Jobs](kubernetes-jobs.md#checked-by)); the chart's install and upgrade ([Helm](helm.md#checked-by)); this namespace workflow |
+| kind on GitHub Actions `ubuntu-latest` | kind v0.26.0, Kubernetes v1.32.0 (`kindest/node:v1.32.0`), local-path storage | the launcher test against the real API ([testing](../contributing/testing.md#kubernetes-jobs)); the chart's install and upgrade ([testing](../contributing/testing.md#helm-chart)); this namespace workflow |
 
 In the namespace workflow, the backend runs as UID 1000680000 in group 0
 (`backend.podSecurityContext`). That is the kind of arbitrary UID
@@ -97,7 +97,12 @@ on a real installation has confirmed them yet:
 - **Real model providers from inside a cluster.** Egress to a provider
   depends on the cluster's network policy and proxy settings. The
   workflow uses the in-namespace scripted model. Provider smoke tests are
-  described in the [walkthrough](../get-started/quickstart.md#using-a-real-model).
+  described in [run with a real model](../get-started/run-with-a-real-model.md).
 
 When you run the workflow on another platform, add it to the tables above
 with its version, storage and what passed.
+
+## Next steps
+
+- [Helm](helm.md): the chart and its values.
+- [Testing](../contributing/testing.md): what CI checks.

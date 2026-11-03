@@ -1,10 +1,10 @@
-# The worker and its image
+# Worker reference
 
 A worker executes exactly one run. The backend's launcher starts it in a
-fresh container (see [execution](../contributing/design/execution-contract.md)); the worker fetches its
+fresh container (see [how a run executes](../run-tests/how-a-run-executes.md)); the worker fetches its
 specification, checks it, runs the plan and reports every event until the
-backend acknowledges it. This page covers the worker's entry point and the
-`saci-worker` image. Launching and supervising containers is the backend's
+backend acknowledges it. This page covers the worker's entry point, its
+checks, exit codes and environment details. For the image, see [the worker image](../operate/worker-image.md). Launching and supervising containers is the backend's
 job.
 
 ## Entry point
@@ -140,71 +140,7 @@ The backend records its own build in the report as `backend_build` when it
 accepts the run. If the backend and the worker were built from different
 commits, the console shows a warning.
 
-## The image
+## Next steps
 
-[`Containerfile`](../../Containerfile) builds `saci-worker` in a Rust stage and
-copies it into `registry.fedoraproject.org/fedora:44` with the utilities test
-plans commonly use: `bash`, `curl`, `jq`, `git`, `ssh`, `ps`, `ip`, `dig` and
-`nc`, plus the CA certificates the HTTP tool and the model connection need. The image
-also contains [ripwire](https://github.com/redhat-et/ripwire), the code map
-tool that [failure investigations](../run-tests/investigate-failures.md) use. A separate stage
-builds it from the tag in the `RIPWIRE_VERSION` build argument. On x86_64,
-ripwire needs a CPU with x86-64-v3 instructions (AVX2), as its release
-binaries do. The image
-also contains `saci-backend`, `saci` and `saci-script-runner`. Thus the Helm
-chart runs the backend from the same image with `saci-backend --config ...`
-([Helm](../operate/helm.md)), and the [MCP script runner](../connect/script-runner.md#container)
-can run from it too.
-The entry point stays `saci-worker`.
-
-```sh
-make image                               # podman, or docker if podman is missing
-podman build -t localhost/saci-worker:latest .
-make image-check                         # runs a fixture-backed plan in the image
-```
-
-`localhost/saci-worker:latest` is the default `worker.image`
-([configuration](configuration.md#worker)).
-
-CI publishes `quay.io/orpiske/saci-worker:latest` and a tag with the full
-commit SHA after a successful push to `main`. Each tag is a multi-arch
-manifest for Linux x86_64 (`amd64`) and AArch64 (`arm64`). Set `worker.image`
-to this image to use it. Set `worker.image_pull_policy: Always` to pull the
-latest image before each run. For Helm, set
-`--set image.repository=quay.io/orpiske/saci-worker --set image.tag=latest`.
-
-To enable publication, configure the repository secrets `QUAY_USERNAME`
-and `QUAY_PASSWORD` with credentials that can push to the Quay repository.
-The optional repository variables `CONTAINER_REGISTRY` and
-`CONTAINER_GROUP` override `quay.io` and the GitHub repository owner.
-Without both secrets, CI builds and tests the images but skips publication.
-Pull requests also build and test both architectures without publication.
-Architecture images use tags unique to the workflow run. The manifest job
-combines these images only after all CI jobs pass.
-
-- **Non-root.** The image runs as UID 10001 in group 0. `/workspace` (also
-  `HOME`) is owned by group 0 and group-writable, so the arbitrary UIDs that
-  OpenShift's restricted policy assigns work too. Nothing needs root, a
-  container runtime socket or added capabilities.
-- **Isolation.** Every run gets a new container; files a plan creates live
-  only in that container's `/workspace`.
-- **Checked in CI.** The `worker-image` job builds the image on native
-  x86_64 and AArch64 runners and runs a
-  fixture-backed plan in it as UID 123456, against a scripted model.
-
-### Adding utilities
-
-Plans can only use what the image contains. Derive an image and point
-`worker.image` at it:
-
-```dockerfile
-FROM localhost/saci-worker:latest
-USER root
-RUN dnf install --assumeyes --setopt=install_weak_deps=False postgresql \
-    && dnf clean all
-USER 10001:0
-```
-
-Keep the `USER 10001:0` line (or any non-root user in group 0) and the
-entry point. A plan that needs a tool the image lacks fails its step with
-the shell's "command not found" in the evidence.
+- [The worker image](../operate/worker-image.md): build, pull and extend the image.
+- [Run contracts](run-contracts.md): the specification and the events.

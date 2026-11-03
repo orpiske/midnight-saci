@@ -178,7 +178,7 @@ investigations. See [failure investigations](../run-tests/investigate-failures.m
 The backend also serves investigations over A2A, outside `/api/v1`:
 `GET /.well-known/agent-card.json` and the JSON-RPC endpoint `POST /a2a`.
 They are not REST routes, so `openapi.yaml` does not describe them. See
-[A2A](../run-tests/investigate-failures.md#a2a).
+[A2A](../connect/a2a.md).
 
 ## Console reads
 
@@ -235,41 +235,8 @@ token. It then:
 Evidence travels inside `observation` events, already redacted, so it stays
 readable from the backend after the worker disconnects or is removed.
 
-## Implementation
+## Next steps
 
-`saci_backend::api::router` serves these routes with axum. A submission is
-validated and stored in one step (`api::submit::prepare`, then
-`Store::create_run`); only a newly created run is handed to the
-`Supervisor`, which starts its worker. A cancellation request is recorded
-first and then handed to the supervisor. Long polls wait on a change signal
-that the backend raises whenever it stores events or changes a run, then
-re-read the database, so a reply always reflects persisted state.
-
-### Worker credentials and the worker client
-
-`saci_backend::api::issue_token` creates a worker token (256 random bits as
-hex) when a worker is launched and stores only its SHA-256 hash. Worker
-routes look the hash up: an unknown or missing token is `401`, a token for
-another run is `403`. The client token never matches a worker hash, so it
-cannot use worker routes either.
-
-Before storing a batch, the backend also redacts the secret values it can
-read itself (environment secrets with an `env` reference, the LLM key), on
-top of the worker's own redaction, in every free-text field: evidence,
-assessment and criterion explanations, error messages, and skip and run-end
-reasons. Long-polling clients are woken as soon as
-the batch is committed.
-
-`saci_worker::report` is the worker side: `fetch_specification` retries
-while the backend is unreachable; `deliver` reads the run's event channel,
-sends batches of up to 100 events and 16 MiB of JSON
-(`saci_core::api::MAX_EVENT_BATCH_BYTES`, the body limit of the events
-route), drops what the backend acknowledges,
-resends the rest (from the acknowledged sequence on a `sequence_gap`), and
-returns once the channel is closed and every event is acknowledged;
-`watch_cancellation` polls `control` and cancels the run's token. Delivery
-retries an unreachable or failing (5xx) backend with backoff for up to five
-minutes, then the worker reports itself lost; a refusal (401, 403, 409
-`run_finished`, 422) ends delivery at once. An observation too large for
-one request on its own has its captured output halved until it fits; the
-cut is recorded as truncation, with the original size kept.
+- [OpenAPI description](../openapi.yaml): the machine-readable contract.
+- [Run contracts](run-contracts.md): the events and reports in the bodies.
+- [A2A](../connect/a2a.md): the investigation endpoint outside `/api/v1`.

@@ -35,3 +35,8 @@ start and refuses to open one written by a newer Saci.
 
 All database work runs on blocking threads, off the backend's async
 runtime.
+
+## Next steps
+
+- [Supervision](supervision.md): what happens to runs when the backend restarts.
+- [Helm](helm.md#upgrades-and-the-single-writer): the volume and the single writer on Kubernetes.

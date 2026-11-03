@@ -1,7 +1,7 @@
 # Launching workers with Podman or Docker
 
 The backend starts one container per accepted run, from `worker.image`
-([the worker image](../reference/worker.md#the-image)), with the `podman` or `docker`
+([the worker image](worker-image.md)), with the `podman` or `docker`
 command-line program. It needs no socket, no API client library and no
 other service: only the program on the backend's `PATH` and a working
 runtime behind it.
@@ -217,3 +217,9 @@ but are not part of the automated checks.
 
 Run the checks yourself with `make image-check` (`RUNTIME=docker` or
 `RUNTIME=podman` to choose).
+
+## Next steps
+
+- [The worker image](worker-image.md): what the image contains and how to add tools.
+- [Supervision](supervision.md): deadlines, lost workers and restarts.
+- [Kubernetes Jobs](kubernetes-jobs.md): run workers in a cluster instead.
