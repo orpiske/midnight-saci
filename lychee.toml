@@ -1,5 +1,6 @@
 # lychee options for the docs link check. See docs/contributing/documentation.md.
 offline = true
-include_fragments = true
+include_fragments = "full"
 no_progress = true
-exclude_path = ["target", "web/node_modules", ".claude", "docs/templates"]
+# Regular expressions. The templates contain example links.
+exclude_path = ["^docs/templates/", "(^|/)node_modules/", "^target/"]
