@@ -1,0 +1,5 @@
+# lychee options for the docs link check. See docs/contributing/documentation.md.
+offline = true
+include_fragments = true
+no_progress = true
+exclude_path = ["target", "web/node_modules", ".claude", "docs/templates"]

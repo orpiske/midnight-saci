@@ -21,6 +21,20 @@ env:
   IMAGE_BUILD_TAG: ${{ github.sha }}-${{ github.run_id }}
 
 jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the page conventions
+        run: .github/check-docs.sh
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v19
+      - name: Check links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --config lychee.toml 'README.md' 'docs/**/*.md'
+          fail: true
+
   format:
     runs-on: ubuntu-latest
     steps:
