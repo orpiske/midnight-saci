@@ -12,6 +12,8 @@ config:
   MD036: false
   # Table column style is not checked.
   MD060: false
+  # Code spans such as `: ` show a significant space.
+  MD038: false
 globs:
   - "docs/**/*.md"
   - "README.md"
