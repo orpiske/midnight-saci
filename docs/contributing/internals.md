@@ -66,7 +66,6 @@ These are the only places Saci adds behavior Rig does not provide:
    against every OpenAI-compatible server; one that only accepts string
    content will reject Saci's requests with a provider error.
 
-
 ## MCP SDK
 
 Saci uses the [`rmcp`](https://crates.io/crates/rmcp) SDK 2.2 for transports,

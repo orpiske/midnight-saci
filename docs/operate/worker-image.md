@@ -39,7 +39,6 @@ to this image to use it. Set `worker.image_pull_policy: Always` to pull the
 latest image before each run. For Helm, set
 `--set image.repository=quay.io/orpiske/saci-worker --set image.tag=latest`.
 
-
 - **Non-root.** The image runs as UID 10001 in group 0. `/workspace` (also
   `HOME`) is owned by group 0 and group-writable, so the arbitrary UIDs that
   OpenShift's restricted policy assigns work too. Nothing needs root, a

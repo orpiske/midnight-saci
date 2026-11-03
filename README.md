@@ -63,12 +63,9 @@ examples/walkthrough/walkthrough.sh
 
 It writes a plan, watches one run pass and one fail, cancels a slow run,
 restarts the backend and reads every report back. The
-[walkthrough guide](docs/get-started/quickstart.md) explains each step so you can do
-it by hand, and shows how to switch to a real model.
-
-To install the `saci` binaries in `/usr/local/bin`, run `make install`. To
-install them in a different directory, set `BINDIR`, for example
-`make install BINDIR=$HOME/bin`. See [installing](docs/reference/cli.md#installing).
+[quickstart](docs/get-started/quickstart.md) explains each step so you can
+do it by hand. To install the binaries, see
+[install Saci](docs/get-started/install.md).
 
 ## Your first plan
 
@@ -98,25 +95,10 @@ curl -sS -w '\nstatus %{http_code}\n' "$SERVICE_URL/orders/1"
 ````
 
 To validate it offline, without a backend, run
-`saci check plans/service-health.md`. To let your coding agent help, for
-example to convert existing plans or to run them, install the Saci skills with
-`saci skill install --all --agent claude` (or `codex`, `cursor`,
-`copilot`, `gemini`, `opencode`). Then start a backend and submit it (the build puts `saci` in
-`target/debug`):
-
-```sh
-export PATH=$PWD/target/debug:$PATH
-cp examples/config/local.yaml saci.yaml   # then edit it for your system
-export SACI_LLM_API_KEY=...                # your model provider's key
-saci backend start --config saci.yaml &
-saci run plans/service-health.md --environment local --follow
-```
-
-[`examples/config/local.yaml`](examples/config/local.yaml) is a starting
-configuration: set `llm.model`, and the environment's parameters and
-secrets for the system you are testing. See [writing test plans](docs/write-plans/write-a-test-plan.md) for the full
-format and the [command line](docs/reference/cli.md) for every command and exit
-code.
+`saci check plans/service-health.md`. To run it with your own model
+provider, see [run your first plan with a real model](docs/get-started/run-with-a-real-model.md).
+To let your coding agent convert or run plans, install the Saci skills
+([use Saci from a coding agent](docs/run-tests/use-agent-skills.md)).
 
 ## How it works
 
@@ -127,55 +109,27 @@ a token valid only for that run. You follow progress and read the report
 through the CLI, the [web console](docs/run-tests/web-console.md) or the
 [REST API](docs/reference/rest-api.md).
 
-[Architecture](docs/get-started/architecture.md) has the diagram and the role of each
-crate.
+[Architecture](docs/get-started/architecture.md) has the diagram and how a
+run flows.
 
 ## Documentation
 
-**Start here**
+The [documentation home](docs/index.md) has a "Choose your path" table.
 
-- [Walkthrough: from installation to a report](docs/get-started/quickstart.md)
-- [Writing test plans](docs/write-plans/write-a-test-plan.md), with a
-  [starter template](docs/templates/test-plan.md) and a
-  [complete example](docs/templates/example.md)
-- [Command line](docs/reference/cli.md)
-- [Web console: runs, live progress, evidence and action review in the browser](docs/run-tests/web-console.md)
-- [Configuration reference](docs/reference/configuration.md)
-
-**Running tests**
-
-- [Worker execution and LLM configuration](docs/contributing/design/execution-contract.md)
-- [LLM providers: OpenRouter, Ollama, retries and errors](docs/operate/llm-providers.md)
-- [Worker tools: shell, HTTP and step assessment](docs/reference/worker-tools.md)
-- [MCP servers](docs/connect/mcp-servers.md)
-- [MCP script runner: scripts as MCP tools](docs/connect/script-runner.md)
-- [Julia 1 judge: a local System One judge](docs/operate/julia-judge.md)
-- [Run sequencing, retries, stopping and cleanup](docs/run-tests/how-a-run-executes.md)
-- [Outcome actions and approvals](docs/connect/outcome-actions.md)
-- [Failure investigations](docs/run-tests/investigate-failures.md)
-- [Running plans when code changes: `saci watch`](docs/connect/watch-repositories.md)
-- [Credentials, evidence redaction and isolation limits](docs/operate/security.md)
-
-**Deploying and operating**
-
-- [The worker image and adding utilities](docs/reference/worker.md)
-- [Launching workers with Podman or Docker](docs/operate/container-workers.md)
-- [Supervising runs: cancellation, deadlines and recovery](docs/operate/supervision.md)
-- [Operating the backend: data directory and records](docs/operate/data-and-backups.md)
-- [Running workers as Kubernetes Jobs](docs/operate/kubernetes-jobs.md)
-- [Installing with Helm on Kubernetes or OpenShift](docs/operate/helm.md)
-- [Namespace workflows](docs/operate/namespace-workflow.md)
-
-**Reference and design**
-
-- [Architecture](docs/get-started/architecture.md)
-- [REST API and worker protocol](docs/reference/rest-api.md) ([OpenAPI](docs/openapi.yaml))
-- [Run contracts: identities, statuses, events and reports](docs/reference/run-contracts.md)
-- [Agent library decision (Rig)](docs/contributing/internals.md)
-- [Brand guide](artwork/BRAND.md)
-- [System plan](docs/contributing/design/system-plan.md),
-  [implementation tickets](docs/contributing/design/implementation-tickets.md) and
-  [issue index](docs/contributing/design/issue-index.md)
+- [Get started](docs/get-started/index.md): quickstart, installation and
+  architecture.
+- [Write test plans](docs/write-plans/index.md): write, reuse and convert
+  plans.
+- [Run tests](docs/run-tests/index.md): run plans, follow them, use the web
+  console and investigate failures.
+- [Connect Saci to other systems](docs/connect/index.md): MCP tools,
+  outcome actions, `saci watch`, A2A and the script runner.
+- [Operate Saci](docs/operate/index.md): model providers, workers,
+  Kubernetes and Helm, data and credentials.
+- [Reference](docs/reference/index.md): commands, configuration, plan
+  format, REST API and contracts.
+- [Contribute to Saci](docs/contributing/index.md): development, testing and
+  design notes.
 
 ## Contributing
 

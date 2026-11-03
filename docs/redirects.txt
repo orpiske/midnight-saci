@@ -1,0 +1,38 @@
+# Moved documentation pages: one "old-path new-path" pair per line,
+# relative to docs/. A future documentation site can turn these lines into
+# redirects. Old paths that shipped artifacts link (agent skills, runtime
+# messages) keep a short stub page. .github/check-docs.sh checks that each
+# new path exists.
+walkthrough.md get-started/quickstart.md
+architecture.md get-started/architecture.md
+test-plans.md write-plans/write-a-test-plan.md
+cli.md reference/cli.md
+configuration.md reference/configuration.md
+execution.md contributing/design/execution-contract.md
+agent-library.md contributing/internals.md
+sequencing.md run-tests/how-a-run-executes.md
+tools.md reference/worker-tools.md
+mcp.md connect/mcp-servers.md
+llm-providers.md operate/llm-providers.md
+julia-judge.md operate/julia-judge.md
+script-runner.md connect/script-runner.md
+actions.md connect/outcome-actions.md
+investigations.md run-tests/investigate-failures.md
+watch.md connect/watch-repositories.md
+web-ui.md run-tests/web-console.md
+api.md reference/rest-api.md
+contracts.md reference/run-contracts.md
+worker.md reference/worker.md
+launchers.md operate/container-workers.md
+supervision.md operate/supervision.md
+operations.md operate/data-and-backups.md
+kubernetes.md operate/kubernetes-jobs.md
+helm.md operate/helm.md
+namespace-workflows.md operate/namespace-workflow.md
+security.md operate/security.md
+development.md contributing/development.md
+plans/plan.md contributing/design/system-plan.md
+plans/implementation-tickets.md contributing/design/implementation-tickets.md
+plans/issue-index.md contributing/design/issue-index.md
+plans/investigations.md contributing/design/investigations.md
+plans/source-watch.md contributing/design/source-watch.md

@@ -1,4 +1,4 @@
-# MCP script runner
+# Make scripts available as MCP tools
 
 `saci-script-runner` is a Saci module. It makes administrator-configured
 scripts available as MCP tools over Streamable HTTP. Each script is one tool.

@@ -1,4 +1,4 @@
-# Installing in a Kubernetes or OpenShift namespace
+# Install Saci with Helm on Kubernetes or OpenShift
 
 The Helm chart in [`deploy/helm/saci`](../../deploy/helm/saci) installs Saci
 into one existing namespace (or OpenShift project). It creates:

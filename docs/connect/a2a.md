@@ -97,7 +97,6 @@ the worker stops.
 The JSON-RPC answers have HTTP status `200`. A request without a valid
 token gets `401` with the REST [error body](../reference/rest-api.md#errors).
 
-
 ## Next steps
 
 - [Investigate failures](../run-tests/investigate-failures.md): configure

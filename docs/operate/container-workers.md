@@ -1,4 +1,4 @@
-# Launching workers with Podman or Docker
+# Run workers with Podman or Docker
 
 The backend starts one container per accepted run, from `worker.image`
 ([the worker image](worker-image.md)), with the `podman` or `docker`

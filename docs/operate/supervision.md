@@ -1,4 +1,4 @@
-# Supervising runs
+# How the backend supervises runs
 
 The backend owns every run from submission to its stored outcome. Once a
 run is accepted it launches the run's worker

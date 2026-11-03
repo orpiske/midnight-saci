@@ -1,4 +1,4 @@
-# LLM providers
+# Connect a model provider
 
 Saci talks to one OpenAI-compatible Chat Completions endpoint, configured in
 the backend's `llm` section and inherited by every worker (see the

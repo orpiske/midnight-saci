@@ -1,4 +1,4 @@
-# Credentials, evidence and isolation
+# Keep credentials out of evidence and tools
 
 This page describes how Saci keeps credentials apart and what its redaction
 does and does not guarantee. Read it before pointing Saci at an environment
