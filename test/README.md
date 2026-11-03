@@ -45,7 +45,7 @@ saci run test/plans/cli-runs.md --environment saci-under-test --follow
 ```
 
 A coding agent can do these steps with the `saci-run-test-plan` skill
-([command line](../docs/cli.md#saci-skill)). Tell it to start the backend
+([command line](../docs/reference/cli.md#saci-skill)). Tell it to start the backend
 from `test/` with `saci.yaml`, and to use the `saci-under-test`
 environment. Start the Saci under test yourself first.
 

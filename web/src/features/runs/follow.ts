@@ -1,5 +1,5 @@
 // Following a run's events with the backend's long poll
-// (docs/api.md "Following progress"). Events arrive once each, in
+// (docs/reference/rest-api.md "Following progress"). Events arrive once each, in
 // sequence order, across reconnects. A finished run is drained page by
 // page until its terminal event; `finished` alone never ends the backlog.
 import { ApiError } from "../../api/client";

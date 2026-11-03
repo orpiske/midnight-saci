@@ -8,7 +8,7 @@ info:
     backend is configured with `backend.auth`; it must be when it listens beyond
     loopback. Worker routes (`/api/v1/worker/...`) require the run-scoped worker
     token issued at launch, which grants access to that one run only.
-    See docs/api.md for semantics and examples.
+    See docs/reference/rest-api.md for semantics and examples.
 servers:
   - url: http://127.0.0.1:8080
 tags:
@@ -17,9 +17,9 @@ tags:
   - name: catalog
     description: What runs may be submitted with.
   - name: investigations
-    description: Failure investigations of finished runs (docs/investigations.md).
+    description: Failure investigations of finished runs (docs/run-tests/investigate-failures.md).
   - name: actions
-    description: Outcome actions of finished runs (docs/actions.md).
+    description: Outcome actions of finished runs (docs/connect/outcome-actions.md).
   - name: worker
     description: Run-scoped reporting by a worker.
   - name: health
@@ -305,7 +305,7 @@ paths:
       tags: [investigations]
       summary: Investigate a failed unit of a finished run.
       description: |
-        Creates an investigation and starts its worker (docs/investigations.md). The
+        Creates an investigation and starts its worker (docs/run-tests/investigate-failures.md). The
         backend copies the failed unit and the evidence its attempts cite from the run's
         report. Without `unit`, the first unit with outcome `failed`, `error` or `blocked`
         is selected. Without `sources`, every configured repository is cloned at its
@@ -1006,7 +1006,7 @@ components:
     RunEvent:
       description: |
         One progress event: the common fields plus the fields of its `type` (see
-        docs/contracts.md).
+        docs/reference/run-contracts.md).
       allOf:
         - type: object
           required: [run_id, seq, at]
@@ -1229,7 +1229,7 @@ components:
                 reason: { type: string }
     RunReport:
       type: object
-      description: The durable run report (see docs/contracts.md).
+      description: The durable run report (see docs/reference/run-contracts.md).
       required: [schema_version, run_id, plan_title, entry, environment, policy, model, created_at, lifecycle, counts, units, cleanup_not_run, evidence, last_seq]
       properties:
         schema_version: { type: integer }
@@ -1263,14 +1263,14 @@ components:
         last_seq: { type: integer }
     BuildInfo:
       type: object
-      description: A Saci build (see docs/development.md#build-commit).
+      description: A Saci build (see docs/contributing/development.md#build-commit).
       required: [version]
       properties:
         version: { type: string, description: The package version. }
         commit: { type: string, description: The commit the binary was built from. Absent when the build did not know it. }
     WorkerEnvironment:
       type: object
-      description: Where the worker executed (see docs/worker.md#environment-details). Absent until the worker starts, and for workers that do not report it.
+      description: Where the worker executed (see docs/reference/worker.md#environment-details). Absent until the worker starts, and for workers that do not report it.
       required: [saci, arch, tools]
       properties:
         saci: { $ref: "#/components/schemas/BuildInfo" }
@@ -1288,7 +1288,7 @@ components:
               version: { type: string }
     WorkerImage:
       type: object
-      description: The container image that ran the worker (see docs/launchers.md#worker-image). Absent until the backend launches the worker.
+      description: The container image that ran the worker (see docs/operate/container-workers.md#worker-image). Absent until the backend launches the worker.
       required: [reference]
       properties:
         reference: { type: string, description: "The configured `worker.image`, with its tag." }

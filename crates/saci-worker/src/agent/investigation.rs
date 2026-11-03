@@ -1,4 +1,4 @@
-//! The one attempt of an investigation run (`docs/plans/investigations.md`).
+//! The one attempt of an investigation run (`docs/contributing/design/investigations.md`).
 //!
 //! The worker clones each repository and runs the `prepare` commands before
 //! the first model request. The model then reads the code with the shell

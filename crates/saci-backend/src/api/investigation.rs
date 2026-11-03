@@ -1,5 +1,5 @@
 //! Turning an investigation request into a stored investigation run
-//! (`docs/investigations.md`): the failed unit and its evidence come from
+//! (`docs/run-tests/investigate-failures.md`): the failed unit and its evidence come from
 //! the stored report of the investigated run, everything else from the
 //! `investigations` configuration.
 

@@ -1,4 +1,4 @@
-//! Records the commit the binaries are built from (docs/development.md#build-commit)
+//! Records the commit the binaries are built from (docs/contributing/development.md#build-commit)
 //! as `SACI_BUILD_COMMIT`: the value of the `SACI_BUILD_COMMIT` environment
 //! variable when it is set, as in container builds without `.git`, else the
 //! `HEAD` commit that `git` reports. Without either the commit is unknown.

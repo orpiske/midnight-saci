@@ -1,5 +1,5 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
-//! `saci-worker` entry point (`docs/worker.md`).
+//! `saci-worker` entry point (`docs/reference/worker.md`).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -85,7 +85,7 @@ fn main() -> ExitCode {
 }
 
 /// As PID 1, runs the worker again as a child and reaps every process that
-/// ends while it runs (`docs/worker.md#process-1`).
+/// ends while it runs (`docs/reference/worker.md#process-1`).
 fn as_init() -> u8 {
     let program = match std::env::current_exe() {
         Ok(program) => program,

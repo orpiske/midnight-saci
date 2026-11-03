@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 /// Default backend URL.
 pub const DEFAULT_BACKEND: &str = "http://127.0.0.1:8080";
 
-/// Exit codes (`docs/cli.md#exit-codes`).
+/// Exit codes (`docs/reference/cli.md#exit-codes`).
 pub mod exit {
     use saci_core::status::Outcome;
 

@@ -1,5 +1,5 @@
 //! A small orders service with one deliberate defect, used as the system
-//! under test in the walkthrough (`docs/walkthrough.md`).
+//! under test in the walkthrough (`docs/get-started/quickstart.md`).
 //!
 //! - `GET /health` answers 200 `{"status":"ok"}`.
 //! - `GET /orders/1` answers 200 with a shipped order.

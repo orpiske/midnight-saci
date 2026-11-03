@@ -1,4 +1,4 @@
-//! The worker side of the reporting protocol (`docs/api.md#worker-reporting-protocol`):
+//! The worker side of the reporting protocol (`docs/reference/rest-api.md#worker-reporting-protocol`):
 //! fetching the assigned specification, delivering events until the backend
 //! acknowledges them, and watching for cancellation.
 

@@ -1,6 +1,6 @@
-# Saci image (docs/worker.md): the per-run worker, the backend for
-# cluster installs (docs/helm.md) and the MCP script runner
-# (docs/script-runner.md). The backend and the runner run with another
+# Saci image (docs/reference/worker.md): the per-run worker, the backend for
+# cluster installs (docs/operate/helm.md) and the MCP script runner
+# (docs/connect/script-runner.md). The backend and the runner run with another
 # command instead of the default entry point.
 #
 #   podman build -t localhost/saci-worker:latest .
@@ -8,7 +8,7 @@
 #
 # The worker runs as a non-root user that may be replaced by any UID in
 # group 0 (OpenShift's restricted policy). Extend the tool set with a
-# derived image; see docs/worker.md#adding-utilities.
+# derived image; see docs/reference/worker.md#adding-utilities.
 
 ARG RUST_IMAGE=docker.io/library/rust:1.96-slim-trixie
 ARG BASE_IMAGE=registry.fedoraproject.org/fedora:44
@@ -16,7 +16,7 @@ ARG NODE_IMAGE=docker.io/library/node:22-trixie-slim
 # The ripwire release to build; a tag of github.com/redhat-et/ripwire.
 ARG RIPWIRE_VERSION=v0.6.8
 
-# The web console (docs/web-ui.md), embedded in saci-backend below.
+# The web console (docs/run-tests/web-console.md), embedded in saci-backend below.
 FROM ${NODE_IMAGE} AS web
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
@@ -26,7 +26,7 @@ COPY docs/templates/ /src/docs/templates/
 RUN npm run build
 
 FROM ${RUST_IMAGE} AS build
-# The commit the binaries report (docs/development.md#build-commit). The
+# The commit the binaries report (docs/contributing/development.md#build-commit). The
 # build context has no .git, so pass it: --build-arg SACI_BUILD_COMMIT=...
 ARG SACI_BUILD_COMMIT=
 WORKDIR /src
@@ -40,7 +40,7 @@ RUN cargo build --locked --release --package saci-worker --bin saci-worker \
         target/release/saci-script-runner
 
 # ripwire (https://github.com/redhat-et/ripwire), the code map tool that
-# failure investigations use (docs/investigations.md). It is built on the
+# failure investigations use (docs/run-tests/investigate-failures.md). It is built on the
 # runtime base, so it links the libstdc++ of the final image. On x86-64 it
 # needs an x86-64-v3 CPU (AVX2), as the ripwire release binaries do.
 FROM ${BASE_IMAGE} AS ripwire

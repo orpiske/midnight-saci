@@ -1,4 +1,4 @@
-//! Structured error responses (`docs/api.md#errors`).
+//! Structured error responses (`docs/reference/rest-api.md#errors`).
 
 use axum::Json;
 use axum::http::StatusCode;

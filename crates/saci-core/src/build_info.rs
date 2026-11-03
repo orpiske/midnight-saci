@@ -1,4 +1,4 @@
-//! The version and commit of a Saci build (docs/development.md#build-commit).
+//! The version and commit of a Saci build (docs/contributing/development.md#build-commit).
 
 use serde::{Deserialize, Serialize};
 

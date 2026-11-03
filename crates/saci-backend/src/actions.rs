@@ -1,4 +1,4 @@
-//! The outcome action dispatcher (`docs/actions.md`): a backend task, apart
+//! The outcome action dispatcher (`docs/connect/outcome-actions.md`): a backend task, apart
 //! from the API and from workers, that calls the configured MCP tools of
 //! queued actions.
 //!

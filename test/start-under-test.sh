@@ -15,7 +15,7 @@
 #   WORK        working directory, kept afterwards (default: a new temporary one)
 #
 # Workers use the host network, so this needs Linux; see
-# docs/launchers.md#networking for other systems.
+# docs/operate/container-workers.md#networking for other systems.
 set -euo pipefail
 
 walkthrough=$(cd "$(dirname "$0")/../examples/walkthrough" && pwd)

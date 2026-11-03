@@ -1,7 +1,7 @@
 # Saci configuration for a backend running in a Kubernetes or OpenShift
 # namespace. The Helm chart in deploy/helm/saci renders an equivalent file
-# (docs/helm.md).
-# Reference: docs/configuration.md
+# (docs/operate/helm.md).
+# Reference: docs/reference/configuration.md
 
 backend:
   listen: 0.0.0.0:8080

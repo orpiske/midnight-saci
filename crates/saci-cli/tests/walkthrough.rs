@@ -1,4 +1,4 @@
-//! The walkthrough's files (`examples/walkthrough`, `docs/walkthrough.md`)
+//! The walkthrough's files (`examples/walkthrough`, `docs/get-started/quickstart.md`)
 //! stay valid: the configuration loads, every plan parses, and the
 //! scripted model has an entry for every unit the walkthrough runs. The
 //! walkthrough itself runs in CI's `worker-image` job.

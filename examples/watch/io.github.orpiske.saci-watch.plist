@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- launchd agent for saci watch (docs/watch.md). Replace USER with your
+<!-- launchd agent for saci watch (docs/connect/watch-repositories.md). Replace USER with your
      user name. Logs go to /tmp/saci-watch.log. -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

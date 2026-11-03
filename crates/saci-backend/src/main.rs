@@ -10,7 +10,7 @@ use clap::Parser;
 #[derive(Debug, Parser)]
 #[command(name = "saci-backend", version, about = "Run the Saci backend service")]
 struct Args {
-    /// Configuration file (see docs/configuration.md).
+    /// Configuration file (see docs/reference/configuration.md).
     #[arg(long, short, default_value = "saci.yaml")]
     config: PathBuf,
 }

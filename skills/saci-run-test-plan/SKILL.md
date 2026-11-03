@@ -16,8 +16,8 @@ the two skills together, for example with
 
 For more information, read these documents:
 
-- [docs/cli.md](https://github.com/orpiske/midnight-saci/blob/main/docs/cli.md): the `saci` commands and exit codes.
-- [docs/test-plans.md](https://github.com/orpiske/midnight-saci/blob/main/docs/test-plans.md): the plan format.
+- [docs/reference/cli.md](https://github.com/orpiske/midnight-saci/blob/main/docs/reference/cli.md): the `saci` commands and exit codes.
+- [docs/write-plans/write-a-test-plan.md](https://github.com/orpiske/midnight-saci/blob/main/docs/write-plans/write-a-test-plan.md): the plan format.
 
 ## Rules
 
@@ -53,7 +53,7 @@ saci check plan.md
 - Exit code 2: the plan is not valid. Report each problem with its file
   and line, and stop. Do not submit the plan.
 - Warnings: the plan is valid, but some content does not run (see
-  [docs/cli.md](https://github.com/orpiske/midnight-saci/blob/main/docs/cli.md#saci-check)).
+  [docs/reference/cli.md](https://github.com/orpiske/midnight-saci/blob/main/docs/reference/cli.md#saci-check)).
   Continue, and include the warnings in your summary.
 
 ### 3. Start the backend if it is not running

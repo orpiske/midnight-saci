@@ -77,7 +77,7 @@ fn announce(address: std::net::SocketAddr, data_dir: &Path) {
     if crate::console::embedded() {
         println!("Web console at http://{address}/ui/");
     } else {
-        println!("This build has no web console; build it with `make console` (docs/web-ui.md)");
+        println!("This build has no web console; build it with `make console` (docs/run-tests/web-console.md)");
     }
 }
 

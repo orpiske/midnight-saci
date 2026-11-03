@@ -135,7 +135,7 @@ enum NewCommand {
     /// Create an editable Markdown test plan from the starter template.
     ///
     /// The title is derived from the file name. The plan follows the
-    /// conventions in docs/test-plans.md: `## Phase <id>: <title>`,
+    /// conventions in docs/write-plans/write-a-test-plan.md: `## Phase <id>: <title>`,
     /// `### Test <id>: <title>` or `### Step <id>: <title>`, and an
     /// `**Expected result:**` list for every unit. Existing files are never
     /// overwritten.
@@ -149,7 +149,7 @@ enum NewCommand {
 enum BackendCommand {
     /// Start the backend in the foreground; stop it with Ctrl-C or SIGTERM.
     Start {
-        /// Configuration file (docs/configuration.md).
+        /// Configuration file (docs/reference/configuration.md).
         #[arg(long, short, default_value = "saci.yaml")]
         config: PathBuf,
     },

@@ -1,5 +1,5 @@
 # saci-script-runner configuration for the email example
-# (docs/script-runner.md#example-email-the-results-of-each-run).
+# (docs/connect/script-runner.md#example-email-the-results-of-each-run).
 #
 # The runner listens on all interfaces so that the Saci backend can reach
 # it, so it requires a token. Put the script in

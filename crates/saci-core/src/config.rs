@@ -1,6 +1,6 @@
 //! The YAML configuration file shared by the backend and the CLI.
 //!
-//! See `docs/configuration.md` for the reference and defaults.
+//! See `docs/reference/configuration.md` for the reference and defaults.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -189,13 +189,13 @@ pub struct Config {
     #[serde(default)]
     pub actions: ActionsConfig,
     /// Failure investigations; off when omitted
-    /// (`docs/plans/investigations.md`).
+    /// (`docs/contributing/design/investigations.md`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub investigations: Option<Box<InvestigationsConfig>>,
 }
 
 /// Outcome actions and what the backend needs to call them
-/// (`docs/actions.md`). These servers and secrets are the backend's own:
+/// (`docs/connect/outcome-actions.md`). These servers and secrets are the backend's own:
 /// they are never given to workers, and steps cannot call them.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

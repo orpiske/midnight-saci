@@ -1,5 +1,5 @@
 # Backend configuration for the watch example (watch.yaml starts this
-# backend through backend.config). Reference: docs/configuration.md.
+# backend through backend.config). Reference: docs/reference/configuration.md.
 # It defines every environment and policy that watch.yaml names.
 
 backend:

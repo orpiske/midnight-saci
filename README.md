@@ -63,12 +63,12 @@ examples/walkthrough/walkthrough.sh
 
 It writes a plan, watches one run pass and one fail, cancels a slow run,
 restarts the backend and reads every report back. The
-[walkthrough guide](docs/walkthrough.md) explains each step so you can do
+[walkthrough guide](docs/get-started/quickstart.md) explains each step so you can do
 it by hand, and shows how to switch to a real model.
 
 To install the `saci` binaries in `/usr/local/bin`, run `make install`. To
 install them in a different directory, set `BINDIR`, for example
-`make install BINDIR=$HOME/bin`. See [installing](docs/cli.md#installing).
+`make install BINDIR=$HOME/bin`. See [installing](docs/reference/cli.md#installing).
 
 ## Your first plan
 
@@ -114,8 +114,8 @@ saci run plans/service-health.md --environment local --follow
 
 [`examples/config/local.yaml`](examples/config/local.yaml) is a starting
 configuration: set `llm.model`, and the environment's parameters and
-secrets for the system you are testing. See [writing test plans](docs/test-plans.md) for the full
-format and the [command line](docs/cli.md) for every command and exit
+secrets for the system you are testing. See [writing test plans](docs/write-plans/write-a-test-plan.md) for the full
+format and the [command line](docs/reference/cli.md) for every command and exit
 code.
 
 ## How it works
@@ -124,63 +124,63 @@ The `saci` command sends your plan to the backend, which stores the run in
 SQLite and starts a worker for it. The worker's agent works through the
 plan with the LLM and its tools, and reports events and evidence back with
 a token valid only for that run. You follow progress and read the report
-through the CLI, the [web console](docs/web-ui.md) or the
-[REST API](docs/api.md).
+through the CLI, the [web console](docs/run-tests/web-console.md) or the
+[REST API](docs/reference/rest-api.md).
 
-[Architecture](docs/architecture.md) has the diagram and the role of each
+[Architecture](docs/get-started/architecture.md) has the diagram and the role of each
 crate.
 
 ## Documentation
 
 **Start here**
 
-- [Walkthrough: from installation to a report](docs/walkthrough.md)
-- [Writing test plans](docs/test-plans.md), with a
+- [Walkthrough: from installation to a report](docs/get-started/quickstart.md)
+- [Writing test plans](docs/write-plans/write-a-test-plan.md), with a
   [starter template](docs/templates/test-plan.md) and a
   [complete example](docs/templates/example.md)
-- [Command line](docs/cli.md)
-- [Web console: runs, live progress, evidence and action review in the browser](docs/web-ui.md)
-- [Configuration reference](docs/configuration.md)
+- [Command line](docs/reference/cli.md)
+- [Web console: runs, live progress, evidence and action review in the browser](docs/run-tests/web-console.md)
+- [Configuration reference](docs/reference/configuration.md)
 
 **Running tests**
 
-- [Worker execution and LLM configuration](docs/execution.md)
-- [LLM providers: OpenRouter, Ollama, retries and errors](docs/llm-providers.md)
-- [Worker tools: shell, HTTP and step assessment](docs/tools.md)
-- [MCP servers](docs/mcp.md)
-- [MCP script runner: scripts as MCP tools](docs/script-runner.md)
-- [Julia 1 judge: a local System One judge](docs/julia-judge.md)
-- [Run sequencing, retries, stopping and cleanup](docs/sequencing.md)
-- [Outcome actions and approvals](docs/actions.md)
-- [Failure investigations](docs/investigations.md)
-- [Running plans when code changes: `saci watch`](docs/watch.md)
-- [Credentials, evidence redaction and isolation limits](docs/security.md)
+- [Worker execution and LLM configuration](docs/contributing/design/execution-contract.md)
+- [LLM providers: OpenRouter, Ollama, retries and errors](docs/operate/llm-providers.md)
+- [Worker tools: shell, HTTP and step assessment](docs/reference/worker-tools.md)
+- [MCP servers](docs/connect/mcp-servers.md)
+- [MCP script runner: scripts as MCP tools](docs/connect/script-runner.md)
+- [Julia 1 judge: a local System One judge](docs/operate/julia-judge.md)
+- [Run sequencing, retries, stopping and cleanup](docs/run-tests/how-a-run-executes.md)
+- [Outcome actions and approvals](docs/connect/outcome-actions.md)
+- [Failure investigations](docs/run-tests/investigate-failures.md)
+- [Running plans when code changes: `saci watch`](docs/connect/watch-repositories.md)
+- [Credentials, evidence redaction and isolation limits](docs/operate/security.md)
 
 **Deploying and operating**
 
-- [The worker image and adding utilities](docs/worker.md)
-- [Launching workers with Podman or Docker](docs/launchers.md)
-- [Supervising runs: cancellation, deadlines and recovery](docs/supervision.md)
-- [Operating the backend: data directory and records](docs/operations.md)
-- [Running workers as Kubernetes Jobs](docs/kubernetes.md)
-- [Installing with Helm on Kubernetes or OpenShift](docs/helm.md)
-- [Namespace workflows](docs/namespace-workflows.md)
+- [The worker image and adding utilities](docs/reference/worker.md)
+- [Launching workers with Podman or Docker](docs/operate/container-workers.md)
+- [Supervising runs: cancellation, deadlines and recovery](docs/operate/supervision.md)
+- [Operating the backend: data directory and records](docs/operate/data-and-backups.md)
+- [Running workers as Kubernetes Jobs](docs/operate/kubernetes-jobs.md)
+- [Installing with Helm on Kubernetes or OpenShift](docs/operate/helm.md)
+- [Namespace workflows](docs/operate/namespace-workflow.md)
 
 **Reference and design**
 
-- [Architecture](docs/architecture.md)
-- [REST API and worker protocol](docs/api.md) ([OpenAPI](docs/openapi.yaml))
-- [Run contracts: identities, statuses, events and reports](docs/contracts.md)
-- [Agent library decision (Rig)](docs/agent-library.md)
+- [Architecture](docs/get-started/architecture.md)
+- [REST API and worker protocol](docs/reference/rest-api.md) ([OpenAPI](docs/openapi.yaml))
+- [Run contracts: identities, statuses, events and reports](docs/reference/run-contracts.md)
+- [Agent library decision (Rig)](docs/contributing/internals.md)
 - [Brand guide](artwork/BRAND.md)
-- [System plan](docs/plans/plan.md),
-  [implementation tickets](docs/plans/implementation-tickets.md) and
-  [issue index](docs/plans/issue-index.md)
+- [System plan](docs/contributing/design/system-plan.md),
+  [implementation tickets](docs/contributing/design/implementation-tickets.md) and
+  [issue index](docs/contributing/design/issue-index.md)
 
 ## Contributing
 
 Saci is written in Rust. `make check` runs the same formatting, Clippy and
-test gates as CI. [Development](docs/development.md) covers the layout and
+test gates as CI. [Development](docs/contributing/development.md) covers the layout and
 the quality gates.
 
 ## About the name

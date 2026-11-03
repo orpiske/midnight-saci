@@ -1,6 +1,6 @@
 //! Failure investigations: an agent task that finds the probable cause of a
 //! failed unit in the source code and reports a bug
-//! (`docs/plans/investigations.md`).
+//! (`docs/contributing/design/investigations.md`).
 //!
 //! The backend builds an [`InvestigationSpec`] from a finished run, and a
 //! worker in investigation mode produces an [`InvestigationReport`].

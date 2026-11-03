@@ -1,5 +1,5 @@
 //! `saci watch`: polls Git repositories and runs test plans when they
-//! change (`docs/watch.md`).
+//! change (`docs/connect/watch-repositories.md`).
 
 mod backend;
 mod config;
@@ -35,7 +35,7 @@ const RETRY_SECS: u64 = 10;
 pub struct WatchArgs {
     #[command(subcommand)]
     pub command: Option<WatchCommand>,
-    /// Configuration file (docs/watch.md).
+    /// Configuration file (docs/connect/watch-repositories.md).
     #[arg(long, short, default_value = "watch.yaml")]
     pub config: PathBuf,
     /// Poll one time, run the cycles that are due, then exit.
@@ -52,7 +52,7 @@ pub enum WatchCommand {
     /// Show the last commits seen, the last cycle of each trigger and the
     /// run the watcher waits for. Works offline.
     Status {
-        /// Configuration file (docs/watch.md).
+        /// Configuration file (docs/connect/watch-repositories.md).
         #[arg(long, short, default_value = "watch.yaml")]
         config: PathBuf,
     },

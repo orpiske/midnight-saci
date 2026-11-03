@@ -1,5 +1,5 @@
 //! `saci investigate` and `saci investigations`: start an investigation of
-//! a failed unit and show it (`docs/investigations.md`).
+//! a failed unit and show it (`docs/run-tests/investigate-failures.md`).
 
 use std::fmt::Write as _;
 

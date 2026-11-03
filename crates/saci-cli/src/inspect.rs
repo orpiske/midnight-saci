@@ -2,7 +2,7 @@
 //!
 //! Commands about one run exit with the run's outcome (`exit::for_outcome`)
 //! once it has finished and with `exit::RUNNING` before; see
-//! `docs/cli.md#exit-codes`.
+//! `docs/reference/cli.md#exit-codes`.
 
 use std::time::Duration;
 

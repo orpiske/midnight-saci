@@ -14,8 +14,8 @@ on Linux and macOS and needs `bash` and `curl`.
 
 For more information, read these documents:
 
-- [docs/cli.md](https://github.com/orpiske/midnight-saci/blob/main/docs/cli.md): the `saci` commands and exit codes.
-- [docs/configuration.md](https://github.com/orpiske/midnight-saci/blob/main/docs/configuration.md): the backend configuration file.
+- [docs/reference/cli.md](https://github.com/orpiske/midnight-saci/blob/main/docs/reference/cli.md): the `saci` commands and exit codes.
+- [docs/reference/configuration.md](https://github.com/orpiske/midnight-saci/blob/main/docs/reference/configuration.md): the backend configuration file.
 
 ## Procedure
 

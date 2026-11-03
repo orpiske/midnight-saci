@@ -1,5 +1,5 @@
 //! Workers as Kubernetes Jobs in one namespace, driven through the
-//! Kubernetes API (`docs/kubernetes.md`).
+//! Kubernetes API (`docs/operate/kubernetes-jobs.md`).
 //!
 //! The backend authenticates with its own service account. Workers run as
 //! a separate one (`worker.kubernetes.service_account`), get no API token
@@ -580,7 +580,7 @@ fn hint(status: StatusCode) -> &'static str {
     match status {
         StatusCode::UNAUTHORIZED => "; the backend's service account token was not accepted",
         StatusCode::FORBIDDEN => {
-            "; grant the backend's service account the Role in docs/kubernetes.md#permissions"
+            "; grant the backend's service account the Role in docs/operate/kubernetes-jobs.md#permissions"
         }
         _ => "",
     }

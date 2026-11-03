@@ -1,4 +1,4 @@
-//! Supervision (`docs/supervision.md`): launching accepted runs, watching
+//! Supervision (`docs/operate/supervision.md`): launching accepted runs, watching
 //! their workers, enforcing run deadlines, stopping cancelled runs, ending
 //! runs whose workers are lost, removing finished workers and recovering
 //! after a backend restart.

@@ -33,7 +33,7 @@ pub struct RunSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bundle: Option<PlanBundle>,
     /// The failure to investigate, for an investigation run
-    /// (`docs/plans/investigations.md`).
+    /// (`docs/contributing/design/investigations.md`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub investigation: Option<Box<InvestigationSpec>>,
     /// The selected target environment (secret references only).
@@ -227,7 +227,7 @@ impl JudgeProvider {
     }
 }
 
-/// The optional System One judge (`docs/configuration.md#judge`).
+/// The optional System One judge (`docs/reference/configuration.md#judge`).
 /// When set, the worker asks it whether the evidence of a step whose blocks
 /// all ran satisfies each expected result, before it asks the model.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -263,7 +263,7 @@ pub struct KubernetesSecretKey {
 }
 
 /// Finite execution limits. Every limit is configurable; see
-/// `docs/configuration.md` for the defaults.
+/// `docs/reference/configuration.md` for the defaults.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionLimits {

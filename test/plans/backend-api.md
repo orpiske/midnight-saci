@@ -2,7 +2,7 @@
 
 ## Overview
 
-Check the REST API of a running Saci backend (docs/api.md) with `curl`:
+Check the REST API of a running Saci backend (docs/reference/rest-api.md) with `curl`:
 health, error bodies, query validation, the environment and policy
 catalog, plan validation on submission, idempotent submission, a run
 that passes with its plan and report, and cancellation.

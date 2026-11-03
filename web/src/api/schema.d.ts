@@ -226,7 +226,7 @@ export interface paths {
         put?: never;
         /**
          * Investigate a failed unit of a finished run.
-         * @description Creates an investigation and starts its worker (docs/investigations.md). The
+         * @description Creates an investigation and starts its worker (docs/run-tests/investigate-failures.md). The
          *     backend copies the failed unit and the evidence its attempts cite from the run's
          *     report. Without `unit`, the first unit with outcome `failed`, `error` or `blocked`
          *     is selected. Without `sources`, every configured repository is cloned at its
@@ -732,7 +732,7 @@ export interface components {
         };
         /**
          * @description One progress event: the common fields plus the fields of its `type` (see
-         *     docs/contracts.md).
+         *     docs/reference/run-contracts.md).
          */
         RunEvent: {
             run_id: string;
@@ -915,7 +915,7 @@ export interface components {
             arguments: string;
             reason: string;
         });
-        /** @description The durable run report (see docs/contracts.md). */
+        /** @description The durable run report (see docs/reference/run-contracts.md). */
         RunReport: {
             schema_version: number;
             run_id: string;
@@ -944,14 +944,14 @@ export interface components {
             investigation?: components["schemas"]["InvestigationReport"];
             last_seq: number;
         };
-        /** @description A Saci build (see docs/development.md#build-commit). */
+        /** @description A Saci build (see docs/contributing/development.md#build-commit). */
         BuildInfo: {
             /** @description The package version. */
             version: string;
             /** @description The commit the binary was built from. Absent when the build did not know it. */
             commit?: string;
         };
-        /** @description Where the worker executed (see docs/worker.md#environment-details). Absent until the worker starts, and for workers that do not report it. */
+        /** @description Where the worker executed (see docs/reference/worker.md#environment-details). Absent until the worker starts, and for workers that do not report it. */
         WorkerEnvironment: {
             saci: components["schemas"]["BuildInfo"];
             /** @description The operating system name and version, for example `Fedora Linux 44`. */
@@ -966,7 +966,7 @@ export interface components {
                 version: string;
             }[];
         };
-        /** @description The container image that ran the worker (see docs/launchers.md#worker-image). Absent until the backend launches the worker. */
+        /** @description The container image that ran the worker (see docs/operate/container-workers.md#worker-image). Absent until the backend launches the worker. */
         WorkerImage: {
             /** @description The configured `worker.image`, with its tag. */
             reference: string;
