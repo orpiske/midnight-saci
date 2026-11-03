@@ -307,6 +307,28 @@ async fn a_restart_waits_for_the_recorded_run_instead_of_submitting_again() {
 }
 
 #[tokio::test]
+async fn run_now_without_a_change_submits_new_runs() {
+    let mut fixture = Fixture::start(0).await;
+    let mut first = Vec::new();
+    let watcher = fixture.spawn(&["--once", "--run-now"]);
+    for _ in 0..2 {
+        let run = fixture.next_run().await;
+        fixture.finish(&run, Outcome::Passed).await;
+        first.push(run);
+    }
+    ends_ok(watcher).await;
+
+    // The same commits again: new runs, not the runs of the last cycle.
+    let watcher = fixture.spawn(&["--once", "--run-now"]);
+    for old in &first {
+        let run = fixture.next_run().await;
+        assert_ne!(&run, old, "the backend returned the run of the last cycle");
+        fixture.finish(&run, Outcome::Passed).await;
+    }
+    ends_ok(watcher).await;
+}
+
+#[tokio::test]
 async fn changes_within_the_quiet_period_give_one_cycle() {
     let mut fixture = Fixture::start(3).await;
     assert!(fixture.saci(&["--once"]).await.status.success());

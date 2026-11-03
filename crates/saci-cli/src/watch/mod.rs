@@ -488,11 +488,16 @@ impl Watcher {
         format!("{path} does not exist in {repository} at {commit}; check the plan path")
     }
 
-    /// `watch:<trigger>:<snapshot hash>:<plan index>`.
+    /// `watch:<trigger>:<snapshot hash>:<cycle start>:<plan index>`. The
+    /// cycle start makes a new cycle of the same snapshot, for example with
+    /// `--run-now`, submit new runs instead of getting the old ones back.
     fn key(&self, trigger: &str, index: usize) -> String {
-        let snapshot = self.state.triggers.get(trigger).map(|l| &l.snapshot);
-        let hash = snapshot_hash(snapshot.unwrap_or(&Snapshot::new()));
-        format!("watch:{trigger}:{hash}:{index}")
+        let last = self.state.triggers.get(trigger);
+        let hash = snapshot_hash(last.map_or(&Snapshot::new(), |l| &l.snapshot));
+        let start = last
+            .and_then(|l| l.started_at)
+            .map_or(0, OffsetDateTime::unix_timestamp_nanos);
+        format!("watch:{trigger}:{hash}:{start}:{index}")
     }
 
     async fn send(&self, request: &SubmitRun, key: &str) -> Result<RunId, CliError> {

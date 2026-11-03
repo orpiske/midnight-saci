@@ -173,7 +173,8 @@ file and renames it, so a crash cannot leave a partial file.
 - **Restart during a cycle.** The watcher reads the state, waits for the
   recorded run, then continues with the next plans.
 - **No duplicate runs.** The `Idempotency-Key` of each submission is
-  `watch:<trigger>:<snapshot hash>:<plan index>`. When the watcher
+  `watch:<trigger>:<snapshot hash>:<cycle start>:<plan index>`. The
+  cycle start gives a new cycle of the same snapshot new runs. When the watcher
   submits a run again after a lost reply or a crash, the backend returns
   the run that it already accepted.
 

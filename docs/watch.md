@@ -140,9 +140,11 @@ run that the watcher waits for.
   restart, the watcher waits for the recorded run, then continues with
   the next plan.
 - **No duplicate runs.** Each submission has the idempotency key
-  `watch:<trigger>:<snapshot hash>:<plan index>`. When a reply was lost,
-  the watcher submits again with the same key, and the backend returns
-  the run that it already accepted.
+  `watch:<trigger>:<snapshot hash>:<cycle start>:<plan index>`. When a
+  reply was lost, the watcher submits again with the same key, and the
+  backend returns the run that it already accepted. A new cycle of the
+  same commits, for example with `--run-now`, has a different cycle
+  start, so it submits new runs.
 
 ## Failures
 
