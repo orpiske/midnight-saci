@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 #[derive(Debug, Parser)]
 #[command(name = "saci-script-runner", version, about)]
 struct Args {
-    /// Configuration file (see docs/script-runner.md).
+    /// Configuration file (see docs/connect/script-runner.md).
     #[arg(long, short, default_value = "script-runner.yaml")]
     config: PathBuf,
     /// Check the configuration and exit.

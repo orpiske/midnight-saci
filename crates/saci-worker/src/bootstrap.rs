@@ -1,4 +1,4 @@
-//! Starting a worker (`docs/worker.md`): validating the assigned
+//! Starting a worker (`docs/reference/worker.md`): validating the assigned
 //! specification and its environment before any action can run, then
 //! executing the plan and handing every event to a sink.
 //!
@@ -69,7 +69,7 @@ fn invalid(message: impl Into<String>) -> ExecutionError {
 pub enum Job {
     /// Execute the expanded plan.
     Plan(Box<ExpandedPlan>),
-    /// Investigate a failure (`docs/plans/investigations.md`).
+    /// Investigate a failure (`docs/contributing/design/investigations.md`).
     Investigation(Box<InvestigationSpec>),
 }
 

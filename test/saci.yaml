@@ -1,7 +1,7 @@
 # Configuration for the Saci that runs the self-test plans in test/plans/
 # against a second Saci, the one test/start-under-test.sh starts on
 # 127.0.0.1:18080. This one listens on 127.0.0.1:8080 and needs a real,
-# tool-capable model. Reference: docs/configuration.md, test/README.md.
+# tool-capable model. Reference: docs/reference/configuration.md, test/README.md.
 
 backend:
   listen: 127.0.0.1:8080

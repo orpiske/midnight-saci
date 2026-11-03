@@ -8,4 +8,4 @@ Reach the backend without exposing it:
   export SACI_TOKEN=$(kubectl -n {{ .Release.Namespace }} get secret {{ include "saci.authSecret" . }} -o jsonpath='{.data.{{ .Values.auth.secretKey }}}' | base64 -d)
   saci list
 
-On OpenShift use `oc` in place of `kubectl`. See docs/helm.md.
+On OpenShift use `oc` in place of `kubectl`. See docs/operate/helm.md.

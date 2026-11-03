@@ -1,4 +1,4 @@
-//! Starting, observing and removing workers (`docs/launchers.md`).
+//! Starting, observing and removing workers (`docs/operate/container-workers.md`).
 //!
 //! Every worker gets a stable name derived from its run, so a launch whose
 //! result was lost can be recognized instead of repeated, and labels that
@@ -131,7 +131,7 @@ pub fn assignment(
     let worker_url = config.backend.worker_url.as_deref().ok_or_else(|| {
         LaunchError::new(
             "backend.worker_url is not set; set it to the backend URL as workers reach it \
-             (see docs/launchers.md#networking)",
+             (see docs/operate/container-workers.md#networking)",
         )
     })?;
     let mut environment = vec![

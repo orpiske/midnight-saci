@@ -32,7 +32,7 @@ CREATE TABLE evidence (
 );
 CREATE INDEX runs_unfinished ON runs (finished);
 ",
-    // Outcome actions (docs/actions.md): the definitions selected when the
+    // Outcome actions (docs/connect/outcome-actions.md): the definitions selected when the
     // run was accepted, and one row per triggered action.
     r"
 ALTER TABLE runs ADD COLUMN actions TEXT NOT NULL DEFAULT '{}';
@@ -76,7 +76,7 @@ CREATE TABLE action_history (
     FOREIGN KEY (run_id, name) REFERENCES actions (run_id, name)
 );
 ",
-    // Investigations (docs/plans/investigations.md): the investigated run
+    // Investigations (docs/contributing/design/investigations.md): the investigated run
     // and unit of an investigation run.
     r"
 ALTER TABLE runs ADD COLUMN parent_run TEXT;

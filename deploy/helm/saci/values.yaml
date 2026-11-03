@@ -1,4 +1,4 @@
-# Saci Helm chart values. Reference: docs/helm.md
+# Saci Helm chart values. Reference: docs/operate/helm.md
 
 # The Saci image. It holds both the backend (`saci-backend`) and the
 # worker, so one image serves the backend Deployment and the run Jobs.
@@ -16,7 +16,7 @@ auth:
   existingSecret: ""
   secretKey: token
 
-# The model connection every worker uses (docs/llm-providers.md).
+# The model connection every worker uses (docs/operate/llm-providers.md).
 llm:
   baseUrl: https://openrouter.ai/api/v1
   model: your-tool-capable-model
@@ -30,13 +30,13 @@ worker:
   # Worker image; defaults to `image` above.
   image: ""
   # The workers' own identity, separate from the backend's. It has no
-  # permissions unless you bind some to it (docs/kubernetes.md#identities).
+  # permissions unless you bind some to it (docs/operate/kubernetes-jobs.md#identities).
   serviceAccount:
     create: true
     # Defaults to <release>-saci-worker.
     name: ""
 
-# Settings passed to saci.yaml as written (docs/configuration.md).
+# Settings passed to saci.yaml as written (docs/reference/configuration.md).
 config:
   limits: {}
   # Test environments: parameters, secrets ({secret, key} for Kubernetes
@@ -45,7 +45,7 @@ config:
     default: {}
   policies: {}
   mcp_servers: {}
-  # Outcome actions, called from the backend pod (docs/actions.md). Pass
+  # Outcome actions, called from the backend pod (docs/connect/outcome-actions.md). Pass
   # their secrets to the backend with backend.extraEnv.
   actions: {}
 

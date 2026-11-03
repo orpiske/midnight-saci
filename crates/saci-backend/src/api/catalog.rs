@@ -1,5 +1,5 @@
 //! Client reads that describe what a run may be submitted with, and the
-//! plan a run executes (`docs/api.md#console-reads`).
+//! plan a run executes (`docs/reference/rest-api.md#console-reads`).
 
 use axum::Json;
 use axum::extract::{Path, State};

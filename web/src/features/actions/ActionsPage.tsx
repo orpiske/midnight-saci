@@ -1,5 +1,5 @@
 // Outcome actions across runs, one state at a time, oldest first, the way
-// the backend pages them (docs/api.md "Outcome actions").
+// the backend pages them (docs/reference/rest-api.md "Outcome actions").
 import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 

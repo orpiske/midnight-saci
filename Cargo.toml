@@ -25,7 +25,7 @@ bytes = "1.12"
 http = "1.4"
 # Checks API responses against docs/openapi.yaml in tests.
 jsonschema = { version = "0.59", default-features = false }
-# MCP SDK; must stay on the major version rig-rmcp uses (see docs/mcp.md).
+# MCP SDK; must stay on the major version rig-rmcp uses (see docs/connect/mcp-servers.md).
 rmcp = { version = "2.2", default-features = false }
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "http2", "system-proxy"] }
@@ -36,7 +36,7 @@ clap = { version = "4.6", features = ["derive"] }
 # fastembed backend uses: Cargo allows one ONNX Runtime link per lockfile.
 # Each crate selects how ONNX Runtime is linked.
 ort = { version = "=2.0.0-rc.9", default-features = false }
-# Agent library; see docs/agent-library.md. Pinned exactly: its API moves quickly.
+# Agent library; see docs/contributing/internals.md. Pinned exactly: its API moves quickly.
 rig = { version = "=0.44.0", default-features = false, features = ["agent", "reqwest", "rustls", "rmcp", "typesafeai"] }
 serde = { version = "1.0", features = ["derive"] }
 sha2 = "0.10"

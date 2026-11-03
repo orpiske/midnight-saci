@@ -1,4 +1,4 @@
-//! Embeds the built web console (docs/web-ui.md) in every build, debug or
+//! Embeds the built web console (docs/run-tests/web-console.md) in every build, debug or
 //! release: `web/dist` when it has been built, or the directory
 //! `SACI_WEB_DIST` names. Without either the backend serves a page that
 //! says how to build the console.

@@ -1,5 +1,5 @@
 //! Runs an investigation: its one unit and attempt, then `run_finished`
-//! (`docs/plans/investigations.md`).
+//! (`docs/contributing/design/investigations.md`).
 
 use saci_core::event::EventKind;
 use saci_core::investigation::InvestigationReport;

@@ -1,5 +1,5 @@
 # saci watch: run the Wanaku plans when Wanaku or one of its components
-# changes. See docs/watch.md. The environments and the keep-going policy
+# changes. See docs/connect/watch-repositories.md. The environments and the keep-going policy
 # are defined in saci.yaml, the backend configuration next to this file.
 backend:
   url: http://127.0.0.1:18080

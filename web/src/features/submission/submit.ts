@@ -1,4 +1,4 @@
-// Retry-safe submission (docs/api.md "Retries and idempotency"). One
+// Retry-safe submission (docs/reference/rest-api.md "Retries and idempotency"). One
 // idempotency key follows one exact payload until the backend answers
 // definitively; a lost answer never starts a fresh run by itself, and
 // retrying it reuses the key, so at most one run is created.

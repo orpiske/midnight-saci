@@ -1,6 +1,6 @@
 //! `saci actions`: outcome actions of finished runs, decisions on the ones
 //! waiting for approval, and resolution of unknown or failed deliveries
-//! (`docs/actions.md`).
+//! (`docs/connect/outcome-actions.md`).
 
 use clap::{Args, Subcommand, ValueEnum};
 use reqwest::Method;

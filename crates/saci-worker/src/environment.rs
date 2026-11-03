@@ -1,4 +1,4 @@
-//! Describes where the worker executes (`docs/worker.md#environment-details`):
+//! Describes where the worker executes (`docs/reference/worker.md#environment-details`):
 //! the Saci build, the operating system and the versions of the tools on
 //! `PATH`. The worker reports it in `run_started`.
 

@@ -1,5 +1,5 @@
 //! Outcome actions: MCP tool calls the backend makes after a run's report
-//! is durable, selected by the run's policy (`docs/actions.md`).
+//! is durable, selected by the run's policy (`docs/connect/outcome-actions.md`).
 //!
 //! An action's arguments are a template. Strings may contain `{{name}}`
 //! variables, which are filled from the finished report only: its outcome,

@@ -4,7 +4,7 @@
 
 Drive a running Saci backend with the `saci` command line, the way a user
 does: submit plans and follow them, read reports and statuses, cancel a
-slow run, and check the documented exit codes (docs/cli.md) for a run
+slow run, and check the documented exit codes (docs/reference/cli.md) for a run
 that passes, one that fails, one that is cancelled, and for bad input.
 
 The backend under test is the one started by `test/start-under-test.sh`.

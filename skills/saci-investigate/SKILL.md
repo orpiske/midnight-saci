@@ -18,8 +18,8 @@ the skills together, for example with `saci skill install --all --agent claude`.
 
 For more information, read these documents:
 
-- [docs/investigations.md](https://github.com/orpiske/midnight-saci/blob/main/docs/investigations.md): investigations and their configuration.
-- [docs/cli.md](https://github.com/orpiske/midnight-saci/blob/main/docs/cli.md): the `saci` commands and exit codes.
+- [docs/run-tests/investigate-failures.md](https://github.com/orpiske/midnight-saci/blob/main/docs/run-tests/investigate-failures.md): investigations and their configuration.
+- [docs/reference/cli.md](https://github.com/orpiske/midnight-saci/blob/main/docs/reference/cli.md): the `saci` commands and exit codes.
 
 ## Rules
 
@@ -98,7 +98,7 @@ The command prints the investigation ID on standard output. Keep it.
   stop. These are frequent causes:
   - "investigations are not configured": the backend configuration has no
     `investigations` section. Show the person
-    [docs/investigations.md](https://github.com/orpiske/midnight-saci/blob/main/docs/investigations.md#configure-investigations).
+    [docs/run-tests/investigate-failures.md](https://github.com/orpiske/midnight-saci/blob/main/docs/run-tests/investigate-failures.md#configure-investigations).
   - "has not finished": the run is not finished. Wait for it with
     `saci follow <run-id>`, then start again.
   - "did not fail": the unit passed or was skipped. Select a unit that did

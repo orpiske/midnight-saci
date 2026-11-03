@@ -1,4 +1,4 @@
-# What the backend needs to launch workers (docs/kubernetes.md#permissions),
+# What the backend needs to launch workers (docs/operate/kubernetes-jobs.md#permissions),
 # in this namespace only.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role

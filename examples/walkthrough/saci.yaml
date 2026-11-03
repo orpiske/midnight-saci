@@ -1,6 +1,6 @@
 # Walkthrough configuration: a local backend, Podman or Docker workers on
 # the host network, the scripted model and the orders service, all on
-# loopback. Reference: docs/configuration.md, docs/launchers.md.
+# loopback. Reference: docs/reference/configuration.md, docs/operate/container-workers.md.
 
 backend:
   listen: 127.0.0.1:18080
@@ -15,7 +15,7 @@ worker:
 
 llm:
   # saci-fake-model answers from playbook.json. For a real provider see
-  # docs/walkthrough.md#using-a-real-model.
+  # docs/get-started/quickstart.md#using-a-real-model.
   base_url: http://127.0.0.1:11435/v1
   model: walkthrough-playbook
 

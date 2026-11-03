@@ -1,6 +1,6 @@
-# Example configuration for saci-script-runner (docs/script-runner.md).
+# Example configuration for saci-script-runner (docs/connect/script-runner.md).
 # The scripts are in scripts/ next to this file. The paths below expect
-# them in /opt/saci-script-runner/scripts; docs/script-runner.md shows how
+# them in /opt/saci-script-runner/scripts; docs/connect/script-runner.md shows how
 # to change the paths to run the example from a checkout.
 
 server:

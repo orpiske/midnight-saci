@@ -1,4 +1,4 @@
-# The namespace example's model and target (docs/namespace-workflows.md).
+# The namespace example's model and target (docs/operate/namespace-workflow.md).
 # Both run in the same namespace as Saci, so worker pods reach them by
 # Service name. Replace `model` with a real provider and `orders` with the
 # service you test.

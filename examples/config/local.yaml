@@ -1,12 +1,12 @@
 # Saci configuration for a local backend with Podman or Docker workers.
-# Reference: docs/configuration.md
+# Reference: docs/reference/configuration.md
 
 backend:
   listen: 127.0.0.1:8080
   data_dir: ./saci-data
   # How workers reach the backend. Workers share the host's network
   # (worker.network below), so loopback works; for bridged workers see
-  # docs/launchers.md#networking.
+  # docs/operate/container-workers.md#networking.
   worker_url: http://127.0.0.1:8080
 
 worker:
@@ -26,11 +26,11 @@ llm:
   api_key: env:SACI_LLM_API_KEY
 
 # Optional: let a System One judge pass steps whose code blocks are all
-# marked `run`, without a model request (docs/configuration.md#judge).
+# marked `run`, without a model request (docs/reference/configuration.md#judge).
 # Without a judge, the model assesses every step. TypeSafe:
 # judge:
 #   api_key: env:TYPESAFE_API_KEY
-# Or the local Julia 1 model, served by `saci-julia serve` (docs/julia-judge.md):
+# Or the local Julia 1 model, served by `saci-julia serve` (docs/operate/julia-judge.md):
 # judge:
 #   provider: julia-1
 

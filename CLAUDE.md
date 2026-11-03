@@ -9,13 +9,13 @@ Markdown test plans with an LLM agent.
   `saci-backend`, `saci-cli`, `saci-testkit`, `saci-script-runner`,
   `saci-julia`).
   Dependencies point down only.
-  See [docs/development.md](docs/development.md#workspace-layout).
+  See [docs/contributing/development.md](docs/contributing/development.md#workspace-layout).
 - `web/`: the web console (TypeScript, React, Vite). The backend serves it at
   `/ui/`.
 - `docs/`: user and contributor documentation. `docs/openapi.yaml` is the REST
   contract. `docs/plans/` holds the system plan and the ticket breakdown.
 - `docs/templates/`: the test plan starter and example. The plan format is in
-  [docs/test-plans.md](docs/test-plans.md).
+  [docs/write-plans/write-a-test-plan.md](docs/write-plans/write-a-test-plan.md).
 - `test/plans/`: Saci test plans for Saci itself.
 - `artwork/BRAND.md`: the visual identity. Follow it for all UI work.
 - `examples/`, `deploy/`: configuration and deployment examples.

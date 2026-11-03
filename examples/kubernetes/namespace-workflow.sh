@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The namespace workflow (docs/namespace-workflows.md): install Saci with
+# The namespace workflow (docs/operate/namespace-workflow.md): install Saci with
 # Helm into one namespace next to the service it tests and a scripted
 # model, then pass, fail and cancel runs, restart the backend while a run
 # is in progress, and check that reports are kept and no Jobs are left.

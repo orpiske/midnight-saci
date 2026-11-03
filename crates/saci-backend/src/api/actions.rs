@@ -1,4 +1,4 @@
-//! Client routes for outcome actions (`docs/actions.md`): listing them,
+//! Client routes for outcome actions (`docs/connect/outcome-actions.md`): listing them,
 //! approving or rejecting the ones that wait for a person, and resolving
 //! deliveries that are unknown or failed.
 

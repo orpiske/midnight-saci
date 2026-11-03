@@ -1,4 +1,4 @@
-//! Outcome action records (`docs/actions.md`).
+//! Outcome action records (`docs/connect/outcome-actions.md`).
 //!
 //! A run's triggered actions are inserted by [`enqueue`] in the transaction
 //! that makes its report final. The dispatcher claims queued actions one at

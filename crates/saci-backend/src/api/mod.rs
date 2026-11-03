@@ -1,4 +1,4 @@
-//! The REST API under `/api/v1` (see `docs/api.md` and `docs/openapi.yaml`).
+//! The REST API under `/api/v1` (see `docs/reference/rest-api.md` and `docs/openapi.yaml`).
 
 mod a2a;
 mod actions;
@@ -147,7 +147,7 @@ impl Backend {
     }
 }
 
-/// Client routes for outcome actions (`docs/actions.md`).
+/// Client routes for outcome actions (`docs/connect/outcome-actions.md`).
 fn action_routes() -> Router<Backend> {
     Router::new()
         .route("/runs/{run_id}/actions", get(actions::list))

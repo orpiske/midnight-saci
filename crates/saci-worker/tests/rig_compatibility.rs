@@ -1,6 +1,6 @@
 //! Compatibility checks for the selected agent library, Rig 0.44.
 //!
-//! These pin down the behavior Saci relies on (see docs/agent-library.md)
+//! These pin down the behavior Saci relies on (see docs/contributing/internals.md)
 //! against a scripted OpenAI-compatible server, so a dependency upgrade that
 //! changes any of it fails here first.
 

@@ -1,6 +1,6 @@
 //! Deterministic parsing and validation of Markdown test plans.
 //!
-//! The conventions are specified in `docs/test-plans.md`. The parser finds
+//! The conventions are specified in `docs/write-plans/write-a-test-plan.md`. The parser finds
 //! the title, sections, phases, tests and steps, actions, fenced commands,
 //! expected-result criteria, verification instructions and procedure
 //! invocations. It never interprets the prose itself.

@@ -1,4 +1,4 @@
-//! The web console under `/ui/` (docs/web-ui.md): the client built into
+//! The web console under `/ui/` (docs/run-tests/web-console.md): the client built into
 //! the binary, served from the same origin as the API. Every console path
 //! that is not a file answers the client's `index.html`, so a deep link
 //! reloads to the same screen; API routes are never answered with a page.
@@ -30,7 +30,7 @@ const PLACEHOLDER: &str = "<!doctype html>
 <html lang=\"en\"><head><meta charset=\"utf-8\"><title>Midnight Saci</title></head>
 <body><h1>The web console is not built into this backend</h1>
 <p>Build it with <code>make console</code>, or run <code>npm run dev</code> in
-<code>web/</code> against this backend; see docs/web-ui.md. The REST API is
+<code>web/</code> against this backend; see docs/run-tests/web-console.md. The REST API is
 available under <code>/api/v1</code>.</p></body></html>
 ";
 

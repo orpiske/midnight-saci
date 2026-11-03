@@ -1,4 +1,4 @@
-# Test fixtures for the namespace example (docs/namespace-workflows.md):
+# Test fixtures for the namespace example (docs/operate/namespace-workflow.md):
 # the scripted model and the orders service, run as Deployments next to
 # Saci. Not part of a Saci install.
 #

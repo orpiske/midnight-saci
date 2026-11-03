@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The Saci walkthrough (docs/walkthrough.md), from plan creation to retained
+# The Saci walkthrough (docs/get-started/quickstart.md), from plan creation to retained
 # reports, with a real worker container, a scripted model and a local
 # orders service. Run it from the repository root after `cargo build` and
 # `make image`:
@@ -81,7 +81,7 @@ echo "binaries: $bin"
 case "$network" in
   host) worker_host=127.0.0.1 ;;
   bridge)
-    [ "$(uname -s)" != Linux ] || fail "NETWORK=bridge on Linux needs the backend on a non-loopback address; see docs/launchers.md#networking"
+    [ "$(uname -s)" != Linux ] || fail "NETWORK=bridge on Linux needs the backend on a non-loopback address; see docs/operate/container-workers.md#networking"
     case "$runtime" in
       podman) worker_host=host.containers.internal ;;
       *) worker_host=host.docker.internal ;;
