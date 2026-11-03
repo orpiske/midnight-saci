@@ -156,7 +156,7 @@ jobs:
 
       - name: Login to Quay
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.QUAY_USERNAME != '' && env.QUAY_PASSWORD != ''
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.CONTAINER_REGISTRY }}
           username: ${{ env.QUAY_USERNAME }}
@@ -178,7 +178,7 @@ jobs:
     steps:
       - name: Login to Quay
         if: env.QUAY_USERNAME != '' && env.QUAY_PASSWORD != ''
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.CONTAINER_REGISTRY }}
           username: ${{ env.QUAY_USERNAME }}
