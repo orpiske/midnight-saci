@@ -3,7 +3,7 @@
 > [!NOTE]
 > Historical. This is the index of the issues for the first implementation.
 
-Repository: https://github.com/orpiske/midnight-saci/issues
+Repository: <https://github.com/orpiske/midnight-saci/issues>
 
 Each child issue has a delivery boundary, acceptance criteria, exclusions, and linked dependencies.
 
