@@ -1,4 +1,4 @@
-# The `saci` command line
+# Command line reference
 
 `saci` is the client. It authors plans offline, starts a backend, and
 submits plans to a local or remote backend through the [REST API](rest-api.md).

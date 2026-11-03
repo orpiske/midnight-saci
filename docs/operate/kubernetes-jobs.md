@@ -1,4 +1,4 @@
-# Running workers as Kubernetes Jobs
+# Run workers as Kubernetes Jobs
 
 With `worker.runtime: kubernetes`, the backend starts one Job per run in a
 single namespace, using the Kubernetes API. Supervision is the same as

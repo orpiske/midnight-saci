@@ -1,4 +1,4 @@
-# Failure investigations
+# Investigate failures in the source code
 
 An investigation finds the probable cause of a failed unit in the source
 code. An agent clones the configured repositories, reads the code that

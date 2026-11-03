@@ -1,4 +1,4 @@
-# Outcome actions
+# Report results with outcome actions
 
 An outcome action is an MCP tool call the backend makes after a run
 finishes, for example to open a ticket when a nightly run fails. The run's

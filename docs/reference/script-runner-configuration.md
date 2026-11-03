@@ -193,7 +193,6 @@ logs the reason. The runner does not log argument values or script output.
 `GET /health` returns `{"status": "ok"}` when the process is up. It does not
 require the token and gives no other data.
 
-
 ## Next steps
 
 - [MCP script runner](../connect/script-runner.md): run it, connect it and

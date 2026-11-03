@@ -42,12 +42,12 @@ Errors use one body shape and stable codes:
 | `digest_mismatch` | 409 | An approval, rejection or redispatch named a digest other than the recorded arguments'. |
 | `action_not_resolvable` | 409 | A redispatch of an action that is not `unknown` or `error`, or a reconciliation of one that is not `unknown`. |
 | `validation_failed` | 422 | Invalid plan bundle, unknown environment or policy; `details` lists every diagnostic with its file and line. |
+| `internal` | 500 | The backend failed. |
 
 A plan `validation_failed` also carries the same problems as structured
 `diagnostics`, each with `document`, `line` and `message`
 ([example](../api-examples/error-validation.json)), so a client can show them
 next to the source without parsing the text.
-| `internal` | 500 | The backend failed. |
 
 ## Submitting a run
 

@@ -1,4 +1,4 @@
-# MCP servers
+# Give steps tools from MCP servers
 
 Steps can use tools from MCP servers that the backend configuration enables
 for an environment. Plans cannot add servers or tools: a plan can only ask

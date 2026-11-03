@@ -44,7 +44,6 @@ bytes (`max_bytes`). If the summary is longer, the backend shortens it to
 that limit and adds a `[truncated]` line (see
 [Outcome actions](outcome-actions.md)).
 
-
 ## Next steps
 
 - [MCP script runner](script-runner.md): run the runner and secure it.

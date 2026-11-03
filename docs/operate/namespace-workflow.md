@@ -1,4 +1,4 @@
-# Namespace workflows: verified on Kubernetes
+# Verified namespace workflow on Kubernetes
 
 This page shows Saci working in one namespace, next to the service it
 tests, from Helm install to retained reports. It also records which

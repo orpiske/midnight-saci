@@ -12,10 +12,11 @@ Markdown test plans with an LLM agent.
   See [docs/contributing/development.md](docs/contributing/development.md#workspace-layout).
 - `web/`: the web console (TypeScript, React, Vite). The backend serves it at
   `/ui/`.
-- `docs/`: user and contributor documentation. `docs/openapi.yaml` is the REST
-  contract. `docs/plans/` holds the system plan and the ticket breakdown.
+- `docs/`: user and contributor documentation, one folder per reader task.
+  Start at [docs/index.md](docs/index.md). `docs/openapi.yaml` is the REST
+  contract. `docs/contributing/design/` holds the design notes.
 - `docs/templates/`: the test plan starter and example. The plan format is in
-  [docs/write-plans/write-a-test-plan.md](docs/write-plans/write-a-test-plan.md).
+  [docs/reference/test-plan-format.md](docs/reference/test-plan-format.md).
 - `test/plans/`: Saci test plans for Saci itself.
 - `artwork/BRAND.md`: the visual identity. Follow it for all UI work.
 - `examples/`, `deploy/`: configuration and deployment examples.
@@ -64,6 +65,11 @@ or the code that serves it. CI runs the same gates.
   includes procedures, command explanations, configuration, rules, endpoints,
   system behavior and other accuracy-critical operational text.
 - Be concise and professional. Avoid em-dashes.
+- Follow the page conventions in
+  [docs/contributing/documentation.md](docs/contributing/documentation.md):
+  each page in its section folder and hub, one H1, "Next steps" last, and a
+  `docs/redirects.txt` line for each moved page. Run
+  `.github/check-docs.sh` before you push a docs change.
 
 ## Commits and pull requests
 

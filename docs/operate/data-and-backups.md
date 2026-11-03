@@ -1,4 +1,7 @@
-# Operating the backend
+# Keep and back up run data
+
+This page describes what the backend stores, how to remove old runs and
+how to back up the data.
 
 ## Data directory
 

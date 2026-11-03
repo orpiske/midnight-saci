@@ -1,4 +1,4 @@
-# Running plans when code changes
+# Run plans when code changes
 
 `saci watch` runs test plans when new commits arrive on watched Git
 branches, for example after a pull request merge. It runs on the Saci
