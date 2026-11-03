@@ -1,0 +1,21 @@
+# markdownlint rules for the docs. See docs/contributing/documentation.md.
+config:
+  default: true
+  # Long lines, tables and URLs are allowed.
+  MD013: false
+  # Some pages use HTML for images and details.
+  MD033: false
+  # The same heading can appear under different parents.
+  MD024:
+    siblings_only: true
+  # Bold labels such as "**Expected result:**" are part of the plan format.
+  MD036: false
+  # Table column style is not checked.
+  MD060: false
+globs:
+  - "docs/**/*.md"
+  - "README.md"
+ignores:
+  - "docs/templates/**"
+  - "**/node_modules/**"
+  - "target/**"
