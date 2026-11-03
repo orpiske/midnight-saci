@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ApiError, type Client, NetworkError } from "../../api/client";
 import type { SubmitRun } from "../../api/types";
 import { fileProblems, guessEntry, pathProblem, payloadText } from "./bundle";
-import { keyFor, send } from "./submit";
+import { keyFor, newKey, send } from "./submit";
 
 const request: SubmitRun = {
   bundle: { entry: "plan.md", documents: { "plan.md": "# Test Plan: A\n" } },
@@ -97,5 +97,24 @@ describe("bundle paths", () => {
       { id: "e", path: "plan.md", text: "# Test Plan: Entry", size: 0 },
     ];
     expect(guessEntry(files)).toBe("e");
+  });
+});
+
+describe("submission keys", () => {
+  it("are made without crypto.randomUUID, which insecure contexts lack", () => {
+    const original = crypto.randomUUID;
+    Object.defineProperty(crypto, "randomUUID", { value: undefined, configurable: true });
+    try {
+      const a = newKey();
+      const b = newKey();
+      expect(a).toMatch(/^saci-web-[0-9a-f]{32}$/);
+      expect(a).not.toBe(b);
+    } finally {
+      Object.defineProperty(crypto, "randomUUID", { value: original, configurable: true });
+    }
+  });
+
+  it("encode every random byte", () => {
+    expect(newKey((bytes) => bytes.fill(0xab))).toBe(`saci-web-${"ab".repeat(16)}`);
   });
 });
