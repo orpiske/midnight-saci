@@ -45,7 +45,7 @@ serde_yaml = { package = "yaml_serde", version = "0.10.4" }
 tempfile = "3.27"
 # The Julia 1 tokenizer. `unstable_wasm` selects the pure-Rust regex engine,
 # the same build as the reference encoder in Julia-1-ONNX.
-tokenizers = { version = "0.22", default-features = false, features = ["unstable_wasm"] }
+tokenizers = { version = "0.23", default-features = false, features = ["unstable_wasm"] }
 thiserror = "2.0"
 time = { version = "0.3.55", features = ["serde", "formatting", "parsing", "macros"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync", "process", "io-util", "fs", "net", "signal", "io-std"] }
