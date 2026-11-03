@@ -5012,9 +5012,9 @@ dependencies = [
 
 [[package]]
 name = "process-wrap"
-version = "9.1.1"
+version = "10.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f95f6259ebd0640685b7cd26d635861f39208df0f89b2b61ff5cf76310fa54f6"
+checksum = "1f21b97672d2dc848e7b25701ab4535618b92f4861c13cc3f7f7bed52ad3c8da"
 dependencies = [
  "futures",
  "indexmap 2.14.2",
@@ -5819,7 +5819,7 @@ checksum = "44ceee55a0644c19c17e8fb423ba96bbd6173c12f7b7d4eccd44f4c92df4fe03"
 dependencies = [
  "futures",
  "rig-core",
- "rmcp",
+ "rmcp 2.2.0",
  "serde_json",
  "thiserror",
  "tokio",
@@ -5919,18 +5919,42 @@ checksum = "14db48ee17a9ba61810ab1a9c1beb7d06d8136ae39ac25a1137f10d357af01af"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "chrono",
+ "futures",
+ "pastey 0.2.3",
+ "pin-project-lite",
+ "rmcp-macros",
+ "schemars 1.2.3",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "rmcp"
+version = "3.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8be15815186873ea063bf005011d16c356804973489e40c39116ae3a2878d1f"
+dependencies = [
+ "async-trait",
+ "base64 0.23.1",
  "bytes",
  "chrono",
  "futures",
  "http",
  "http-body",
  "http-body-util",
+ "indexmap 2.14.2",
+ "libc",
  "pastey 0.2.3",
  "pin-project-lite",
  "process-wrap",
  "rand 0.10.3",
  "reqwest 0.13.5",
- "rmcp-macros",
  "schemars 1.2.3",
  "serde",
  "serde_json",
@@ -6211,7 +6235,7 @@ version = "0.1.0"
 dependencies = [
  "http",
  "reqwest 0.13.5",
- "rmcp",
+ "rmcp 3.8.0",
  "saci-core",
  "serde_json",
  "tokio",
@@ -6228,7 +6252,7 @@ dependencies = [
  "nix",
  "regex",
  "reqwest 0.13.5",
- "rmcp",
+ "rmcp 3.8.0",
  "serde",
  "serde_json",
  "tempfile",
@@ -6246,7 +6270,7 @@ name = "saci-testkit"
 version = "0.1.0"
 dependencies = [
  "axum",
- "rmcp",
+ "rmcp 3.8.0",
  "serde_json",
  "tokio",
  "tokio-util",
@@ -6263,7 +6287,7 @@ dependencies = [
  "http",
  "nix",
  "rig",
- "rmcp",
+ "rmcp 3.8.0",
  "saci-backend",
  "saci-core",
  "saci-mcp",
