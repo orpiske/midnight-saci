@@ -1,6 +1,6 @@
 # Write test plans
 
-A test plan is a Markdown document with phases, tests, steps and expected results. These pages tell you how to write, reuse and convert plans.
+A test plan is a Markdown document with phases, tests, steps and expected results. These pages tell you how to write, reuse and convert plans. A coding agent can do this work for you with the [Saci agent skills](../run-tests/use-agent-skills.md).
 
 ## Pages in this section
 

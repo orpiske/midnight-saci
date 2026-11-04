@@ -13,3 +13,4 @@ Start here to see Saci work, install it and connect it to your own model and sys
 
 - [Write a test plan](../write-plans/write-a-test-plan.md).
 - [Run and follow plans](../run-tests/run-and-follow.md).
+- [Use Saci from a coding agent](../run-tests/use-agent-skills.md).

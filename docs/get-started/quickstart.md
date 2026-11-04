@@ -248,3 +248,5 @@ finished while the backend was stopping
 - [Write a test plan](../write-plans/write-a-test-plan.md): plans for your
   own system.
 - [Architecture](architecture.md): the parts of Saci and how a run flows.
+- [Use Saci from a coding agent](../run-tests/use-agent-skills.md): let
+  your coding agent convert, run and investigate plans.
