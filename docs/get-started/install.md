@@ -50,8 +50,24 @@ make image                        # localhost/saci-worker:latest
 `localhost/saci-worker:latest` is the default `worker.image`. To use the
 published image instead, see [the worker image](../operate/worker-image.md).
 
+## Install the agent skills (optional)
+
+Saci contains skills for coding agents such as Claude Code, Codex, Cursor,
+GitHub Copilot, Gemini CLI and OpenCode. The skills teach the agent to
+convert plans, run them, summarize the report and investigate failures.
+To install all skills for Claude Code in the current project, run:
+
+```sh
+saci skill install --all --agent claude
+```
+
+For other agents and options, see
+[use Saci from a coding agent](../run-tests/use-agent-skills.md).
+
 ## Next steps
 
 - [Quickstart](quickstart.md): run plans end to end with a scripted model.
 - [Run with a real model](run-with-a-real-model.md): connect Saci to your
   model provider and your system.
+- [Use Saci from a coding agent](../run-tests/use-agent-skills.md): let
+  your agent convert and run plans.

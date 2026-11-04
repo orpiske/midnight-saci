@@ -11,6 +11,7 @@ bounded tools, and every verdict points at the evidence behind it.
 | See Saci work in a few minutes | [Quickstart](get-started/quickstart.md) | [Run with a real model](get-started/run-with-a-real-model.md) |
 | Write or convert test plans | [Write a test plan](write-plans/write-a-test-plan.md) | [Test plan format](reference/test-plan-format.md), [Convert existing plans](write-plans/convert-existing-plans.md) |
 | Run plans and read the results | [Run and follow plans](run-tests/run-and-follow.md) | [Web console](run-tests/web-console.md), [Investigate failures](run-tests/investigate-failures.md) |
+| Let your coding agent convert, run and investigate plans | [Use Saci from a coding agent](run-tests/use-agent-skills.md) | [Convert existing plans](write-plans/convert-existing-plans.md), [`saci skill`](reference/cli.md#saci-skill) |
 | Report results to other systems | [Outcome actions](connect/outcome-actions.md) | [MCP servers](connect/mcp-servers.md), [Watch repositories](connect/watch-repositories.md), [A2A](connect/a2a.md) |
 | Deploy Saci for a team | [Helm](operate/helm.md) | [Kubernetes Jobs](operate/kubernetes-jobs.md), [Security](operate/security.md), [Data and backups](operate/data-and-backups.md) |
 | Change Saci | [Development](contributing/development.md) | [Testing](contributing/testing.md), [Design notes](contributing/design/index.md) |

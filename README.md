@@ -46,6 +46,9 @@ $ saci report <run id>
 - **Outcome actions:** after a run, call MCP tools (open a ticket, post to
   chat), optionally waiting for your approval. Actions never change the
   verdict.
+- **Skills for coding agents:** `saci skill install` teaches Claude Code,
+  Codex, Cursor, Copilot, Gemini CLI or OpenCode to convert plans, run
+  them, summarize reports and investigate failures.
 
 ## Try it in a few minutes
 
@@ -121,7 +124,7 @@ The [documentation home](docs/index.md) has a "Choose your path" table.
 - [Write test plans](docs/write-plans/index.md): write, reuse and convert
   plans.
 - [Run tests](docs/run-tests/index.md): run plans, follow them, use the web
-  console and investigate failures.
+  console, use the coding agent skills and investigate failures.
 - [Connect Saci to other systems](docs/connect/index.md): MCP tools,
   outcome actions, `saci watch`, A2A and the script runner.
 - [Operate Saci](docs/operate/index.md): model providers, workers,

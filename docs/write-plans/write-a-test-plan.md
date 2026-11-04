@@ -141,3 +141,5 @@ without tests or steps, or a `Follow` outside a unit. See
   rules.
 - [Reuse steps with procedures](reusable-procedures.md).
 - [Run and follow plans](../run-tests/run-and-follow.md).
+- [Use Saci from a coding agent](../run-tests/use-agent-skills.md): let
+  your agent convert existing plans.
