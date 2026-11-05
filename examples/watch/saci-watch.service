@@ -10,6 +10,8 @@ After=network-online.target
 [Service]
 WorkingDirectory=%h/.config/saci
 ExecStart=/usr/local/bin/saci watch --config %h/.config/saci/watch.yaml
+# `systemctl --user reload saci-watch` makes the watcher poll now.
+ExecReload=/bin/kill -HUP $MAINPID
 EnvironmentFile=-%h/.config/saci/watch.env
 Restart=on-failure
 RestartSec=30

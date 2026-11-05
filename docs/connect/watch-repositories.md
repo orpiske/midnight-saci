@@ -125,6 +125,23 @@ change, a cycle start, a submitted run, an ended run and a skipped plan.
 On SIGINT or SIGTERM it stops after its current step. A running test run
 continues.
 
+## Polling now
+
+To make a running watcher read the repositories at once, send it SIGHUP:
+
+```sh
+systemctl --user reload saci-watch                                   # Linux, the example unit
+launchctl kill SIGHUP gui/$(id -u)/io.github.orpiske.saci-watch       # macOS, the example agent
+kill -HUP <pid>                                                       # any other start
+```
+
+On SIGHUP, the watcher does not wait for `poll_interval_secs`. It polls
+immediately and writes the log line `SIGHUP: polling now`. A change that
+this poll finds, or a change that waits for the quiet period, starts a
+cycle immediately: the quiet period does not apply. During a cycle, the
+watcher polls after the cycle ends, as usual. SIGHUP does not start a
+cycle when no trigger has a change; use `--run-now` for that.
+
 `saci watch status` reads the state file and prints the last commits
 seen, the last cycle of each trigger with its runs and outcomes, and the
 run that the watcher waits for.

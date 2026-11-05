@@ -294,7 +294,8 @@ and 8 while the investigation runs.
 `saci watch --config watch.yaml` polls Git branches and runs test plans
 when they change, one cycle at a time. With `backend.config`, it also
 starts a local backend when none answers. `--once` polls one time and
-exits, `--run-now` starts a cycle of every trigger without a change, and
+exits, `--run-now` starts a cycle of every trigger without a change,
+SIGHUP makes a running watcher poll at once, and
 `saci watch status` prints the state. See
 [running plans when code changes](../connect/watch-repositories.md).
 
