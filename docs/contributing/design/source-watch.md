@@ -188,7 +188,9 @@ saci watch status --config watch.yaml
 ```
 
 - `saci watch` polls until it is stopped. On SIGINT or SIGTERM it stops
-  after the current request. It does not cancel a running test run.
+  after the current request. It does not cancel a running test run. On
+  SIGHUP it polls at once, and the changes found start a cycle without
+  the quiet period ([#177](https://github.com/orpiske/midnight-saci/issues/177)).
 - `--once` polls one time, runs a cycle when a change is found, and exits.
   This is for tests and for hosts that use cron or a systemd timer.
 - `saci watch status` shows the snapshot, the last cycle of each trigger

@@ -376,3 +376,33 @@ async fn the_watcher_starts_a_local_backend_and_stops_it_on_exit() {
         "the started backend still answers"
     );
 }
+
+#[tokio::test]
+async fn sighup_polls_at_once_and_skips_the_quiet_period() {
+    let mut fixture = Fixture::start(600).await;
+    assert!(fixture.saci(&["--once"]).await.status.success());
+    let path = fixture.dir.path().join("watch.yaml");
+    let yaml = std::fs::read_to_string(&path)
+        .unwrap()
+        .replace("poll_interval_secs: 1\n", "poll_interval_secs: 600\n");
+    std::fs::write(&path, yaml).unwrap();
+    let watcher = fixture.spawn(&[]);
+    let pid = nix::unistd::Pid::from_raw(i32::try_from(watcher.id().unwrap()).unwrap());
+    // The first poll sees no change; the next one is 600 s away.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let commit = fixture.write("server", "VERSION", "2");
+    fixture.no_run_for(Duration::from_secs(2)).await;
+
+    nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGHUP).unwrap();
+    let smoke = fixture.next_run().await;
+    assert_eq!(fixture.clone_head("server"), commit);
+    fixture.finish(&smoke, Outcome::Passed).await;
+    let upgrade = fixture.next_run().await;
+    fixture.finish(&upgrade, Outcome::Passed).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGTERM).unwrap();
+    let log = ends_ok(watcher).await;
+    assert_eq!(log.matches("SIGHUP: polling now").count(), 1, "{log}");
+    assert_eq!(log.matches("cycle started").count(), 1, "{log}");
+}

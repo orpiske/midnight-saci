@@ -83,6 +83,8 @@ pub async fn run(connection: &Connection, args: &WatchArgs) -> Result<u8, CliErr
         client,
         state,
         stop: stop_signal(),
+        poll_now: poll_signal()?,
+        requested: false,
         last_change: None,
     };
     let result = Box::pin(watcher.watch(args.once)).await;
@@ -192,6 +194,22 @@ fn stop_signal() -> watch::Receiver<bool> {
     receiver
 }
 
+/// A receiver that changes on each SIGHUP. Installed before the watch
+/// starts, so SIGHUP no longer ends the process.
+fn poll_signal() -> Result<watch::Receiver<()>, CliError> {
+    let mut hangup = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())
+        .map_err(|error| CliError::new(exit::INVALID, format!("cannot handle SIGHUP: {error}")))?;
+    let (sender, receiver) = watch::channel(());
+    tokio::spawn(async move {
+        while hangup.recv().await.is_some() {
+            if sender.send(()).is_err() {
+                break;
+            }
+        }
+    });
+    Ok(receiver)
+}
+
 /// What became of a submission.
 enum Submitted {
     Run(RunId),
@@ -206,6 +224,11 @@ struct Watcher {
     /// Triggers that `--run-now` starts without a change.
     forced: BTreeSet<String>,
     stop: watch::Receiver<bool>,
+    /// Changes on SIGHUP: poll at once.
+    poll_now: watch::Receiver<()>,
+    /// A SIGHUP arrived since the last poll: the next poll ignores the
+    /// quiet period.
+    requested: bool,
     /// When the last change was seen.
     last_change: Option<Instant>,
     /// The backend that the watcher starts when none answers.
@@ -220,11 +243,15 @@ impl Watcher {
                 Box::pin(self.continue_cycle()).await?;
                 continue;
             }
+            let requested = std::mem::take(&mut self.requested);
             if !(once && polled) {
+                if requested {
+                    log("SIGHUP: polling now");
+                }
                 self.poll().await?;
                 polled = true;
             }
-            if let Some(trigger) = self.due(once)
+            if let Some(trigger) = self.due(once || requested)
                 && self.start_cycle(&trigger).await?
             {
                 continue;
@@ -580,12 +607,15 @@ impl Watcher {
         }
     }
 
-    /// Sleeps; true when the watcher must stop.
+    /// Sleeps until `duration` ends or a SIGHUP arrives; true when the
+    /// watcher must stop.
     async fn sleep(&mut self, duration: Duration) -> bool {
         tokio::select! {
-            () = tokio::time::sleep(duration) => *self.stop.borrow(),
-            _ = self.stop.changed() => true,
+            () = tokio::time::sleep(duration) => {}
+            _ = self.stop.changed() => return true,
+            Ok(()) = self.poll_now.changed() => self.requested = true,
         }
+        *self.stop.borrow()
     }
 }
 
