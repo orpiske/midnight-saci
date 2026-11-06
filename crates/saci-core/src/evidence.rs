@@ -25,6 +25,27 @@ pub struct Evidence {
     /// The tool-specific record.
     #[serde(flatten)]
     pub record: EvidenceRecord,
+    /// What the guard found in the observation. A finding never holds the
+    /// text that it is about.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub findings: Vec<Finding>,
+}
+
+/// One thing the guard found in an observation.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Finding {
+    /// The check that found it.
+    pub check: FindingCheck,
+    /// What the check found, for example the credential kind.
+    pub label: String,
+}
+
+/// A guard check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FindingCheck {
+    /// The credential scanner masked a credential of the `label` kind.
+    Credential,
 }
 
 /// Tool-specific evidence.

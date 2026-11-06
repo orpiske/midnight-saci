@@ -100,6 +100,7 @@ fn evidence() -> Evidence {
         attempt: 1,
         recorded_at: OffsetDateTime::now_utc(),
         duration_ms: 5,
+        findings: Vec::new(),
         record: EvidenceRecord::Shell(ShellEvidence {
             command: "git clone ...".into(),
             stdout: CapturedText::complete(COMMIT),

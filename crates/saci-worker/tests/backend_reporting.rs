@@ -200,6 +200,7 @@ fn observation(unit: &saci_core::run::UnitIdentity, index: u64, bytes: usize) ->
             attempt: 1,
             recorded_at: time::OffsetDateTime::now_utc(),
             duration_ms: 1,
+            findings: Vec::new(),
             record,
         }),
     }

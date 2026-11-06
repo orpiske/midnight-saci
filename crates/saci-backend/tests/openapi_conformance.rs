@@ -86,6 +86,7 @@ fn evidence(index: u64, record: EvidenceRecord) -> Evidence {
         attempt: 1,
         recorded_at: OffsetDateTime::now_utc(),
         duration_ms: 12,
+        findings: saci_core::redaction::credential_findings(&record),
         record,
     }
 }
@@ -96,7 +97,7 @@ fn records() -> Vec<EvidenceRecord> {
     vec![
         EvidenceRecord::Shell(ShellEvidence {
             command: "curl -s $URL/health".into(),
-            stdout: CapturedText::complete("ok"),
+            stdout: CapturedText::complete("ok [REDACTED:credential:jwt]"),
             stderr: truncated,
             exit_code: Some(0),
             termination: Termination::Exited,
