@@ -2,9 +2,10 @@
 //!
 //! Every observation is redacted before it is stored or shown to the model.
 //! Redaction replaces known secret values with a marker naming the secret,
-//! and masks headers that carry credentials whatever their value. It is a
-//! safety net for accidental disclosure, not a guarantee: a secret that a
-//! command transforms (encodes, splits, hashes) is not recognized.
+//! masks headers that carry credentials whatever their value, and masks
+//! well-known credential formats (see [`credentials`]). It is a safety net
+//! for accidental disclosure, not a guarantee: a secret that a command
+//! transforms (encodes, splits, hashes) is not recognized.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -12,8 +13,10 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 
 use crate::event::EventKind;
-use crate::evidence::{CapturedText, EvidenceRecord, HttpEvidence};
+use crate::evidence::{CapturedText, EvidenceRecord, Finding, FindingCheck, HttpEvidence};
 use crate::investigation::InvestigationReport;
+
+pub mod credentials;
 
 /// Replacement for a masked value whose secret is not known by name.
 pub const REDACTED: &str = "[REDACTED]";
@@ -86,7 +89,8 @@ impl Redactor {
         self.values.first().map_or(0, |(value, _)| value.len())
     }
 
-    /// Replaces every registered secret in `text`.
+    /// Replaces every registered secret in `text`, then every credential of
+    /// a well-known format.
     #[must_use]
     pub fn redact<'a>(&self, text: &'a str) -> Cow<'a, str> {
         let mut result = Cow::Borrowed(text);
@@ -95,7 +99,11 @@ impl Redactor {
                 result = Cow::Owned(result.replace(value.as_str(), marker));
             }
         }
-        result
+        let masked = match credentials::mask(&result) {
+            Cow::Owned(masked) => Some(masked),
+            Cow::Borrowed(_) => None,
+        };
+        masked.map_or(result, Cow::Owned)
     }
 
     /// Redacts a string in place.
@@ -239,13 +247,13 @@ pub struct OutputCapture {
 
 impl OutputCapture {
     /// A capture keeping `limit` bytes, buffering enough extra to redact
-    /// secrets known to `redactor`.
+    /// secrets known to `redactor` and credentials.
     #[must_use]
     pub fn new(limit: u64, redactor: &Redactor) -> Self {
         let limit = usize::try_from(limit).unwrap_or(usize::MAX);
         Self {
             limit,
-            keep: limit.saturating_add(redactor.longest()),
+            keep: limit.saturating_add(redactor.longest().max(credentials::MARGIN)),
             buffer: Vec::new(),
             total: 0,
         }
@@ -278,6 +286,20 @@ impl OutputCapture {
             total_bytes: self.total,
         }
     }
+}
+
+/// The findings of the credential markers in a redacted record, one for
+/// each credential kind.
+#[must_use]
+pub fn credential_findings(record: &EvidenceRecord) -> Vec<Finding> {
+    let text = serde_json::to_string(record).unwrap_or_default();
+    credentials::kinds(&text)
+        .into_iter()
+        .map(|label| Finding {
+            check: FindingCheck::Credential,
+            label,
+        })
+        .collect()
 }
 
 /// Redacts and bounds a complete text.

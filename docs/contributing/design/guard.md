@@ -1,6 +1,6 @@
 # Design: guard against credential misuse and prompt injection
 
-Status: accepted ([#139](https://github.com/orpiske/midnight-saci/issues/139)). Ticket 1 is in progress.
+Status: accepted ([#139](https://github.com/orpiske/midnight-saci/issues/139)). Ticket 1 is implemented.
 
 ## Goal
 
@@ -108,12 +108,14 @@ flowchart LR
 ## Credential scanner
 
 A Rust scanner in `saci-core`, next to the redaction. It runs on all
-captured text before the redaction. It has no model and no service.
+captured text after the redaction of the configured secrets. It has no model
+and no service. The user documentation is in [keep credentials out of
+evidence](../../operate/security.md#redaction).
 
 - Fixed patterns with a low false positive rate: private key PEM blocks,
   AWS access key IDs, GitHub, GitLab and Slack tokens, JSON Web Tokens,
   Google API keys, and `user:password@` in URLs.
-- The scanner masks each match with `[REDACTED:credential]` and records a
+- The scanner masks each match with `[REDACTED:credential:KIND]` and records a
   finding with the pattern name. The finding never contains the value.
 - High entropy strings without a known prefix are not in the first version.
   They give too many false positives on hashes, IDs and image digests.
@@ -184,19 +186,20 @@ guard:
 - Runs receive the settings in the specification, as they receive
   `JudgeSettings`.
 
-A new event and a report field:
+Findings are a field of the evidence that they are about:
 
 ```json
-{"kind": "guard_finding",
- "unit": "3", "attempt": 1,
- "check": "threat", "label": "secrets_access", "score": 0.93,
- "action": "report", "tool": "shell", "evidence_id": "e-12"}
+{"id": "ev-12", "unit": "3", "attempt": 1, "tool": "shell", "...": "...",
+ "findings": [{"check": "credential", "label": "aws-access-key-id"}]}
 ```
 
-- The report has `guard_findings`, a list of these entries, and each unit
-  links to its findings.
+- The unit, the attempt and the tool come from the evidence, so findings
+  need no event and no report field of their own. A `threat` finding on a
+  blocked call is on the `rejected` evidence of that call.
+- The `threat` and `injection` checks add `score` (percent) and `action`
+  to their findings.
 - A finding never contains the text that was checked. The evidence that it
-  points to is already redacted.
+  is on is already redacted.
 - `docs/openapi.yaml` and the web API types change with the contracts.
 
 ## Actions
@@ -251,8 +254,8 @@ measures the real times on CPU.
 
 One pull request each, in this order:
 
-1. **Credential scanner.** Patterns in `saci-core`, masking, the
-   `guard_finding` event and the report field. Tests with sample tokens of
+1. **Credential scanner** ([#180](https://github.com/orpiske/midnight-saci/issues/180)). Patterns in `saci-core`, masking, the
+   `findings` field of the evidence. Tests with sample tokens of
    each pattern, and with near misses that must not match.
 2. **Guard contracts.** `guard` configuration, validation, the settings in
    the run specification, `docs/openapi.yaml` and web types.

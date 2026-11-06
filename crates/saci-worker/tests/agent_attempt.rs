@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use saci_core::bundle::{ExecutionUnit, expand};
 use saci_core::event::{EventKind, RunEvent};
-use saci_core::evidence::{EvidenceRecord, Termination};
+use saci_core::evidence::{EvidenceRecord, Finding, FindingCheck, Termination};
 use saci_core::ids::RunId;
 use saci_core::plan::PlanBundle;
 use saci_core::run::ErrorKind;
@@ -251,6 +251,41 @@ fn shell_stdout(events: &[RunEvent]) -> Vec<String> {
             _ => None,
         })
         .collect()
+}
+
+#[tokio::test]
+async fn a_printed_credential_is_masked_and_recorded_as_a_finding() {
+    let script = vec![
+        shell_call("c1", "echo key=AKIAIOSFODNN7EXAMPLE"),
+        assess("passed", "satisfied", &["ev-1"]),
+    ];
+    let mut h = harness(script, ExecutionLimits::default()).await;
+    h.run(0, 1, &CancellationToken::new()).await;
+    let seen = h.tool_results(1);
+    assert!(
+        seen[0].contains("key=[REDACTED:credential:aws-access-key-id]"),
+        "{seen:?}"
+    );
+    let events = h.drain();
+    let evidence = events
+        .iter()
+        .find_map(|event| match &event.kind {
+            EventKind::Observation { evidence } => Some(evidence),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        evidence.findings,
+        [Finding {
+            check: FindingCheck::Credential,
+            label: "aws-access-key-id".into()
+        }]
+    );
+    // The model wrote the value in its call; the output it reads back and
+    // every recorded event hold the marker only.
+    for text in [serde_json::to_string(&events).unwrap(), seen.join("\n")] {
+        assert!(!text.contains("AKIAIOSFODNN7EXAMPLE"), "{text}");
+    }
 }
 
 #[tokio::test]

@@ -113,6 +113,7 @@ mod tests {
             attempt: 1,
             recorded_at: time::OffsetDateTime::UNIX_EPOCH,
             duration_ms: 12,
+            findings: Vec::new(),
             record: EvidenceRecord::Shell(ShellEvidence {
                 command: "false".into(),
                 stdout: CapturedText::complete("out"),

@@ -858,6 +858,12 @@ export interface components {
             /** @description Size of the original output. */
             total_bytes: number;
         };
+        /** @description One thing the guard found in an observation. It never holds the text that it is about. `credential`: the redaction masked a credential of the `label` kind, for example `aws-access-key-id`, and the evidence holds `[REDACTED:credential:<label>]` in its place. */
+        Finding: {
+            /** @enum {string} */
+            check: "credential";
+            label: string;
+        };
         /** @description A redacted tool observation: the common fields plus the fields of its `tool` (shell, http, mcp or rejected). MCP evidence names the tool `tool_name`; `is_error` means the tool reported an error, `protocol_error` that no result arrived. */
         Evidence: {
             id: string;
@@ -866,6 +872,8 @@ export interface components {
             /** Format: date-time */
             recorded_at: string;
             duration_ms: number;
+            /** @description What the guard found in the observation. Absent when it found nothing. */
+            findings?: components["schemas"]["Finding"][];
         } & ({
             /** @constant */
             tool: "shell";
