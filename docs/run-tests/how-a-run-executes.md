@@ -66,7 +66,8 @@ run (`Executor::attempt`):
    when the model stopped without a valid assessment.
 
 The attempt emits `attempt_started`, one `observation` per recorded
-evidence, and `attempt_finished`. The hook measures each model request from
+evidence, `command_running` every 15 seconds while a shell command runs,
+and `attempt_finished`. The hook measures each model request from
 its dispatch to its answer and adds up the token usage of each response,
 and the recorder adds up the tool durations; `attempt_finished` reports
 them as `timing`. Every observation goes through the run's `Recorder`,

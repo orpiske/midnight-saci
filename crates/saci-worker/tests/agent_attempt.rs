@@ -20,7 +20,7 @@ use saci_core::status::Outcome;
 use saci_testkit::{FakeModel, Reply, text_reply, tool_calls_reply};
 use saci_worker::agent::{AttemptRequest, AttemptResult, Executor, Judge, Toolbox, prompt};
 use saci_worker::credentials::Credentials;
-use saci_worker::events::{EventReceiver, EventSink, Recorder};
+use saci_worker::events::{EventReceiver, EventSink, PROGRESS, Recorder};
 use saci_worker::http::HttpTool;
 use saci_worker::llm::LlmConnection;
 use saci_worker::shell::{ShellConfig, ShellSession};
@@ -104,6 +104,16 @@ echo second
 **Expected result:**
 
 - The output is `second`.
+
+### Step 1.7: Wait quietly
+
+```bash run
+sleep 1.5
+```
+
+**Expected result:**
+
+- The command exits with code 0.
 ";
 
 struct Harness {
@@ -145,6 +155,15 @@ fn toolbox(
 }
 
 async fn harness(script: Vec<Reply>, limits: ExecutionLimits) -> Harness {
+    harness_reporting(script, limits, PROGRESS).await
+}
+
+/// A harness that reports running shell commands every `progress`.
+async fn harness_reporting(
+    script: Vec<Reply>,
+    limits: ExecutionLimits,
+    progress: Duration,
+) -> Harness {
     let model = FakeModel::start(script).await.unwrap();
     let llm = LlmSettings {
         base_url: model.base_url(),
@@ -152,7 +171,8 @@ async fn harness(script: Vec<Reply>, limits: ExecutionLimits) -> Harness {
         api_key_env: None,
         api_key_secret: None,
     };
-    let (toolbox, events, workspace) = toolbox(&llm, &limits);
+    let (mut toolbox, events, workspace) = toolbox(&llm, &limits);
+    toolbox.recorder = toolbox.recorder.with_progress(progress);
     let connection = LlmConnection::new(&llm, &limits, |_| None).unwrap();
     let bundle = PlanBundle {
         entry: "plan.md".into(),
@@ -777,4 +797,49 @@ async fn marked_blocks_stop_after_a_lost_session_and_the_judge_is_not_asked() {
         ["", "first\n"],
         "`echo second` did not run"
     );
+}
+
+/// The `(seq, command, elapsed_secs)` of each `command_running` event.
+fn running_commands(events: &[RunEvent]) -> Vec<(u64, String, u64)> {
+    events
+        .iter()
+        .filter_map(|event| match &event.kind {
+            EventKind::CommandRunning {
+                command,
+                elapsed_secs,
+            } => Some((event.seq, command.trim().to_owned(), *elapsed_secs)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn a_long_command_without_output_is_reported_while_it_runs() {
+    let script = vec![
+        shell_call("c1", "true"),
+        assess("passed", "satisfied", &["ev-1"]),
+    ];
+    let progress = Duration::from_millis(400);
+    let mut h = harness_reporting(script, ExecutionLimits::default(), progress).await;
+    let result = h.run(6, 1, &CancellationToken::new()).await;
+    assert_eq!(result.outcome, Outcome::Passed, "{result:?}");
+    let events = h.drain();
+    let running = running_commands(&events);
+    let observations: Vec<_> = events
+        .iter()
+        .filter(|event| matches!(event.kind, EventKind::Observation { .. }))
+        .map(|event| event.seq)
+        .collect();
+    assert_eq!(observations.len(), 2, "{events:?}");
+    assert_eq!(shell_stdout(&events), ["", ""], "both commands are silent");
+    // The 1.5 s block is reported about every 0.4 s, before its evidence;
+    // the model's quick `true` is not reported at all.
+    assert!(running.len() >= 2, "{running:?}");
+    assert!(
+        running
+            .iter()
+            .all(|(seq, command, _)| *seq < observations[0] && command == "sleep 1.5")
+    );
+    assert!(running.windows(2).all(|pair| pair[0].2 <= pair[1].2));
+    assert!(running.last().is_some_and(|r| r.2 >= 1), "{running:?}");
 }
