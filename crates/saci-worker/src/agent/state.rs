@@ -222,6 +222,12 @@ impl AttemptState {
         self.tool_running.load(Ordering::SeqCst)
     }
 
+    /// Reports that a shell command of this attempt has run for `elapsed`.
+    pub fn command_running(&self, command: &str, elapsed: Duration) {
+        self.recorder
+            .command_running(&self.unit, self.attempt, command, elapsed);
+    }
+
     /// Records an observation of this attempt.
     pub fn record(&self, duration: Duration, record: EvidenceRecord) -> Evidence {
         lock(&self.timing).tool += duration;

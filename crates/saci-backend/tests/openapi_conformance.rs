@@ -169,6 +169,13 @@ fn kinds() -> Vec<(Option<&'static str>, EventKind)> {
         let evidence = Box::new(evidence(index, record));
         kinds.push((Some("1.1"), EventKind::Observation { evidence }));
     }
+    kinds.push((
+        Some("1.1"),
+        EventKind::CommandRunning {
+            command: "sleep 30".into(),
+            elapsed_secs: 15,
+        },
+    ));
     kinds.extend(endings());
     kinds
 }

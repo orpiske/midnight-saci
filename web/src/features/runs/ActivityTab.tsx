@@ -48,6 +48,16 @@ export function describeEvent(event: RunEvent): { look?: StatusLook; text: React
           </>
         ),
       };
+    case "command_running":
+      return {
+        look: IN_PROGRESS,
+        text: (
+          <>
+            Shell still running after {event.elapsed_secs} s:{" "}
+            <SafeText text={event.command.split("\n", 1)[0] ?? ""} />
+          </>
+        ),
+      };
     case "attempt_finished": {
       const outcome = OUTCOME[event.outcome].label.toLowerCase();
       const error = event.error ? `: ${event.error.message}` : "";

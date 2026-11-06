@@ -144,6 +144,10 @@ fn every_free_text_event_field_is_redacted() {
             error: Some(ExecutionError::new(ErrorKind::Provider, "bad s3cr3t")),
             timing: None,
         },
+        EventKind::CommandRunning {
+            command: "curl -u admin:s3cr3t".into(),
+            elapsed_secs: 15,
+        },
         EventKind::UnitSkipped {
             reason: "s3cr3t".into(),
         },

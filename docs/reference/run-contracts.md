@@ -92,9 +92,9 @@ outcome; earlier attempts stay in the report.
 ## Events
 
 A worker reports progress as ordered `RunEvent`s (`run_started`,
-`attempt_started`, `observation`, `attempt_finished`, `unit_finished`,
-`unit_skipped`, `cancellation_requested`, `investigation_concluded`,
-`run_finished`). The backend folds
+`attempt_started`, `observation`, `command_running`, `attempt_finished`,
+`unit_finished`, `unit_skipped`, `cancellation_requested`,
+`investigation_concluded`, `run_finished`). The backend folds
 them into a `RunReport` with `RunReport::apply`, which rejects events for
 another run, events out of sequence (including retransmissions), events
 after `run_finished`, and unit events that do not match the unit's state:
@@ -118,6 +118,11 @@ that the provider reported: `input_tokens`, `cached_tokens` (the part of
 the input read from the provider's prompt cache, absent when the provider
 does not report it) and `output_tokens`. The report keeps it on the
 attempt. Use it to find where a run spends its time.
+
+`command_running` reports a shell command that is still running, every 15
+seconds while it runs ([long commands](worker-tools.md#long-commands)). It
+carries the redacted `command` and `elapsed_secs`. It does not change the
+report: the `observation` that follows carries the result.
 
 Examples of complete event streams live in
 `crates/saci-core/tests/fixtures/runs/` (success, failure with stop, and a

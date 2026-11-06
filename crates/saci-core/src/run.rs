@@ -458,6 +458,8 @@ impl RunReport {
             }
             EventKind::Observation { evidence } => self.observe(event, evidence),
             EventKind::InvestigationConcluded { report } => self.conclude(event, report),
+            // Progress only: the observation that follows carries the result.
+            EventKind::CommandRunning { .. } => Ok(()),
             EventKind::AttemptStarted
             | EventKind::AttemptFinished { .. }
             | EventKind::UnitFinished { .. }
