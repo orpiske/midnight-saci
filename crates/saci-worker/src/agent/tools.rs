@@ -5,6 +5,7 @@
 //! rejected and answered with feedback the model can act on.
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use rig::message::ToolName;
 use rig::tool::{DynamicTool, ToolExecutionError, ToolOutput};
@@ -19,7 +20,7 @@ use tokio::sync::Mutex;
 use super::render;
 use super::state::AttemptState;
 use crate::http::{HttpRequest, HttpTool};
-use crate::shell::ShellSession;
+use crate::shell::{ShellRun, ShellSession};
 
 /// Name of the shell tool.
 pub const SHELL: &str = "shell";
@@ -96,13 +97,33 @@ async fn run_shell(state: &AttemptState, session: &Mutex<ShellSession>, args: Va
     let args: ShellArgs = parse(state, SHELL, args)?;
     let _running = state.running();
     let mut session = session.lock().await;
-    let deadline = state.operation_deadline();
-    match session.run(&args.command, deadline, &state.cancel).await {
+    match run_command(state, &mut session, &args.command).await {
         Ok(run) => {
             let evidence = state.record(run.duration, EvidenceRecord::Shell(run.evidence));
             Ok(ToolOutput::text(render::evidence(&evidence)))
         }
         Err(error) => Err(infrastructure(state, error)),
+    }
+}
+
+/// Runs `command` in `session` within the operation deadline. While it
+/// runs, reports it at each progress interval, so a command that prints
+/// nothing (such as a `wait` for a slow shutdown) does not look hung.
+pub(super) async fn run_command(
+    state: &AttemptState,
+    session: &mut ShellSession,
+    command: &str,
+) -> Result<ShellRun, ExecutionError> {
+    let started = Instant::now();
+    let interval = state.recorder.progress();
+    let run = session.run(command, state.operation_deadline(), &state.cancel);
+    tokio::pin!(run);
+    let mut ticks = tokio::time::interval_at((started + interval).into(), interval);
+    loop {
+        tokio::select! {
+            result = &mut run => return result,
+            _ = ticks.tick() => state.command_running(command, started.elapsed()),
+        }
     }
 }
 

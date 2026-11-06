@@ -23,15 +23,16 @@ fn name<T: Serialize>(value: &T) -> String {
 #[must_use]
 pub fn event(event: &RunEvent) -> String {
     let unit = event.unit.as_ref().map(|unit| format!("{unit} "));
-    let unit = unit.unwrap_or_default();
-    let attempt = event
-        .attempt
-        .map(|n| format!("attempt {n} "))
-        .unwrap_or_default();
+    let attempt = event.attempt.map(|n| format!("attempt {n} "));
+    let (unit, attempt) = (unit.unwrap_or_default(), attempt.unwrap_or_default());
     let what = match &event.kind {
         EventKind::RunStarted { model, .. } => format!("run started with model {model}"),
         EventKind::AttemptStarted => "started".to_owned(),
         EventKind::Observation { evidence } => format!("  {}", observation(evidence)),
+        EventKind::CommandRunning {
+            command,
+            elapsed_secs,
+        } => still_running(command, *elapsed_secs),
         EventKind::AttemptFinished {
             outcome,
             assessment,
@@ -50,6 +51,13 @@ pub fn event(event: &RunEvent) -> String {
         EventKind::RunFinished { outcome, reason } => format!("run finished {outcome}: {reason}"),
     };
     format!("[{}] {unit}{attempt}{what}", event.seq)
+}
+
+fn still_running(command: &str, elapsed_secs: u64) -> String {
+    format!(
+        "  shell `{}` still running after {elapsed_secs} s",
+        first_line(command)
+    )
 }
 
 fn conclusion(report: &saci_core::investigation::InvestigationReport) -> String {

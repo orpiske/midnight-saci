@@ -12,6 +12,9 @@ use saci_core::run::UnitIdentity;
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
 
+/// How often a running shell command is reported.
+pub const PROGRESS: Duration = Duration::from_secs(15);
+
 /// Receives the events of a run, in sequence order.
 pub type EventReceiver = mpsc::UnboundedReceiver<RunEvent>;
 
@@ -70,6 +73,7 @@ pub struct Recorder {
     events: Arc<EventSink>,
     redactor: Redactor,
     recorded: Arc<Mutex<Recorded>>,
+    progress: Duration,
 }
 
 impl Recorder {
@@ -80,7 +84,38 @@ impl Recorder {
             events,
             redactor,
             recorded: Arc::default(),
+            progress: PROGRESS,
         }
+    }
+
+    /// Reports running shell commands every `interval` instead of
+    /// [`PROGRESS`].
+    #[must_use]
+    pub const fn with_progress(mut self, interval: Duration) -> Self {
+        self.progress = interval;
+        self
+    }
+
+    /// How often a running shell command is reported.
+    #[must_use]
+    pub const fn progress(&self) -> Duration {
+        self.progress
+    }
+
+    /// Reports that `command` of `attempt` of `unit` has run for `elapsed`.
+    pub fn command_running(
+        &self,
+        unit: &UnitIdentity,
+        attempt: u32,
+        command: &str,
+        elapsed: Duration,
+    ) {
+        let mut kind = EventKind::CommandRunning {
+            command: command.to_owned(),
+            elapsed_secs: elapsed.as_secs(),
+        };
+        self.redactor.redact_event(&mut kind);
+        self.events.emit(Some(unit), Some(attempt), kind);
     }
 
     /// The run's event sink.

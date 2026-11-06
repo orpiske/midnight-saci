@@ -756,6 +756,12 @@ export interface components {
             evidence: components["schemas"]["Evidence"];
         } | {
             /** @constant */
+            type: "command_running";
+            /** @description The redacted command. */
+            command: string;
+            elapsed_secs: number;
+        } | {
+            /** @constant */
             type: "attempt_finished";
             outcome: components["schemas"]["Outcome"];
             assessment?: components["schemas"]["Assessment"];

@@ -68,6 +68,19 @@ in a new session.
 A command that permanently redirects the shell's own output (`exec >file`)
 hides the end of every later command, which then times out.
 
+### Long commands
+
+A command can run for a long time and write no output. For example, a
+`wait` for a server that does a graceful shutdown, or a CLI call that sends
+its output to `/dev/null`. A command that writes no output and exits with
+code 0 returns as soon as it ends.
+
+While a shell command runs, the worker sends a `command_running` event
+every 15 seconds. The event has the redacted command and `elapsed_secs`,
+the whole seconds since the command started. `saci run` and the web
+console show it, so you can see which command the worker waits for. The
+command still stops at `limits.operation_timeout_secs`.
+
 ## HTTP
 
 The HTTP tool sends one request to the target environment and records the
