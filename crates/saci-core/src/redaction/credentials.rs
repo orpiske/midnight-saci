@@ -97,43 +97,43 @@ mod tests {
     /// `(text, masked)` for each kind.
     const MASKED: [(&str, &str); 10] = [
         (
-            "-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----\nnext",
+            "-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----\nnext", // notsecret
             "[REDACTED:credential:private-key]\nnext",
         ),
         (
-            "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNz (cut)",
+            "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNz (cut)", // notsecret
             "[REDACTED:credential:private-key]",
         ),
         (
-            "key=AKIAIOSFODNN7EXAMPLE end",
+            "key=AKIAIOSFODNN7EXAMPLE end", // notsecret
             "key=[REDACTED:credential:aws-access-key-id] end",
         ),
         (
-            "token ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789 ok",
+            "token ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789 ok", // notsecret
             "token [REDACTED:credential:github-token] ok",
         ),
         (
-            "github_pat_11ABCDEFG0123456789_abcdefghijklmnop",
+            "github_pat_11ABCDEFG0123456789_abcdefghijklmnop", // notsecret
             "[REDACTED:credential:github-token]",
         ),
         (
-            "PRIVATE-TOKEN: glpat-abcdefghij0123456789",
+            "PRIVATE-TOKEN: glpat-abcdefghij0123456789", // notsecret
             "PRIVATE-TOKEN: [REDACTED:credential:gitlab-token]",
         ),
         (
-            "xoxb-1234567890-abcdefghij",
+            "xoxb-1234567890-abcdefghij", // notsecret
             "[REDACTED:credential:slack-token]",
         ),
         (
-            r#"{"access_token":"eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2lnbmF0dXJlLXZhbHVl"}"#,
+            r#"{"access_token":"eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2lnbmF0dXJlLXZhbHVl"}"#, // notsecret
             r#"{"access_token":"[REDACTED:credential:jwt]"}"#,
         ),
         (
-            "AIzaSyA-1234567890abcdefghijklmnopqrstu",
+            "AIzaSyA-1234567890abcdefghijklmnopqrstu", // notsecret
             "[REDACTED:credential:google-api-key]",
         ),
         (
-            "postgres://admin:hunter22@db:5432/app",
+            "postgres://admin:hunter22@db:5432/app", // notsecret
             "postgres://admin:[REDACTED:credential:url-password]@db:5432/app",
         ),
     ];
@@ -150,11 +150,11 @@ mod tests {
         let texts = [
             "-----BEGIN PUBLIC KEY-----\nMIIBIj\n-----END PUBLIC KEY-----",
             "-----BEGIN CERTIFICATE-----",
-            "AKIA1234",
-            "XAKIAIOSFODNN7EXAMPLE",
-            "ghp_short",
-            "glpat-short",
-            "eyJhbGciOiJSUzI1NiJ9 alone",
+            "AKIA1234",                   // notsecret
+            "XAKIAIOSFODNN7EXAMPLE",      // notsecret
+            "ghp_short",                  // notsecret
+            "glpat-short",                // notsecret
+            "eyJhbGciOiJSUzI1NiJ9 alone", // notsecret
             "sha256:3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a",
             "quay.io/wanaku/router@sha256:0123456789abcdef",
             "https://example.com:8443/path",
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn kinds_lists_known_markers_only() {
-        let text = mask("AKIAIOSFODNN7EXAMPLE and xoxp-1234567890-abc and AKIAIOSFODNN7EXAMPLF");
+        let text = mask("AKIAIOSFODNN7EXAMPLE and xoxp-1234567890-abc and AKIAIOSFODNN7EXAMPLF"); // notsecret
         assert_eq!(
             kinds(&text).into_iter().collect::<Vec<_>>(),
             ["aws-access-key-id", "slack-token"]
