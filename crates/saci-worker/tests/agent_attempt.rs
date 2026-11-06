@@ -256,7 +256,7 @@ fn shell_stdout(events: &[RunEvent]) -> Vec<String> {
 #[tokio::test]
 async fn a_printed_credential_is_masked_and_recorded_as_a_finding() {
     let script = vec![
-        shell_call("c1", "echo key=AKIAIOSFODNN7EXAMPLE"),
+        shell_call("c1", "echo key=AKIAIOSFODNN7EXAMPLE"), // notsecret
         assess("passed", "satisfied", &["ev-1"]),
     ];
     let mut h = harness(script, ExecutionLimits::default()).await;
@@ -284,7 +284,7 @@ async fn a_printed_credential_is_masked_and_recorded_as_a_finding() {
     // The model wrote the value in its call; the output it reads back and
     // every recorded event hold the marker only.
     for text in [serde_json::to_string(&events).unwrap(), seen.join("\n")] {
-        assert!(!text.contains("AKIAIOSFODNN7EXAMPLE"), "{text}");
+        assert!(!text.contains("AKIAIOSFODNN7EXAMPLE"), "{text}"); // notsecret
     }
 }
 

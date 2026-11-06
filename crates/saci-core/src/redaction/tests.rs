@@ -163,7 +163,7 @@ fn every_free_text_event_field_is_redacted() {
 fn credentials_are_masked_after_named_secrets() {
     let redactor = redactor();
     assert_eq!(
-        redactor.redact("s3cr3t-token then AKIAIOSFODNN7EXAMPLE"),
+        redactor.redact("s3cr3t-token then AKIAIOSFODNN7EXAMPLE"), // notsecret
         "[REDACTED:TOKEN] then [REDACTED:credential:aws-access-key-id]"
     );
     assert!(matches!(
@@ -174,7 +174,7 @@ fn credentials_are_masked_after_named_secrets() {
 
 #[test]
 fn credentials_straddling_the_limit_are_still_masked() {
-    let captured = capture_text("0123456AKIAIOSFODNN7EXAMPLE tail", 10, &Redactor::new());
+    let captured = capture_text("0123456AKIAIOSFODNN7EXAMPLE tail", 10, &Redactor::new()); // notsecret
     assert!(captured.truncated);
     assert!(!captured.text.contains("AKIA"), "{}", captured.text);
     assert!(captured.text.starts_with("0123456"));
@@ -183,8 +183,8 @@ fn credentials_straddling_the_limit_are_still_masked() {
 #[test]
 fn findings_name_each_masked_kind_once() {
     let mut shell = EvidenceRecord::Shell(ShellEvidence {
-        command: "curl https://admin:pw1234@host/".into(),
-        stdout: CapturedText::complete("AKIAIOSFODNN7EXAMPLE AKIAIOSFODNN7EXAMPLF"),
+        command: "curl https://admin:pw1234@host/".into(), // notsecret
+        stdout: CapturedText::complete("AKIAIOSFODNN7EXAMPLE AKIAIOSFODNN7EXAMPLF"), // notsecret
         stderr: CapturedText::complete("ok"),
         exit_code: Some(0),
         termination: Termination::Exited,
@@ -206,7 +206,7 @@ fn findings_name_each_masked_kind_once() {
     );
     let text = serde_json::to_string(&shell).unwrap();
     assert!(
-        !text.contains("pw1234") && !text.contains("AKIAIOSFODNN7"),
+        !text.contains("pw1234") && !text.contains("AKIAIOSFODNN7"), // notsecret
         "{text}"
     );
 }
