@@ -158,3 +158,55 @@ fn every_free_text_event_field_is_redacted() {
     let text = serde_json::to_string(&kinds).unwrap();
     assert!(!text.contains("s3cr3t"), "{text}");
 }
+
+#[test]
+fn credentials_are_masked_after_named_secrets() {
+    let redactor = redactor();
+    assert_eq!(
+        redactor.redact("s3cr3t-token then AKIAIOSFODNN7EXAMPLE"), // notsecret
+        "[REDACTED:TOKEN] then [REDACTED:credential:aws-access-key-id]"
+    );
+    assert!(matches!(
+        Redactor::new().redact("nothing here"),
+        Cow::Borrowed(_)
+    ));
+}
+
+#[test]
+fn credentials_straddling_the_limit_are_still_masked() {
+    let captured = capture_text("0123456AKIAIOSFODNN7EXAMPLE tail", 10, &Redactor::new()); // notsecret
+    assert!(captured.truncated);
+    assert!(!captured.text.contains("AKIA"), "{}", captured.text);
+    assert!(captured.text.starts_with("0123456"));
+}
+
+#[test]
+fn findings_name_each_masked_kind_once() {
+    let mut shell = EvidenceRecord::Shell(ShellEvidence {
+        command: "curl https://admin:pw1234@host/".into(), // notsecret
+        stdout: CapturedText::complete("AKIAIOSFODNN7EXAMPLE AKIAIOSFODNN7EXAMPLF"), // notsecret
+        stderr: CapturedText::complete("ok"),
+        exit_code: Some(0),
+        termination: Termination::Exited,
+        restarted: false,
+        session_lost: false,
+    });
+    assert!(credential_findings(&shell).is_empty());
+    Redactor::new().redact_evidence(&mut shell);
+    let labels: Vec<_> = credential_findings(&shell)
+        .into_iter()
+        .map(|finding| (finding.check, finding.label))
+        .collect();
+    assert_eq!(
+        labels,
+        [
+            (FindingCheck::Credential, "aws-access-key-id".to_owned()),
+            (FindingCheck::Credential, "url-password".to_owned()),
+        ]
+    );
+    let text = serde_json::to_string(&shell).unwrap();
+    assert!(
+        !text.contains("pw1234") && !text.contains("AKIAIOSFODNN7"), // notsecret
+        "{text}"
+    );
+}

@@ -48,8 +48,28 @@ or returned to the model:
   `X-API-Key`, `API-Key`, `X-Auth-Token`, `X-Access-Token` and
   `X-CSRF-Token` header values are replaced by `[REDACTED]` whatever they
   contain.
+- Each credential of a well-known format is replaced by
+  `[REDACTED:credential:KIND]`, also when it is not a configured secret.
+  The evidence then has a finding with `check: credential` and the kind
+  as `label`. The finding does not contain the value.
 
-Redaction matches exact values. It does **not** recognize a secret that a
+| Kind | What it finds |
+|------|---------------|
+| `private-key` | A PEM private key block, from `-----BEGIN ... PRIVATE KEY-----` to its `END` line, or to the end of the text when the `END` line is missing. Public keys and certificates are not changed. |
+| `aws-access-key-id` | An AWS access key ID (`AKIA` or `ASIA` and 16 characters). |
+| `github-token` | A GitHub token (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` or `github_pat_`). |
+| `gitlab-token` | A GitLab personal access token (`glpat-`). |
+| `slack-token` | A Slack token (`xoxb-`, `xoxp-` and the other `xox` types). |
+| `jwt` | A JSON Web Token: three base64url parts, the first two start with `eyJ`. |
+| `google-api-key` | A Google API key (`AIza` and 35 characters). |
+| `url-password` | The password in a URL such as `postgres://user:password@host`. The scheme, the user and the host stay. |
+
+The worker runs the commands as written: only the evidence, and thus
+the model, sees the marker. A step that must use a credential from an
+earlier output must keep it in a shell variable, for example
+`TOKEN=$(get-token)`. The model cannot copy a masked value.
+
+Redaction matches exact values and the formats above. It does **not** recognize a secret that a
 command or target transforms: base64 or URL encoding, hashing, splitting
 across lines, or changing case. Values shorter than four characters are not
 redacted at all, because masking them would corrupt ordinary output; the
@@ -63,7 +83,7 @@ bytes. When more was produced, the evidence has `truncated: true` and the
 original `total_bytes`, and the text shown to the model ends with
 `[output truncated: showing N of M bytes]`, so missing output is not
 mistaken for absent behavior. Redaction runs before truncation, so a
-secret straddling the cut is masked too. Invalid UTF-8 is replaced by
+secret or a credential straddling the cut is masked too. Invalid UTF-8 is replaced by
 `U+FFFD`.
 
 ## Isolation limits
