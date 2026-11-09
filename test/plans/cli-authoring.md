@@ -47,7 +47,7 @@ saci --version; echo "exit $?"
 **Expected result:**
 
 - The output starts with `saci` followed by a version number, such as
-  `saci 0.1.0`.
+  `saci 0.2.0`.
 - The output ends with `exit 0`.
 
 ### Test 2.2: List the commands
