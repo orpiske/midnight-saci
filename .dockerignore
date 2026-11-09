@@ -2,6 +2,7 @@ target/
 .git/
 **/*.rs.bk
 web/node_modules/
+web/api-types/node_modules/
 web/dist/
 web/test-results/
 web/playwright-report/
