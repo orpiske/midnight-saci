@@ -42,6 +42,11 @@ The development server proxies `/api` to `SACI_BACKEND`
 | `npm run build` | Type checks and builds `dist/`. |
 | `npm run e2e` | Browser tests of the built client against a mocked API, desktop and phone sizes, with axe accessibility checks and screenshots in `test-results/`. |
 
+The console uses TypeScript 7. `openapi-typescript` needs the compiler API of
+TypeScript 5, which TypeScript 7 does not have. Thus `web/api-types/` is a
+separate npm package with its own lock file and `typescript` 5. The
+`api-types` scripts install it with `npm ci` before they generate the types.
+
 The `web` CI job runs all of them and the backend's console tests with the
 client embedded.
 
