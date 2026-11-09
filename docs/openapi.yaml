@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Saci API
-  version: 0.1.0
+  version: 0.2.0
   description: |
     REST API of the Saci backend. Every route lives under `/api/v1/<problem-domain>`.
     Client routes (`/api/v1/runs`) require `Authorization: Bearer <token>` when the
