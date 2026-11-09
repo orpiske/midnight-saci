@@ -25,7 +25,7 @@ export interface Pending {
 /** A random key. It uses `crypto.getRandomValues`, not `crypto.randomUUID`,
  * because browsers give `randomUUID` only in a secure context, and the
  * console is often opened over plain HTTP on a LAN address. */
-export function newKey(random: (bytes: Uint8Array) => Uint8Array = (b) => crypto.getRandomValues(b)): string {
+export function newKey(random: (bytes: Uint8Array<ArrayBuffer>) => Uint8Array = (b) => crypto.getRandomValues(b)): string {
   const bytes = random(new Uint8Array(16));
   return `saci-web-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
