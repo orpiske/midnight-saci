@@ -20,9 +20,19 @@ updates:
         update-types:
           - minor
           - patch
+  # The API type generator has its own typescript (docs/contributing/web-console.md).
+  - package-ecosystem: npm
+    directory: /web/api-types
+    schedule:
+      interval: weekly
+    groups:
+      npm-api-types-minor-and-patch:
+        update-types:
+          - minor
+          - patch
     ignore:
-      # openapi-typescript 7 needs the peer typescript 5. Remove this entry
-      # when openapi-typescript accepts typescript 7.
+      # openapi-typescript 7 needs the TypeScript 5 compiler API. Remove this
+      # entry when openapi-typescript supports typescript 7.
       - dependency-name: typescript
         update-types:
           - version-update:semver-major

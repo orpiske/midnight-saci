@@ -67,8 +67,11 @@ Dependabot (`.github/dependabot.yml`) opens pull requests every week for:
 
 - Cargo dependencies. Minor and patch updates come in one pull request.
 - npm dependencies of the web console in `web/`. Minor and patch updates
-  come in one pull request. Dependabot does not propose major updates of
-  `typescript`, because `openapi-typescript` needs `typescript` 5.
+  come in one pull request.
+- npm dependencies of the API type generator in `web/api-types/`.
+  Dependabot does not propose major updates of `typescript` there, because
+  `openapi-typescript` needs `typescript` 5
+  ([web console](web-console.md#developing-the-console)).
 - GitHub Actions.
 - The base images of `Containerfile` and
   `examples/kubernetes/Containerfile.fixtures`.

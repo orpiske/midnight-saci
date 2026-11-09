@@ -1,0 +1,11 @@
+{
+  "name": "saci-web-api-types",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Generates src/api/schema.d.ts. openapi-typescript needs the TypeScript 5 compiler API, which TypeScript 7 does not have, so it has its own install.",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}
