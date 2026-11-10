@@ -7,7 +7,7 @@ use std::time::Duration;
 use saci_core::event::{EventKind, RunEvent};
 use saci_core::evidence::{Evidence, EvidenceRecord};
 use saci_core::ids::{EvidenceId, RunId};
-use saci_core::redaction::Redactor;
+use saci_core::redaction::{Redactor, credential_findings};
 use saci_core::run::UnitIdentity;
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
@@ -116,6 +116,7 @@ impl Recorder {
             attempt,
             recorded_at: OffsetDateTime::now_utc(),
             duration_ms: u64::try_from(duration.as_millis()).unwrap_or(u64::MAX),
+            findings: credential_findings(&record),
             record,
         };
         let kind = EventKind::Observation {

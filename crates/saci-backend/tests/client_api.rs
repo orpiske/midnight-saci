@@ -37,6 +37,7 @@ fn observation(run: &RunId, seq: u64) -> RunEvent {
         attempt: 1,
         recorded_at: OffsetDateTime::now_utc(),
         duration_ms: 5,
+        findings: Vec::new(),
         record: EvidenceRecord::Shell(ShellEvidence {
             command: "curl $URL/health".into(),
             stdout: CapturedText::complete("200"),

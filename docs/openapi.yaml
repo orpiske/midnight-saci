@@ -1161,6 +1161,16 @@ components:
         text: { type: string, description: "The retained, redacted text." }
         truncated: { type: boolean, description: Bytes beyond the configured limit were discarded. }
         total_bytes: { type: integer, description: Size of the original output. }
+    Finding:
+      description: >-
+        One thing the guard found in an observation. It never holds the text that it is about.
+        `credential`: the redaction masked a credential of the `label` kind, for example
+        `aws-access-key-id`, and the evidence holds `[REDACTED:credential:<label>]` in its place.
+      type: object
+      required: [check, label]
+      properties:
+        check: { type: string, enum: [credential] }
+        label: { type: string }
     Evidence:
       description: >-
         A redacted tool observation: the common fields plus the fields of its `tool` (shell,
@@ -1175,6 +1185,10 @@ components:
             attempt: { type: integer }
             recorded_at: { type: string, format: date-time }
             duration_ms: { type: integer }
+            findings:
+              type: array
+              description: What the guard found in the observation. Absent when it found nothing.
+              items: { $ref: "#/components/schemas/Finding" }
         - oneOf:
             - type: object
               required: [tool, command, stdout, stderr, termination]
