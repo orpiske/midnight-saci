@@ -55,6 +55,14 @@ pub enum EventKind {
         /// The recorded, redacted evidence.
         evidence: Box<Evidence>,
     },
+    /// A shell command is still running. Sent at a fixed interval while one
+    /// runs, so a command that prints nothing does not look hung.
+    CommandRunning {
+        /// The redacted command.
+        command: String,
+        /// Whole seconds since the command started.
+        elapsed_secs: u64,
+    },
     /// An attempt finished.
     AttemptFinished {
         /// The attempt outcome.

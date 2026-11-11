@@ -1034,6 +1034,15 @@ components:
                 type: { type: string, const: observation }
                 evidence: { $ref: "#/components/schemas/Evidence" }
             - type: object
+              description: >-
+                A shell command is still running. Sent at a fixed interval while
+                it runs; the observation that follows carries its result.
+              required: [type, command, elapsed_secs]
+              properties:
+                type: { type: string, const: command_running }
+                command: { type: string, description: The redacted command. }
+                elapsed_secs: { type: integer, minimum: 0 }
+            - type: object
               required: [type, outcome]
               properties:
                 type: { type: string, const: attempt_finished }

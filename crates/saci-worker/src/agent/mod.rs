@@ -336,8 +336,7 @@ impl Executor {
     async fn run_block(&self, state: &AttemptState, code: &str) -> Option<Evidence> {
         let _running = state.running();
         let mut session = self.shell.lock().await;
-        let deadline = state.operation_deadline();
-        let result = session.run(code, deadline, &state.cancel).await;
+        let result = tools::run_command(state, &mut session, code).await;
         let run = result.map_err(|error| state.halt(error)).ok()?;
         Some(state.record(run.duration, EvidenceRecord::Shell(run.evidence)))
     }

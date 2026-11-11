@@ -140,7 +140,7 @@ impl Redactor {
 
     /// Redacts every free-text field of an event: observations, assessment
     /// and criterion explanations, error messages and the reasons a unit was
-    /// skipped or a run ended.
+    /// skipped or a run ended, and the command of a running shell call.
     pub fn redact_event(&self, kind: &mut EventKind) {
         match kind {
             EventKind::Observation { evidence } => self.redact_evidence(&mut evidence.record),
@@ -157,7 +157,11 @@ impl Redactor {
                     self.redact_string(&mut error.message);
                 }
             }
-            EventKind::UnitSkipped { reason } | EventKind::RunFinished { reason, .. } => {
+            EventKind::UnitSkipped { reason }
+            | EventKind::RunFinished { reason, .. }
+            | EventKind::CommandRunning {
+                command: reason, ..
+            } => {
                 self.redact_string(reason);
             }
             EventKind::InvestigationConcluded { report } => self.redact_investigation(report),
