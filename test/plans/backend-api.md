@@ -282,7 +282,7 @@ curl -sS "$API/runs/$RUN_ID/report" | jq .
 
 ```bash run
 curl -sS "$API/runs/$RUN_ID/plan" | jq '{run_id, title, entry, units: [.units[] | {key, title, criteria: [.criteria[].text]}]}'
-curl -sS "$API/runs/$RUN_ID/plan" | jq -j '.documents["plan.md"]' | diff - "$WORK/health.md" && echo "same document"
+[ "$(curl -sS "$API/runs/$RUN_ID/plan" | jq -j '.documents["plan.md"]')" = "$(cat "$WORK/health.md")" ] && echo "same document"
 ```
 
 **Expected result:**

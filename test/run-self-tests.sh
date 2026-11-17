@@ -104,6 +104,7 @@ for plan in $plans; do
   status=0
   "$bin/saci" follow "$run" || status=$?
   "$bin/saci" report "$run" >"$work/reports/$name.txt" || true
+  [ "$status" -eq 0 ] || cat "$work/reports/$name.txt"
   "$bin/saci" report "$run" --json >"$work/reports/$name.json" || true
   [ -z "${GITHUB_ACTIONS:-}" ] || echo "::endgroup::"
   [ "$status" -eq 0 ] || failed=1
