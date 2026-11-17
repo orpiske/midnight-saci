@@ -6,20 +6,20 @@ layout, see [development](development.md#workspace-layout).
 
 ## Agent library
 
-**Decision:** Saci uses [Rig](https://rig.rs/) `rig = "=0.44.0"` (the facade
+**Decision:** Saci uses [Rig](https://rig.rs/) `rig = "=0.46.0"` (the facade
 crate over `rig-core`, `rig-agent`, `rig-reqwest` and `rig-rmcp`) for model
 interaction, conversation state and tool-call orchestration. Rig was the
 first candidate in the plan and satisfies the [execution contract](design/execution-contract.md) with the
 small adapters listed below, so no alternative was needed.
 
 The version is pinned exactly because Rig's API changes substantially
-between minor releases (0.44 is a redesign; older documentation and examples
+between minor releases (0.44 was a redesign; older documentation and examples
 do not apply). Upgrades must keep
 `crates/saci-worker/tests/rig_compatibility.rs` passing.
 
 Enabled features: `agent`, `reqwest`, `rustls`, `rmcp` and `typesafeai`
 (the System One judge). Default features, derive macros, vector stores and
-websocket support are off. Rig's MSRV is 1.95, below Saci's 1.96.
+websocket support are off. Rig 0.46 needs Rust 1.97.1, which is Saci's pinned toolchain.
 
 ### Contract checks
 
@@ -39,7 +39,7 @@ websocket support are off. Rig's MSRV is 1.95, below Saci's 1.96.
 | Deadlines | The `reqwest` client timeout bounds each model request; `tokio::time::timeout` bounds attempts and runs. |
 | No hidden retries | Rig does not retry provider requests: a 429, 500, timeout or malformed body produces exactly one request. Provider status, body and a `retryable` hint are available on the error. |
 | Fixture-based testing | `saci-testkit::FakeModel` checks the real wire format without a paid API. |
-| MCP | `rig-rmcp` turns `rmcp` client tools into Rig tools and depends on `rmcp` 2.x (2.2). Saci therefore uses `rmcp` 2.x through Rig's re-export rather than the newer 3.x line, so there is a single SDK version. |
+| MCP | `rig-rmcp` turns `rmcp` client tools into Rig tools and depends on `rmcp` 3.x (3.5 or later). Saci uses the same major version (3.10), so there is a single SDK version. |
 
 ### Thin adapters
 
@@ -68,11 +68,15 @@ These are the only places Saci adds behavior Rig does not provide:
 
 ## MCP SDK
 
-Saci uses the [`rmcp`](https://crates.io/crates/rmcp) SDK 2.2 for transports,
+Saci uses the [`rmcp`](https://crates.io/crates/rmcp) SDK 3.10 for transports,
 initialization and protocol-version negotiation; the protocol versions it
-supports are those of that release. It is the same major version Rig 0.44's
+supports are those of that release. It is the same major version Rig 0.46's
 `rmcp` bridge (`rig-rmcp`) depends on, and Cargo resolves both to one copy;
 upgrading one requires upgrading the other.
+
+Saci clients connect with the `initialize` handshake (`rmcp` `serve`), so they
+use protocol version 2025-11-25 or earlier and a session. They do not use the
+stateless `server/discover` lifecycle of protocol version 2026-07-28.
 
 The connection code lives in the `saci-mcp` crate. The worker uses it for
 step tools, and the backend for [outcome actions](../connect/outcome-actions.md), each with
@@ -138,9 +142,11 @@ The code is in `crates/saci-script-runner`:
 | `executor` | Process execution, deadlines, output limits and process group cleanup. It does not use MCP. |
 | `server` | The `rmcp` handler, the HTTP router, the token and `Origin` checks, and audit events. |
 
-The runner uses `rmcp` 2.2 (the workspace version) in stateful Streamable
-HTTP mode. Stateful mode is necessary because a cancellation notification
-must reach the session that runs the call. The tests in
+The runner uses `rmcp` 3.10 (the workspace version) in stateful Streamable
+HTTP mode (`rmcp` calls it legacy session mode; it is on by default and
+applies to clients that use the `initialize` handshake). Stateful mode is
+necessary because a cancellation notification must reach the session that
+runs the call. The tests in
 `crates/saci-script-runner/tests` start the server on a local port and use
 the `rmcp` client over HTTP.
 

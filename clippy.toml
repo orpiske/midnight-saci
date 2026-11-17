@@ -16,7 +16,7 @@ future-size-threshold = 4096
 type-complexity-threshold = 200
 stack-size-threshold = 16384
 avoid-breaking-exported-api = false
-msrv = "1.96"
+msrv = "1.97"
 
 doc-valid-idents = ["..", "IPv4", "IPv6", "gRPC", "OpenTelemetry", "MiB", "GiB", "KiB", "MCP", "JSON-RPC", "OIDC", "SSE", "WASM"]
 

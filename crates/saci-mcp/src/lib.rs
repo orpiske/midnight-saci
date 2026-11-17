@@ -14,7 +14,7 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use rmcp::model::{
-    CallToolResult, ClientCapabilities, ClientInfo, ContentBlock, Implementation, Tool,
+    CallToolResult, ClientCapabilities, ClientConfig, ContentBlock, Implementation, Tool,
 };
 use rmcp::service::RunningService;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
@@ -111,8 +111,8 @@ fn mcp_error(name: &str, message: impl std::fmt::Display) -> ExecutionError {
     ExecutionError::new(ErrorKind::Tool, format!("MCP server `{name}`: {message}"))
 }
 
-fn client_info(name: &str) -> ClientInfo {
-    ClientInfo::new(
+fn client_info(name: &str) -> ClientConfig {
+    ClientConfig::new(
         ClientCapabilities::default(),
         Implementation::new(name, env!("CARGO_PKG_VERSION")),
     )
@@ -170,7 +170,7 @@ pub async fn connect(
         })?
 }
 
-type Service = RunningService<RoleClient, ClientInfo>;
+type Service = RunningService<RoleClient, ClientConfig>;
 
 async fn initialize(
     name: &str,

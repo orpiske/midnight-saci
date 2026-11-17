@@ -20,8 +20,9 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, ErrorData, Implementation, ListToolsResult,
-    PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool, ToolAnnotations,
+    CallToolRequestParams, CallToolResponse, CallToolResult, ErrorData, Implementation,
+    ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig as McpServerConfig,
+    Tool, ToolAnnotations,
 };
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
@@ -186,8 +187,8 @@ fn mcp_tool(tool: &ScriptTool) -> Tool {
 }
 
 impl ServerHandler for ScriptRunner {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_server_info(
+    fn get_info(&self) -> McpServerConfig {
+        McpServerConfig::new(ServerCapabilities::builder().enable_tools().build()).with_server_info(
             Implementation::new("saci-script-runner", env!("CARGO_PKG_VERSION")),
         )
     }
@@ -206,7 +207,7 @@ impl ServerHandler for ScriptRunner {
         &self,
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, ErrorData> {
+    ) -> Result<CallToolResponse, ErrorData> {
         let Some(tool) = self.shared.registry.get(&request.name) else {
             return Err(ErrorData::invalid_params(
                 format!("unknown tool `{}`", request.name),
@@ -223,7 +224,7 @@ impl ServerHandler for ScriptRunner {
             arguments: request.arguments.as_ref(),
             cancel: context.ct.clone(),
         };
-        Ok(self.execute(tool, call).await)
+        Ok(self.execute(tool, call).await.into())
     }
 }
 

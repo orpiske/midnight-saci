@@ -20,8 +20,9 @@ use axum::http::StatusCode;
 use axum::middleware::{self, Next};
 use axum::response::Response;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, ContentBlock as Content, ErrorData, Implementation,
-    ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool,
+    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock as Content, ErrorData,
+    Implementation, ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig,
+    Tool,
 };
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
@@ -50,8 +51,8 @@ fn string_arg(arguments: Option<&Map<String, Value>>, name: &str) -> String {
 }
 
 impl ServerHandler for FakeMcp {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_server_info(
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build()).with_server_info(
             Implementation::new("saci-fake-mcp", env!("CARGO_PKG_VERSION")),
         )
     }
@@ -81,34 +82,38 @@ impl ServerHandler for FakeMcp {
         &self,
         request: CallToolRequestParams,
         _: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let arguments = request.arguments.as_ref();
-        match request.name.as_ref() {
-            "echo" => Ok(CallToolResult::success(vec![Content::text(format!(
-                "echo: {}",
-                string_arg(arguments, "text")
-            ))])),
-            "fail" => Ok(CallToolResult::error(vec![Content::text(
-                "the tool failed on purpose",
-            )])),
-            "sleep" => {
-                let seconds = arguments
-                    .and_then(|args| args.get("seconds"))
-                    .and_then(Value::as_f64)
-                    .unwrap_or(1.0);
-                tokio::time::sleep(Duration::from_secs_f64(seconds.clamp(0.0, 600.0))).await;
-                Ok(CallToolResult::success(vec![Content::text("slept")]))
-            }
-            "env" => {
-                let value = std::env::var(string_arg(arguments, "name")).unwrap_or_default();
-                Ok(CallToolResult::success(vec![Content::text(value)]))
-            }
-            "record" => Ok(record(arguments).await),
-            other => Err(ErrorData::invalid_params(
-                format!("no tool `{other}`"),
-                None,
-            )),
+    ) -> Result<CallToolResponse, ErrorData> {
+        call(&request).await.map(CallToolResponse::from)
+    }
+}
+
+async fn call(request: &CallToolRequestParams) -> Result<CallToolResult, ErrorData> {
+    let arguments = request.arguments.as_ref();
+    match request.name.as_ref() {
+        "echo" => Ok(CallToolResult::success(vec![Content::text(format!(
+            "echo: {}",
+            string_arg(arguments, "text")
+        ))])),
+        "fail" => Ok(CallToolResult::error(vec![Content::text(
+            "the tool failed on purpose",
+        )])),
+        "sleep" => {
+            let seconds = arguments
+                .and_then(|args| args.get("seconds"))
+                .and_then(Value::as_f64)
+                .unwrap_or(1.0);
+            tokio::time::sleep(Duration::from_secs_f64(seconds.clamp(0.0, 600.0))).await;
+            Ok(CallToolResult::success(vec![Content::text("slept")]))
         }
+        "env" => {
+            let value = std::env::var(string_arg(arguments, "name")).unwrap_or_default();
+            Ok(CallToolResult::success(vec![Content::text(value)]))
+        }
+        "record" => Ok(record(arguments).await),
+        other => Err(ErrorData::invalid_params(
+            format!("no tool `{other}`"),
+            None,
+        )),
     }
 }
 
