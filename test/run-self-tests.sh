@@ -21,6 +21,7 @@
 #   SACI_LLM_BASE_URL  replaces llm.base_url of test/saci.yaml when set
 #   SACI_LLM_MODEL     replaces llm.model of test/saci.yaml when set
 #   TYPESAFE_API_KEY   when set, the TypeSafe judge assesses the units first
+#   SACI_JUDGE_THRESHOLD  judge.threshold_percent (default: 90)
 #
 # Needs curl and jq. Workers use the host network, so this needs Linux.
 set -euo pipefail
@@ -88,6 +89,7 @@ else
 fi
 if [ -n "${TYPESAFE_API_KEY:-}" ]; then
   printf '\njudge:\n  provider: typesafe\n  api_key: env:TYPESAFE_API_KEY\n' >>"$config"
+  [ -z "${SACI_JUDGE_THRESHOLD:-}" ] || printf '  threshold_percent: %s\n' "$SACI_JUDGE_THRESHOLD" >>"$config"
 fi
 (cd "$work/runner" && exec "$bin/saci" backend start --config saci.yaml) >>"$work/runner.log" 2>&1 &
 pids+=("$!")
@@ -101,6 +103,17 @@ not_passed='.evidence as $ev | .units[] | select(.attempts[-1].outcome != "passe
     (.attempts[-1].evidence[] as $id | $ev[] | select(.id == $id)
       | "$ \(.command // .tool)", (.stdout.text // ""), (.stderr.text // ""))'
 
+# Keeps the log of the worker container of run $1 in file $2, since the
+# backend removes the container when the run ends.
+keep_worker_log() {
+  for _ in $(seq 1 300); do
+    if "$runtime" container inspect "saci-$1" >/dev/null 2>&1; then
+      exec "$runtime" logs -f "saci-$1" >"$2" 2>&1
+    fi
+    sleep 0.2
+  done
+}
+
 export SACI_BACKEND_URL=http://127.0.0.1:8080
 failed=0
 summary=""
@@ -109,11 +122,15 @@ for plan in $plans; do
   [ -z "${GITHUB_ACTIONS:-}" ] || echo "::group::$plan"
   run=$("$bin/saci" run "$root/test/plans/$plan" --environment saci-under-test) \
     || fail "$plan was not accepted"
+  keep_worker_log "$run" "$work/reports/$name.worker.log" &
+  log_pid=$!
   status=0
   "$bin/saci" follow "$run" || status=$?
+  wait "$log_pid" 2>/dev/null || true
   "$bin/saci" report "$run" >"$work/reports/$name.txt" || true
   "$bin/saci" report "$run" --json >"$work/reports/$name.json" || true
   [ "$status" -eq 0 ] || jq -r "$not_passed" "$work/reports/$name.json" || true
+  [ "$status" -eq 0 ] || grep -i "judge" "$work/reports/$name.worker.log" || true
   [ -z "${GITHUB_ACTIONS:-}" ] || echo "::endgroup::"
   [ "$status" -eq 0 ] || failed=1
   summary="$summary$plan $run exit $status"$'\n'

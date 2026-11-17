@@ -80,10 +80,12 @@ pass depends on `SACI_LLM_API_KEY`:
   `SACI_LLM_MODEL`.
 - When `SACI_LLM_API_KEY` is not set (judge only), the script points
   `llm` at a scripted model that has no answers. The unit ends `error`,
-  and its reason says that the playbook has no entry for the unit. The
-  worker log gives the probabilities of the judge.
+  and its reason says that the playbook has no entry for the unit.
 
 The script prints the folder with the reports (`reports/`) and the logs.
+For a plan that does not pass, it also prints the output of each unit
+that did not pass and the judge lines of the worker log, which give the
+probabilities of the judge.
 For the other settings, see the comment at the start of the script.
 
 ## Running the plans in CI
@@ -102,6 +104,7 @@ It reads these repository settings:
 | `SACI_LLM_API_KEY` | Secret, optional | A model provider's key. Without it, the job runs judge only. |
 | `SACI_LLM_BASE_URL` | Variable, optional | Replaces `llm.base_url` of `saci.yaml`. |
 | `SACI_LLM_MODEL` | Variable, optional | Replaces `llm.model` of `saci.yaml`. |
+| `SACI_JUDGE_THRESHOLD` | Variable, optional | The judge's `threshold_percent`. The default is 90. |
 
 GitHub does not give secrets to pull requests from forks or from
 Dependabot, so the workflow skips its job for them. When
