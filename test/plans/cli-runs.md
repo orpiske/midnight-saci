@@ -31,12 +31,12 @@ it is cancelled.
 ```bash run
 export SACI_BACKEND_URL="$UNDER_TEST_URL"
 export ENV_NAME="$UNDER_TEST_ENVIRONMENT"
-saci list --limit 1 >/dev/null; echo "exit $?"
+saci list --limit 1 >/dev/null; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
-- The output is `exit 0`: the backend answers.
+- The output is `saci exit status 0`: the backend answers.
 
 ### Step 1.2: Write the walkthrough plans
 
@@ -116,19 +116,19 @@ ls "$PLANS"
 ```bash run
 export HEALTH_RUN=$(saci run "$PLANS/health.md" --environment "$ENV_NAME")
 echo "run $HEALTH_RUN"
-saci follow "$HEALTH_RUN" 2>&1; echo "exit $?"
+saci follow "$HEALTH_RUN" 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
 - `saci run` prints a run ID starting with `run-`.
 - The events show test 1.1 passing and end with `run finished passed`.
-- The output ends with `exit 0`.
+- The output ends with the line `saci exit status 0`.
 
 ### Test 2.2: A failing run exits 1
 
 ```bash run
-saci run "$PLANS/orders.md" --environment "$ENV_NAME" --follow 2>&1; echo "exit $?"
+saci run "$PLANS/orders.md" --environment "$ENV_NAME" --follow 2>&1; echo "saci exit status $?"
 export ORDERS_RUN=$(saci list --json | jq -r '.items[0].id')
 ```
 
@@ -138,12 +138,12 @@ export ORDERS_RUN=$(saci list --json | jq -r '.items[0].id')
   database is read-only.
 - The run finishes `failed` and says the `default` policy stopped it
   after 1.2.
-- The output ends with `exit 1`.
+- The output ends with the line `saci exit status 1`.
 
 ### Test 2.3: The failing run's report names the contradicted results
 
 ```bash run
-saci report "$ORDERS_RUN" 2>&1; echo "exit $?"
+saci report "$ORDERS_RUN" 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
@@ -151,19 +151,19 @@ saci report "$ORDERS_RUN" 2>&1; echo "exit $?"
 - The report shows `1.2 Create an order` as `failed`.
 - Expected results 1 and 2 of test 1.2 are `contradicted`, each citing
   evidence.
-- The output ends with `exit 1`.
+- The output ends with the line `saci exit status 1`.
 
 ### Test 2.4: Status reflects the outcome
 
 ```bash run
-saci status "$HEALTH_RUN" 2>&1; echo "exit $?"
+saci status "$HEALTH_RUN" 2>&1; echo "saci exit status $?"
 saci status "$HEALTH_RUN" --json | jq -c '{lifecycle, outcome}'
 ```
 
 **Expected result:**
 
-- The text status says the run finished and passed, and the first exit
-  line is `exit 0`.
+- The text status says the run finished and passed, and the first
+  `saci exit status` line is `saci exit status 0`.
 - The JSON line is `{"lifecycle":"finished","outcome":"passed"}`.
 
 ## Phase 3: Cancelling a run
@@ -179,36 +179,36 @@ for _ in $(seq 1 120); do
   sleep 1
 done
 sleep 2
-saci status "$EXPORT_RUN" 2>&1; echo "exit $?"
+saci status "$EXPORT_RUN" 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
 - The status says the run is running.
-- The output ends with `exit 8`.
+- The output ends with the line `saci exit status 8`.
 
 ### Test 3.2: Cancel and wait
 
 ```bash run
-saci cancel "$EXPORT_RUN" --wait 2>&1; echo "exit $?"
+saci cancel "$EXPORT_RUN" --wait 2>&1; echo "saci exit status $?"
 saci status "$EXPORT_RUN" --json | jq -c '{lifecycle, outcome}'
 ```
 
 **Expected result:**
 
-- The first exit line is `exit 7`.
+- The first `saci exit status` line is `saci exit status 7`.
 - The JSON line is `{"lifecycle":"finished","outcome":"cancelled"}`.
 
 ### Test 3.3: Cancelling a finished run exits 2
 
 ```bash run
-saci cancel "$EXPORT_RUN" 2>&1; echo "exit $?"
+saci cancel "$EXPORT_RUN" 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
 - The error says the run already finished.
-- The output ends with `exit 2`.
+- The output ends with the line `saci exit status 2`.
 
 ## Phase 4: Idempotency and bad input
 
@@ -231,35 +231,35 @@ echo "first $first, second $second"
 ### Test 4.2: An unknown environment exits 2
 
 ```bash run
-saci run "$PLANS/health.md" --environment no-such-environment 2>&1; echo "exit $?"
+saci run "$PLANS/health.md" --environment no-such-environment 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
 - The error names `no-such-environment` as unknown.
-- The output ends with `exit 2`.
+- The output ends with the line `saci exit status 2`.
 
 ### Test 4.3: An unknown run exits 2
 
 ```bash run
-saci status run-00000000000000000000000000000000 2>&1; echo "exit $?"
+saci status run-00000000000000000000000000000000 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
 - The error says the run was not found.
-- The output ends with `exit 2`.
+- The output ends with the line `saci exit status 2`.
 
 ### Test 4.4: An unreachable backend exits 3
 
 ```bash run
-saci list --backend http://127.0.0.1:9 2>&1; echo "exit $?"
+saci list --backend http://127.0.0.1:9 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
 - The error says the backend at `http://127.0.0.1:9` cannot be reached.
-- The output ends with `exit 3`.
+- The output ends with the line `saci exit status 3`.
 
 ## Phase 5: Cleanup
 

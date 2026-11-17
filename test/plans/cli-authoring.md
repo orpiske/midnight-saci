@@ -41,33 +41,33 @@ echo "scratch: $SCRATCH"
 ### Test 2.1: Print the version
 
 ```bash run
-saci --version 2>&1; echo "exit $?"
+saci --version 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
 - The output starts with `saci` followed by a version number, such as
   `saci 0.2.0`.
-- The output ends with `exit 0`.
+- The output ends with the line `saci exit status 0`.
 
 ### Test 2.2: List the commands
 
 ```bash run
-saci --help 2>&1; echo "exit $?"
+saci --help 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
 - The help names the commands `new`, `backend`, `run`, `list`, `status`,
   `follow`, `report`, `cancel` and `actions`.
-- The output ends with `exit 0`.
+- The output ends with the line `saci exit status 0`.
 
 ## Phase 3: Creating a plan
 
 ### Test 3.1: Create a plan from the template
 
 ```bash run
-saci new test-plan "$SCRATCH/saci-on-the-cloud.md" 2>&1; echo "exit $?"
+saci new test-plan "$SCRATCH/saci-on-the-cloud.md" 2>&1; echo "saci exit status $?"
 head -n 1 "$SCRATCH/saci-on-the-cloud.md"
 ```
 
@@ -75,7 +75,7 @@ head -n 1 "$SCRATCH/saci-on-the-cloud.md"
 
 - The command prints `Created` followed by the path of
   `saci-on-the-cloud.md`.
-- The first exit line is `exit 0`.
+- The first `saci exit status` line is `saci exit status 0`.
 - The file's first line is `# Test Plan: Saci on the cloud`: the title is
   derived from the file name.
 
@@ -85,7 +85,7 @@ Record the file's checksum, try to create it again, and compare:
 
 ```bash run
 before=$(sha256sum "$SCRATCH/saci-on-the-cloud.md")
-saci new test-plan "$SCRATCH/saci-on-the-cloud.md" 2>&1; echo "exit $?"
+saci new test-plan "$SCRATCH/saci-on-the-cloud.md" 2>&1; echo "saci exit status $?"
 after=$(sha256sum "$SCRATCH/saci-on-the-cloud.md")
 [ "$before" = "$after" ] && echo "unchanged" || echo "CHANGED"
 ```
@@ -93,34 +93,34 @@ after=$(sha256sum "$SCRATCH/saci-on-the-cloud.md")
 **Expected result:**
 
 - The error says the file already exists.
-- The exit code is not 0.
+- The `saci exit status` line does not show 0.
 - The output ends with `unchanged`.
 
 ### Test 3.3: Report a missing directory
 
 ```bash run
-saci new test-plan "$SCRATCH/no-such-dir/plan.md" 2>&1; echo "exit $?"
+saci new test-plan "$SCRATCH/no-such-dir/plan.md" 2>&1; echo "saci exit status $?"
 ls "$SCRATCH/no-such-dir" 2>&1 || true
 ```
 
 **Expected result:**
 
 - The error says the directory `no-such-dir` does not exist.
-- The exit code is not 0.
+- The `saci exit status` line does not show 0.
 - `ls` reports that `no-such-dir` does not exist: nothing was created.
 
 ### Test 3.4: The generated plan is valid
 
 ```bash run
-saci run "$SCRATCH/saci-on-the-cloud.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
+saci run "$SCRATCH/saci-on-the-cloud.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
-- The error says the backend cannot be reached, which means the plan
-  passed local validation.
-- The output ends with `exit 3`.
-- No plan validation error is printed.
+- The output contains `cannot reach the backend`: the plan passed local
+  validation.
+- The output ends with the line `saci exit status 3`.
+- The output does not contain `is not a valid plan`.
 
 ## Phase 4: Validating plans
 
@@ -136,15 +136,15 @@ cat >"$SCRATCH/no-expected.md" <<'EOF'
 
 Run `true`.
 EOF
-saci run "$SCRATCH/no-expected.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
+saci run "$SCRATCH/no-expected.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
 - The error names `no-expected.md` and a line number, and says that unit
   `1.1` has no `**Expected result:**`.
-- The output ends with `exit 2`, not `exit 3`: the backend was never
-  contacted.
+- The output ends with the line `saci exit status 2`, not
+  `saci exit status 3`: the backend was never contacted.
 
 ### Test 4.2: Report every problem at once
 
@@ -177,7 +177,7 @@ Run `true`.
 
 **Expected result:** It exits 0.
 EOF
-saci run "$SCRATCH/many-problems.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
+saci run "$SCRATCH/many-problems.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
@@ -185,7 +185,7 @@ saci run "$SCRATCH/many-problems.md" --environment any --backend "$UNREACHABLE" 
 - The output reports a unit outside a phase, a malformed phase heading and
   a duplicate unit ID `1.1`, each with `many-problems.md` and a line
   number.
-- The output ends with `exit 2`.
+- The output ends with the line `saci exit status 2`.
 
 ### Test 4.3: Headings inside code blocks are not units
 
@@ -207,14 +207,14 @@ printf '### Test 9.9: Not a unit\n'
 
 - The output is `### Test 9.9: Not a unit`.
 EOF
-saci run "$SCRATCH/headings-in-code.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
+saci run "$SCRATCH/headings-in-code.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "saci exit status $?"
 ````
 
 **Expected result:**
 
-- No plan validation error is printed; the error is about the
-  unreachable backend.
-- The output ends with `exit 3`.
+- The output contains `cannot reach the backend` and does not contain
+  `is not a valid plan`.
+- The output ends with the line `saci exit status 3`.
 
 ### Test 4.4: Reject a missing procedure
 
@@ -230,13 +230,13 @@ Follow [common/absent.md](common/absent.md).
 
 **Expected result:** The resources are ready.
 EOF
-saci run "$SCRATCH/missing-procedure.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
+saci run "$SCRATCH/missing-procedure.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
 - The error names `common/absent.md` and says it cannot be read.
-- The output ends with `exit 2`.
+- The output ends with the line `saci exit status 2`.
 
 ### Test 4.5: Bundle an existing procedure
 
@@ -264,14 +264,14 @@ Follow [common/setup.md](common/setup.md).
 
 **Expected result:** The marker exists.
 EOF
-saci run "$SCRATCH/with-procedure.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
+saci run "$SCRATCH/with-procedure.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
-- No plan validation error is printed; the error is about the
-  unreachable backend.
-- The output ends with `exit 3`.
+- The output contains `cannot reach the backend` and does not contain
+  `is not a valid plan`.
+- The output ends with the line `saci exit status 3`.
 
 ### Test 4.6: Reject a procedure outside the bundle
 
@@ -287,13 +287,13 @@ Follow [../outside.md](../outside.md).
 
 **Expected result:** The resources are ready.
 EOF
-saci run "$SCRATCH/escaping-procedure.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
+saci run "$SCRATCH/escaping-procedure.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "saci exit status $?"
 ```
 
 **Expected result:**
 
 - The error names `../outside.md` and says the path leaves the bundle.
-- The output ends with `exit 2`.
+- The output ends with the line `saci exit status 2`.
 
 ## Phase 5: Cleanup
 
