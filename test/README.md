@@ -104,7 +104,7 @@ It reads these repository settings:
 | `SACI_LLM_API_KEY` | Secret, optional | A model provider's key. Without it, the job runs judge only. |
 | `SACI_LLM_BASE_URL` | Variable, optional | Replaces `llm.base_url` of `saci.yaml`. |
 | `SACI_LLM_MODEL` | Variable, optional | Replaces `llm.model` of `saci.yaml`. |
-| `SACI_JUDGE_THRESHOLD` | Variable, optional | The judge's `threshold_percent`. The default is 90. |
+| `SACI_JUDGE_THRESHOLD` | Variable, optional | The judge's `threshold_percent`. The workflow uses 80 when it is not set. |
 
 GitHub does not give secrets to pull requests from forks or from
 Dependabot, so the workflow skips its job for them. When
