@@ -41,7 +41,7 @@ echo "scratch: $SCRATCH"
 ### Test 2.1: Print the version
 
 ```bash run
-saci --version; echo "exit $?"
+saci --version 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -53,7 +53,7 @@ saci --version; echo "exit $?"
 ### Test 2.2: List the commands
 
 ```bash run
-saci --help; echo "exit $?"
+saci --help 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -67,7 +67,7 @@ saci --help; echo "exit $?"
 ### Test 3.1: Create a plan from the template
 
 ```bash run
-saci new test-plan "$SCRATCH/saci-on-the-cloud.md"; echo "exit $?"
+saci new test-plan "$SCRATCH/saci-on-the-cloud.md" 2>&1; echo "exit $?"
 head -n 1 "$SCRATCH/saci-on-the-cloud.md"
 ```
 
@@ -85,7 +85,7 @@ Record the file's checksum, try to create it again, and compare:
 
 ```bash run
 before=$(sha256sum "$SCRATCH/saci-on-the-cloud.md")
-saci new test-plan "$SCRATCH/saci-on-the-cloud.md"; echo "exit $?"
+saci new test-plan "$SCRATCH/saci-on-the-cloud.md" 2>&1; echo "exit $?"
 after=$(sha256sum "$SCRATCH/saci-on-the-cloud.md")
 [ "$before" = "$after" ] && echo "unchanged" || echo "CHANGED"
 ```
@@ -99,7 +99,7 @@ after=$(sha256sum "$SCRATCH/saci-on-the-cloud.md")
 ### Test 3.3: Report a missing directory
 
 ```bash run
-saci new test-plan "$SCRATCH/no-such-dir/plan.md"; echo "exit $?"
+saci new test-plan "$SCRATCH/no-such-dir/plan.md" 2>&1; echo "exit $?"
 ls "$SCRATCH/no-such-dir" 2>&1 || true
 ```
 
@@ -112,7 +112,7 @@ ls "$SCRATCH/no-such-dir" 2>&1 || true
 ### Test 3.4: The generated plan is valid
 
 ```bash run
-saci run "$SCRATCH/saci-on-the-cloud.md" --environment any --backend "$UNREACHABLE"; echo "exit $?"
+saci run "$SCRATCH/saci-on-the-cloud.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -136,7 +136,7 @@ cat >"$SCRATCH/no-expected.md" <<'EOF'
 
 Run `true`.
 EOF
-saci run "$SCRATCH/no-expected.md" --environment any --backend "$UNREACHABLE"; echo "exit $?"
+saci run "$SCRATCH/no-expected.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -177,7 +177,7 @@ Run `true`.
 
 **Expected result:** It exits 0.
 EOF
-saci run "$SCRATCH/many-problems.md" --environment any --backend "$UNREACHABLE"; echo "exit $?"
+saci run "$SCRATCH/many-problems.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -207,7 +207,7 @@ printf '### Test 9.9: Not a unit\n'
 
 - The output is `### Test 9.9: Not a unit`.
 EOF
-saci run "$SCRATCH/headings-in-code.md" --environment any --backend "$UNREACHABLE"; echo "exit $?"
+saci run "$SCRATCH/headings-in-code.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
 ````
 
 **Expected result:**
@@ -230,7 +230,7 @@ Follow [common/absent.md](common/absent.md).
 
 **Expected result:** The resources are ready.
 EOF
-saci run "$SCRATCH/missing-procedure.md" --environment any --backend "$UNREACHABLE"; echo "exit $?"
+saci run "$SCRATCH/missing-procedure.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -264,7 +264,7 @@ Follow [common/setup.md](common/setup.md).
 
 **Expected result:** The marker exists.
 EOF
-saci run "$SCRATCH/with-procedure.md" --environment any --backend "$UNREACHABLE"; echo "exit $?"
+saci run "$SCRATCH/with-procedure.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -287,7 +287,7 @@ Follow [../outside.md](../outside.md).
 
 **Expected result:** The resources are ready.
 EOF
-saci run "$SCRATCH/escaping-procedure.md" --environment any --backend "$UNREACHABLE"; echo "exit $?"
+saci run "$SCRATCH/escaping-procedure.md" --environment any --backend "$UNREACHABLE" 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
