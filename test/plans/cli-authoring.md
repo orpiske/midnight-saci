@@ -24,7 +24,7 @@ exit code therefore tells which side of validation a plan landed on.
 Create a directory for the files this plan writes, and keep its path in
 `SCRATCH` for the following steps:
 
-```bash
+```bash run
 export SCRATCH=$(mktemp -d)
 export UNREACHABLE=http://127.0.0.1:9
 ls -A "$SCRATCH" | wc -l
@@ -40,7 +40,7 @@ echo "scratch: $SCRATCH"
 
 ### Test 2.1: Print the version
 
-```bash
+```bash run
 saci --version; echo "exit $?"
 ```
 
@@ -52,7 +52,7 @@ saci --version; echo "exit $?"
 
 ### Test 2.2: List the commands
 
-```bash
+```bash run
 saci --help; echo "exit $?"
 ```
 
@@ -66,7 +66,7 @@ saci --help; echo "exit $?"
 
 ### Test 3.1: Create a plan from the template
 
-```bash
+```bash run
 saci new test-plan "$SCRATCH/saci-on-the-cloud.md"; echo "exit $?"
 head -n 1 "$SCRATCH/saci-on-the-cloud.md"
 ```
@@ -83,7 +83,7 @@ head -n 1 "$SCRATCH/saci-on-the-cloud.md"
 
 Record the file's checksum, try to create it again, and compare:
 
-```bash
+```bash run
 before=$(sha256sum "$SCRATCH/saci-on-the-cloud.md")
 saci new test-plan "$SCRATCH/saci-on-the-cloud.md"; echo "exit $?"
 after=$(sha256sum "$SCRATCH/saci-on-the-cloud.md")
@@ -98,7 +98,7 @@ after=$(sha256sum "$SCRATCH/saci-on-the-cloud.md")
 
 ### Test 3.3: Report a missing directory
 
-```bash
+```bash run
 saci new test-plan "$SCRATCH/no-such-dir/plan.md"; echo "exit $?"
 ls "$SCRATCH/no-such-dir" 2>&1 || true
 ```
@@ -111,7 +111,7 @@ ls "$SCRATCH/no-such-dir" 2>&1 || true
 
 ### Test 3.4: The generated plan is valid
 
-```bash
+```bash run
 saci run "$SCRATCH/saci-on-the-cloud.md" --environment any --backend "$UNREACHABLE"; echo "exit $?"
 ```
 
@@ -126,7 +126,7 @@ saci run "$SCRATCH/saci-on-the-cloud.md" --environment any --backend "$UNREACHAB
 
 ### Test 4.1: Reject a unit without an expected result
 
-```bash
+```bash run
 cat >"$SCRATCH/no-expected.md" <<'EOF'
 # Test Plan: No expected result
 
@@ -151,7 +151,7 @@ saci run "$SCRATCH/no-expected.md" --environment any --backend "$UNREACHABLE"; e
 The plan below has three problems: a unit outside any phase (line 3), a
 malformed phase heading (line 9) and a duplicate unit ID (line 19).
 
-```bash
+```bash run
 cat >"$SCRATCH/many-problems.md" <<'EOF'
 # Test Plan: Many problems
 
@@ -191,7 +191,7 @@ saci run "$SCRATCH/many-problems.md" --environment any --backend "$UNREACHABLE";
 
 A plan whose command prints Markdown headings is still a one-unit plan:
 
-````bash
+````bash run
 cat >"$SCRATCH/headings-in-code.md" <<'EOF'
 # Test Plan: Headings in code
 
@@ -218,7 +218,7 @@ saci run "$SCRATCH/headings-in-code.md" --environment any --backend "$UNREACHABL
 
 ### Test 4.4: Reject a missing procedure
 
-```bash
+```bash run
 cat >"$SCRATCH/missing-procedure.md" <<'EOF'
 # Test Plan: Missing procedure
 
@@ -240,7 +240,7 @@ saci run "$SCRATCH/missing-procedure.md" --environment any --backend "$UNREACHAB
 
 ### Test 4.5: Bundle an existing procedure
 
-```bash
+```bash run
 mkdir -p "$SCRATCH/common"
 cat >"$SCRATCH/common/setup.md" <<'EOF'
 # Procedure: Setup
@@ -275,7 +275,7 @@ saci run "$SCRATCH/with-procedure.md" --environment any --backend "$UNREACHABLE"
 
 ### Test 4.6: Reject a procedure outside the bundle
 
-```bash
+```bash run
 cat >"$SCRATCH/escaping-procedure.md" <<'EOF'
 # Test Plan: Escaping procedure
 
@@ -299,7 +299,7 @@ saci run "$SCRATCH/escaping-procedure.md" --environment any --backend "$UNREACHA
 
 ### Step 5.1: Remove the scratch directory
 
-```bash
+```bash run
 rm -rf "$SCRATCH"
 [ -e "$SCRATCH" ] && echo "still there" || echo "removed"
 ```

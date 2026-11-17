@@ -31,7 +31,7 @@ scripted model knows.
 Write the two plans this plan submits, and a helper that turns a plan
 file into a submission body:
 
-````bash
+````bash run
 export API="$UNDER_TEST_URL/api/v1"
 export WORK=$(mktemp -d)
 cat >"$WORK/health.md" <<'EOF'
@@ -81,7 +81,7 @@ body "$WORK/health.md" | jq -c '{entry: .bundle.entry, environment}'
 
 ### Test 2.1: Health needs no token
 
-```bash
+```bash run
 curl -sS -w '\nstatus %{http_code}\n' "$API/health"
 ```
 
@@ -92,7 +92,7 @@ curl -sS -w '\nstatus %{http_code}\n' "$API/health"
 
 ### Test 2.2: An unknown run is not found
 
-```bash
+```bash run
 curl -sS -w '\nstatus %{http_code}\n' "$API/runs/run-00000000000000000000000000000000"
 curl -sS -w '\nstatus %{http_code}\n' "$API/runs/not-a-run-id"
 ```
@@ -104,7 +104,7 @@ curl -sS -w '\nstatus %{http_code}\n' "$API/runs/not-a-run-id"
 
 ### Test 2.3: Out-of-range list limits are rejected
 
-```bash
+```bash run
 curl -sS -w '\nstatus %{http_code}\n' "$API/runs?limit=0"
 curl -sS -w '\nstatus %{http_code}\n' "$API/runs?limit=201"
 curl -sS -o /dev/null -w 'status %{http_code}\n' "$API/runs?limit=200"
@@ -118,7 +118,7 @@ curl -sS -o /dev/null -w 'status %{http_code}\n' "$API/runs?limit=200"
 
 ### Test 2.4: The catalog shows names and limits, not secrets
 
-```bash
+```bash run
 curl -sS -w '\nstatus %{http_code}\n' "$API/environments"
 curl -sS "$API/environments" | jq --arg env "$UNDER_TEST_ENVIRONMENT" \
   '{listed: any(.items[]; .name == $env), has_parameters: any(..; type == "object" and (has("parameters") or has("secrets")))}'
@@ -141,7 +141,7 @@ curl -sS -w '\nstatus %{http_code}\n' "$API/policies"
 
 Submit a plan whose only test has no expected result:
 
-```bash
+```bash run
 printf '# Test Plan: Broken\n\n## Phase 1: Checks\n\n### Test 1.1: Do something\n\nRun `true`.\n' >"$WORK/broken.md"
 body "$WORK/broken.md" | curl -sS -w '\nstatus %{http_code}\n' \
   -H 'Content-Type: application/json' --data-binary @- "$API/runs"
@@ -158,7 +158,7 @@ body "$WORK/broken.md" | curl -sS -w '\nstatus %{http_code}\n' \
 
 ### Test 3.2: An unknown environment is rejected
 
-```bash
+```bash run
 body "$WORK/health.md" no-such-environment | curl -sS -w '\nstatus %{http_code}\n' \
   -H 'Content-Type: application/json' --data-binary @- "$API/runs"
 ```
@@ -171,7 +171,7 @@ body "$WORK/health.md" no-such-environment | curl -sS -w '\nstatus %{http_code}\
 
 ### Test 3.3: Unknown fields and malformed JSON are bad requests
 
-```bash
+```bash run
 body "$WORK/health.md" | jq '. + {surprise: true}' | curl -sS -w '\nstatus %{http_code}\n' \
   -H 'Content-Type: application/json' --data-binary @- "$API/runs"
 curl -sS -w '\nstatus %{http_code}\n' -H 'Content-Type: application/json' \
@@ -187,7 +187,7 @@ curl -sS -w '\nstatus %{http_code}\n' -H 'Content-Type: application/json' \
 
 ### Test 4.1: Submit with an idempotency key
 
-```bash
+```bash run
 export KEY="saci-self-test-$(date +%s)-$RANDOM"
 body "$WORK/health.md" | curl -sS -D "$WORK/headers" -o "$WORK/accepted.json" \
   -w 'status %{http_code}\n' -H 'Content-Type: application/json' \
@@ -206,7 +206,7 @@ grep -i '^location:' "$WORK/headers"
 
 ### Test 4.2: Repeating the same submission returns the same run
 
-```bash
+```bash run
 body "$WORK/health.md" | curl -sS -o "$WORK/again.json" -w 'status %{http_code}\n' \
   -H 'Content-Type: application/json' -H "Idempotency-Key: $KEY" \
   --data-binary @- "$API/runs"
@@ -220,7 +220,7 @@ echo "first $RUN_ID, again $(jq -r .id "$WORK/again.json")"
 
 ### Test 4.3: Reusing the key with another plan is a conflict
 
-```bash
+```bash run
 body "$WORK/export.md" | curl -sS -w '\nstatus %{http_code}\n' \
   -H 'Content-Type: application/json' -H "Idempotency-Key: $KEY" \
   --data-binary @- "$API/runs"
@@ -233,7 +233,7 @@ body "$WORK/export.md" | curl -sS -w '\nstatus %{http_code}\n' \
 
 ### Test 4.4: The run is listed
 
-```bash
+```bash run
 curl -sS "$API/runs?limit=200" | jq --arg id "$RUN_ID" '[.items[] | select(.id == $id)] | length'
 ```
 
@@ -247,7 +247,7 @@ Long-poll the events, continuing after the last one received. A page
 with `finished` set does not always hold the remaining events, so stop
 only at a page that is empty or ends with the `run_finished` event:
 
-```bash
+```bash run
 after=0; seqs=""
 for _ in $(seq 1 20); do
   page=$(curl -sS "$API/runs/$RUN_ID/events?after=$after&wait=30")
@@ -268,7 +268,7 @@ curl -sS "$API/runs/$RUN_ID" | jq '{lifecycle, outcome, passed: .counts.passed}'
 
 ### Test 4.6: The report ties the verdict to evidence
 
-```bash
+```bash run
 curl -sS "$API/runs/$RUN_ID/report" | jq .
 ```
 
@@ -280,7 +280,7 @@ curl -sS "$API/runs/$RUN_ID/report" | jq .
 
 ### Test 4.7: The run keeps the plan it executed
 
-```bash
+```bash run
 curl -sS "$API/runs/$RUN_ID/plan" | jq '{run_id, title, entry, units: [.units[] | {key, title, criteria: [.criteria[].text]}]}'
 curl -sS "$API/runs/$RUN_ID/plan" | jq -j '.documents["plan.md"]' | diff - "$WORK/health.md" && echo "same document"
 ```
@@ -297,7 +297,7 @@ curl -sS "$API/runs/$RUN_ID/plan" | jq -j '.documents["plan.md"]' | diff - "$WOR
 
 ### Test 4.8: A finished run cannot be cancelled
 
-```bash
+```bash run
 curl -sS -w '\nstatus %{http_code}\n' -X POST "$API/runs/$RUN_ID/cancellation"
 ```
 
@@ -313,7 +313,7 @@ curl -sS -w '\nstatus %{http_code}\n' -X POST "$API/runs/$RUN_ID/cancellation"
 Submit the slow export, wait until its step has started, and cancel it
 twice:
 
-```bash
+```bash run
 export SLOW_ID=$(body "$WORK/export.md" | curl -sS -H 'Content-Type: application/json' \
   --data-binary @- "$API/runs" | jq -r .id)
 for _ in $(seq 1 120); do
@@ -336,7 +336,7 @@ jq -r .cancel_requested_at "$WORK/cancel1.json" "$WORK/cancel2.json"
 
 ### Test 5.2: The cancelled run ends cancelled
 
-```bash
+```bash run
 for _ in $(seq 1 60); do
   [ "$(curl -sS "$API/runs/$SLOW_ID" | jq -r .lifecycle)" = finished ] && break
   sleep 1
@@ -355,7 +355,7 @@ curl -sS "$API/runs/$SLOW_ID" | jq '{lifecycle, outcome, created_at, finished_at
 
 ### Step 6.1: Remove the working directory
 
-```bash
+```bash run
 rm -rf "$WORK"
 [ -e "$WORK" ] && echo "still there" || echo "removed"
 ```

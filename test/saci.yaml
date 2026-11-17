@@ -8,7 +8,7 @@ backend:
   data_dir: ./saci-self-test-data
   # Workers share the host's network, so loopback reaches this backend and
   # the backend under test.
-  worker_url: http://host.docker.internal:8080
+  worker_url: http://127.0.0.1:8080
 
 worker:
   runtime: auto            # podman if found in PATH, otherwise docker
@@ -31,9 +31,11 @@ environments:
   saci-under-test:
     description: The Saci started by test/start-under-test.sh.
     parameters:
-      UNDER_TEST_URL: http://host.docker.internal:8080
-      UNDER_TEST_ENVIRONMENT: saci-under-test
-      SERVICE_URL: http://host.docker.internal:18081
+      # The backend under test and the walkthrough orders service, both on
+      # the host's loopback. `local` is the backend under test's environment.
+      UNDER_TEST_URL: http://127.0.0.1:18080
+      UNDER_TEST_ENVIRONMENT: local
+      SERVICE_URL: http://127.0.0.1:18081
 
 policies:
   # Keep going after a failed test, so one failure does not hide the rest.

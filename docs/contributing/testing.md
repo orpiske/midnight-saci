@@ -36,6 +36,11 @@ requiring `Authorization: Bearer $FAKE_MCP_TOKEN` when that variable is set).
 [`test/`](../../test/README.md) holds Saci test plans for Saci itself: one
 Saci runs them, with a real model, against a second Saci.
 
+The `Self-test` workflow (`.github/workflows/self-test.yml`) runs these plans
+on each pull request and on each push to `main`, with a real model and the
+TypeSafe judge. See [running the plans in CI](../../test/README.md#running-the-plans-in-ci)
+for the repository secrets it needs.
+
 ## Outcome actions
 
 `crates/saci-backend/tests/outcome_actions.rs` replays recorded runs

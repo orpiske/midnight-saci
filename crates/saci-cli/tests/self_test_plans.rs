@@ -1,6 +1,7 @@
 //! Saci's own test plans (`test/plans`, `test/README.md`) stay valid:
 //! every plan bundles and expands, and the configuration that runs them
-//! loads. Running them needs a real model and is done by hand.
+//! loads. Running them needs a real model: `test/run-self-tests.sh` and the
+//! `Self-test` workflow do it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
