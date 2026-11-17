@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Runs the plans in test/plans/ end to end: starts the Saci under test
+# (test/start-under-test.sh), starts the Saci that runs the plans with
+# test/saci.yaml, runs each plan in turn and writes its report. It exits 0
+# when every plan passed and 1 otherwise. CI runs it in
+# .github/workflows/self-test.yml. Run it from the repository root after
+# `cargo build --package saci-cli --package saci-testkit` and `make image`:
+#
+#   SACI_LLM_API_KEY=... test/run-self-tests.sh
+#
+# Settings (environment variables):
+#   SACI_BIN           directory with saci, saci-fake-model and saci-fake-target
+#                      (default: target/debug)
+#   IMAGE              worker image (default: localhost/saci-worker:latest)
+#   RUNTIME            podman or docker (default: podman if found, else docker)
+#   WORK               working directory with logs and reports, kept afterwards
+#                      (default: a new temporary one)
+#   PLANS              plan file names in test/plans/, in order
+#                      (default: cli-authoring.md backend-api.md cli-runs.md)
+#   SACI_LLM_API_KEY   the model provider's key
+#   SACI_LLM_BASE_URL  replaces llm.base_url of test/saci.yaml when set
+#   SACI_LLM_MODEL     replaces llm.model of test/saci.yaml when set
+#   TYPESAFE_API_KEY   when set, the TypeSafe judge assesses the units first
+#
+# Workers use the host network, so this needs Linux.
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+bin=$(cd "${SACI_BIN:-target/debug}" && pwd)
+image=${IMAGE:-localhost/saci-worker:latest}
+runtime=${RUNTIME:-$(command -v podman >/dev/null 2>&1 && echo podman || echo docker)}
+work=${WORK:-$(mktemp -d -t saci-self-test.XXXXXX)}
+plans=${PLANS:-cli-authoring.md backend-api.md cli-runs.md}
+mkdir -p "$work/runner" "$work/reports"
+work=$(cd "$work" && pwd)
+pids=()
+
+fail() { printf 'run-self-tests: %s\n' "$*" >&2; exit 1; }
+
+cleanup() {
+  for pid in ${pids[@]+"${pids[@]}"}; do kill "$pid" 2>/dev/null || true; done
+  wait 2>/dev/null || true
+}
+trap cleanup EXIT
+
+wait_for() {
+  for _ in $(seq 1 300); do
+    curl -fsS -o /dev/null "$1" 2>/dev/null && return 0
+    sleep 0.2
+  done
+  fail "$1 did not answer; see the logs in $work"
+}
+
+[ -x "$bin/saci" ] || fail "$bin/saci is missing; run: cargo build"
+[ -n "${SACI_LLM_API_KEY:-}" ] || fail "SACI_LLM_API_KEY is not set"
+
+# The Saci under test, on 127.0.0.1:18080.
+SACI_BIN="$bin" IMAGE="$image" RUNTIME="$runtime" WORK="$work/under-test" \
+  "$root/test/start-under-test.sh" >"$work/under-test.log" 2>&1 &
+pids+=("$!")
+wait_for http://127.0.0.1:18080/api/v1/health
+
+# The Saci that runs the plans, on 127.0.0.1:8080.
+config="$work/runner/saci.yaml"
+sed -e "s#image: localhost/saci-worker:latest#image: $image#" \
+    -e "s#runtime: auto #runtime: $runtime #" \
+    "$root/test/saci.yaml" >"$config"
+if [ -n "${SACI_LLM_BASE_URL:-}" ]; then
+  sed -e 's#^  base_url: .*#  base_url: env:SACI_LLM_BASE_URL#' "$config" >"$config.new"
+  mv "$config.new" "$config"
+fi
+if [ -n "${SACI_LLM_MODEL:-}" ]; then
+  sed -e 's#^  model: .*#  model: env:SACI_LLM_MODEL#' "$config" >"$config.new"
+  mv "$config.new" "$config"
+fi
+if [ -n "${TYPESAFE_API_KEY:-}" ]; then
+  printf '\njudge:\n  provider: typesafe\n  api_key: env:TYPESAFE_API_KEY\n' >>"$config"
+fi
+(cd "$work/runner" && exec "$bin/saci" backend start --config saci.yaml) >>"$work/runner.log" 2>&1 &
+pids+=("$!")
+wait_for http://127.0.0.1:8080/api/v1/health
+
+export SACI_BACKEND_URL=http://127.0.0.1:8080
+failed=0
+summary=""
+for plan in $plans; do
+  name=${plan%.md}
+  [ -z "${GITHUB_ACTIONS:-}" ] || echo "::group::$plan"
+  run=$("$bin/saci" run "$root/test/plans/$plan" --environment saci-under-test) \
+    || fail "$plan was not accepted"
+  status=0
+  "$bin/saci" follow "$run" || status=$?
+  "$bin/saci" report "$run" >"$work/reports/$name.txt" || true
+  "$bin/saci" report "$run" --json >"$work/reports/$name.json" || true
+  [ -z "${GITHUB_ACTIONS:-}" ] || echo "::endgroup::"
+  [ "$status" -eq 0 ] || failed=1
+  summary="$summary$plan $run exit $status"$'\n'
+done
+
+printf '\n%s' "$summary"
+echo "Reports and logs: $work"
+exit "$failed"

@@ -54,8 +54,54 @@ does not hide the others. Run the plans one at a time: `backend-api.md`
 and `cli-runs.md` both submit runs to the Saci under test and look at its
 newest runs.
 
+## Running every plan with one command
+
+[`run-self-tests.sh`](run-self-tests.sh) does all the steps above: it
+starts the Saci under test and the Saci that runs the plans, runs each
+plan in turn and writes the reports. It exits 0 when every plan passed and
+1 otherwise.
+
+```sh
+cargo build --package saci-cli --package saci-testkit
+make image
+export SACI_LLM_API_KEY=...        # your model provider's key
+export TYPESAFE_API_KEY=...        # optional: the TypeSafe judge
+test/run-self-tests.sh
+```
+
+The script uses the model in [`saci.yaml`](saci.yaml). To use a different
+model, set `SACI_LLM_BASE_URL` and `SACI_LLM_MODEL`. When
+`TYPESAFE_API_KEY` is set, the script adds a TypeSafe
+[judge](../docs/reference/configuration.md#judge). Every command in the
+plans is a `run` block, so the judge can pass a unit without a model
+request. The model assesses only the units that the judge does not pass.
+The script prints the folder with the reports (`reports/`) and the logs.
+For the other settings, see the comment at the start of the script.
+
+## Running the plans in CI
+
+The [`Self-test`](../.github/workflows/self-test.yml) workflow runs
+`run-self-tests.sh` on each pull request and on each push to `main`. You
+can also start it by hand (`workflow_dispatch`). It builds the worker
+image, runs every plan and uploads the reports and logs as the
+`self-test-reports` artifact.
+
+It reads these repository settings:
+
+| Setting | Kind | Meaning |
+| --- | --- | --- |
+| `SACI_LLM_API_KEY` | Secret, required | The model provider's key. |
+| `TYPESAFE_API_KEY` | Secret, required | The TypeSafe judge's key. |
+| `SACI_LLM_BASE_URL` | Variable, optional | Replaces `llm.base_url` of `saci.yaml`. |
+| `SACI_LLM_MODEL` | Variable, optional | Replaces `llm.model` of `saci.yaml`. |
+
+GitHub does not give secrets to pull requests from forks or from
+Dependabot, so the workflow skips its job for them. When a secret is not
+set, the job fails at its first step and names the secret.
+
 `cargo test` checks that every plan here stays valid
-(`crates/saci-cli/tests/self_test_plans.rs`); it does not run them.
+(`crates/saci-cli/tests/self_test_plans.rs`); it does not run them. The
+`Self-test` workflow runs them.
 
 After you change a plan, validate it without running it:
 

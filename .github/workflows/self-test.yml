@@ -1,0 +1,71 @@
+name: Self-test
+
+# Runs Saci's own test plans (test/plans) end to end with a real model and
+# the TypeSafe judge. See test/README.md.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  plans:
+    # Pull requests from forks and from Dependabot get no secrets.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.actor != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SACI_LLM_API_KEY: ${{ secrets.SACI_LLM_API_KEY }}
+      TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+      SACI_LLM_BASE_URL: ${{ vars.SACI_LLM_BASE_URL }}
+      SACI_LLM_MODEL: ${{ vars.SACI_LLM_MODEL }}
+    steps:
+      - name: Check the secrets
+        run: |
+          missing=0
+          for name in SACI_LLM_API_KEY TYPESAFE_API_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::The repository secret $name is not set."
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+      - name: Build the worker image
+        run: docker build -f Containerfile --build-arg SACI_BUILD_COMMIT=${{ github.sha }} -t localhost/saci-worker:ci .
+      - name: Build the CLI and the fixtures
+        run: cargo build --locked --package saci-cli --package saci-testkit
+      - name: Run the plans
+        env:
+          IMAGE: localhost/saci-worker:ci
+          RUNTIME: docker
+          WORK: ${{ runner.temp }}/self-test
+        run: test/run-self-tests.sh
+      - name: Upload the reports and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: self-test-reports
+          path: |
+            ${{ runner.temp }}/self-test/reports/
+            ${{ runner.temp }}/self-test/*.log
+            ${{ runner.temp }}/self-test/under-test/*.log
+          if-no-files-found: ignore
