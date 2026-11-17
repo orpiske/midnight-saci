@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use rmcp::ServiceExt;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, ClientCapabilities, ClientInfo, ClientRequest,
+    CallToolRequestParams, CallToolResult, ClientCapabilities, ClientConfig, ClientRequest,
     Implementation, Request,
 };
 use rmcp::service::{PeerRequestOptions, RoleClient, RunningService};
@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-type Client = RunningService<RoleClient, ClientInfo>;
+type Client = RunningService<RoleClient, ClientConfig>;
 
 struct Runner {
     base: String,
@@ -97,7 +97,7 @@ impl Runner {
         if let Some(token) = token {
             config = config.auth_header(token);
         }
-        let info = ClientInfo::new(
+        let info = ClientConfig::new(
             ClientCapabilities::default(),
             Implementation::new("saci-test", "1"),
         );

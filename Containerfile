@@ -10,7 +10,7 @@
 # group 0 (OpenShift's restricted policy). Extend the tool set with a
 # derived image; see docs/operate/worker-image.md#adding-utilities.
 
-ARG RUST_IMAGE=docker.io/library/rust:1.96-slim-trixie
+ARG RUST_IMAGE=docker.io/library/rust:1.97-slim-trixie
 ARG BASE_IMAGE=registry.fedoraproject.org/fedora:44
 ARG NODE_IMAGE=docker.io/library/node:22-trixie-slim
 # The ripwire release to build; a tag of github.com/redhat-et/ripwire.

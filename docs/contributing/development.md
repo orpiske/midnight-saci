@@ -3,14 +3,14 @@
 ## Prerequisites
 
 - [rustup](https://rustup.rs/). The pinned toolchain in `rust-toolchain.toml`
-  (Rust 1.96.0 with `clippy` and `rustfmt`) is installed automatically on the
+  (Rust 1.97.1 with `clippy` and `rustfmt`) is installed automatically on the
   first `cargo` command.
 - Optional: Podman or Docker to build the worker image and run local workers.
 - Optional: Node.js 22 or later with npm to build the
   [web console](web-console.md#building-from-source) in `web/`.
 
 The workspace uses Rust edition 2024. The minimum supported Rust version is
-declared once as `rust-version = "1.96"` in `Cargo.toml` and matches the pinned
+declared once as `rust-version = "1.97"` in `Cargo.toml` and matches the pinned
 toolchain and the Clippy `msrv` setting.
 
 ## Build and run
