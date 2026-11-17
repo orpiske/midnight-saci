@@ -116,7 +116,7 @@ ls "$PLANS"
 ```bash run
 export HEALTH_RUN=$(saci run "$PLANS/health.md" --environment "$ENV_NAME")
 echo "run $HEALTH_RUN"
-saci follow "$HEALTH_RUN"; echo "exit $?"
+saci follow "$HEALTH_RUN" 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -128,7 +128,7 @@ saci follow "$HEALTH_RUN"; echo "exit $?"
 ### Test 2.2: A failing run exits 1
 
 ```bash run
-saci run "$PLANS/orders.md" --environment "$ENV_NAME" --follow; echo "exit $?"
+saci run "$PLANS/orders.md" --environment "$ENV_NAME" --follow 2>&1; echo "exit $?"
 export ORDERS_RUN=$(saci list --json | jq -r '.items[0].id')
 ```
 
@@ -143,7 +143,7 @@ export ORDERS_RUN=$(saci list --json | jq -r '.items[0].id')
 ### Test 2.3: The failing run's report names the contradicted results
 
 ```bash run
-saci report "$ORDERS_RUN"; echo "exit $?"
+saci report "$ORDERS_RUN" 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -156,7 +156,7 @@ saci report "$ORDERS_RUN"; echo "exit $?"
 ### Test 2.4: Status reflects the outcome
 
 ```bash run
-saci status "$HEALTH_RUN"; echo "exit $?"
+saci status "$HEALTH_RUN" 2>&1; echo "exit $?"
 saci status "$HEALTH_RUN" --json | jq -c '{lifecycle, outcome}'
 ```
 
@@ -179,7 +179,7 @@ for _ in $(seq 1 120); do
   sleep 1
 done
 sleep 2
-saci status "$EXPORT_RUN"; echo "exit $?"
+saci status "$EXPORT_RUN" 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -190,7 +190,7 @@ saci status "$EXPORT_RUN"; echo "exit $?"
 ### Test 3.2: Cancel and wait
 
 ```bash run
-saci cancel "$EXPORT_RUN" --wait; echo "exit $?"
+saci cancel "$EXPORT_RUN" --wait 2>&1; echo "exit $?"
 saci status "$EXPORT_RUN" --json | jq -c '{lifecycle, outcome}'
 ```
 
@@ -202,7 +202,7 @@ saci status "$EXPORT_RUN" --json | jq -c '{lifecycle, outcome}'
 ### Test 3.3: Cancelling a finished run exits 2
 
 ```bash run
-saci cancel "$EXPORT_RUN"; echo "exit $?"
+saci cancel "$EXPORT_RUN" 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -231,7 +231,7 @@ echo "first $first, second $second"
 ### Test 4.2: An unknown environment exits 2
 
 ```bash run
-saci run "$PLANS/health.md" --environment no-such-environment; echo "exit $?"
+saci run "$PLANS/health.md" --environment no-such-environment 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -242,7 +242,7 @@ saci run "$PLANS/health.md" --environment no-such-environment; echo "exit $?"
 ### Test 4.3: An unknown run exits 2
 
 ```bash run
-saci status run-00000000000000000000000000000000; echo "exit $?"
+saci status run-00000000000000000000000000000000 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
@@ -253,7 +253,7 @@ saci status run-00000000000000000000000000000000; echo "exit $?"
 ### Test 4.4: An unreachable backend exits 3
 
 ```bash run
-saci list --backend http://127.0.0.1:9; echo "exit $?"
+saci list --backend http://127.0.0.1:9 2>&1; echo "exit $?"
 ```
 
 **Expected result:**
