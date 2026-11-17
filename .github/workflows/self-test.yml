@@ -1,7 +1,7 @@
 name: Self-test
 
-# Runs Saci's own test plans (test/plans) end to end with a real model and
-# the TypeSafe judge. See test/README.md.
+# Runs Saci's own test plans (test/plans) end to end with the TypeSafe
+# judge, and with a model when SACI_LLM_API_KEY is set. See test/README.md.
 
 on:
   push:
@@ -37,14 +37,10 @@ jobs:
     steps:
       - name: Check the secrets
         run: |
-          missing=0
-          for name in SACI_LLM_API_KEY TYPESAFE_API_KEY; do
-            if [ -z "${!name}" ]; then
-              echo "::error::The repository secret $name is not set."
-              missing=1
-            fi
-          done
-          exit "$missing"
+          if [ -z "$TYPESAFE_API_KEY" ]; then
+            echo "::error::The repository secret TYPESAFE_API_KEY is not set."
+            exit 1
+          fi
       - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
       - name: Install the pinned toolchain
