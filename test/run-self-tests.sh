@@ -6,7 +6,7 @@
 # .github/workflows/self-test.yml. Run it from the repository root after
 # `cargo build --package saci-cli --package saci-testkit` and `make image`:
 #
-#   SACI_LLM_API_KEY=... test/run-self-tests.sh
+#   TYPESAFE_API_KEY=... test/run-self-tests.sh
 #
 # Settings (environment variables):
 #   SACI_BIN           directory with saci, saci-fake-model and saci-fake-target
@@ -17,7 +17,7 @@
 #                      (default: a new temporary one)
 #   PLANS              plan file names in test/plans/, in order
 #                      (default: cli-authoring.md backend-api.md cli-runs.md)
-#   SACI_LLM_API_KEY   the model provider's key
+#   SACI_LLM_API_KEY   the model provider's key; without it, judge only
 #   SACI_LLM_BASE_URL  replaces llm.base_url of test/saci.yaml when set
 #   SACI_LLM_MODEL     replaces llm.model of test/saci.yaml when set
 #   TYPESAFE_API_KEY   when set, the TypeSafe judge assesses the units first
@@ -52,7 +52,7 @@ wait_for() {
 }
 
 [ -x "$bin/saci" ] || fail "$bin/saci is missing; run: cargo build"
-[ -n "${SACI_LLM_API_KEY:-}" ] || fail "SACI_LLM_API_KEY is not set"
+[ -n "${SACI_LLM_API_KEY:-}${TYPESAFE_API_KEY:-}" ] || fail "set SACI_LLM_API_KEY, TYPESAFE_API_KEY or both"
 
 # The Saci under test, on 127.0.0.1:18080.
 SACI_BIN="$bin" IMAGE="$image" RUNTIME="$runtime" WORK="$work/under-test" \
@@ -65,12 +65,25 @@ config="$work/runner/saci.yaml"
 sed -e "s#image: localhost/saci-worker:latest#image: $image#" \
     -e "s#runtime: auto #runtime: $runtime #" \
     "$root/test/saci.yaml" >"$config"
-if [ -n "${SACI_LLM_BASE_URL:-}" ]; then
-  sed -e 's#^  base_url: .*#  base_url: env:SACI_LLM_BASE_URL#' "$config" >"$config.new"
+edit() {  # edit <sed expression>: changes the configuration in place
+  sed -e "$1" "$config" >"$config.new"
   mv "$config.new" "$config"
-fi
-if [ -n "${SACI_LLM_MODEL:-}" ]; then
-  sed -e 's#^  model: .*#  model: env:SACI_LLM_MODEL#' "$config" >"$config.new"
+}
+if [ -n "${SACI_LLM_API_KEY:-}" ]; then
+  [ -z "${SACI_LLM_BASE_URL:-}" ] || edit 's#^  base_url: .*#  base_url: env:SACI_LLM_BASE_URL#'
+  [ -z "${SACI_LLM_MODEL:-}" ] || edit 's#^  model: .*#  model: env:SACI_LLM_MODEL#'
+else
+  # Judge only: a scripted model with an empty playbook answers every
+  # request with an error, so a unit the judge does not pass ends `error`.
+  [ -x "$bin/saci-fake-model" ] || fail "$bin/saci-fake-model is missing; run: cargo build"
+  echo '{"units": {}}' >"$work/runner/no-model.json"
+  "$bin/saci-fake-model" --listen 127.0.0.1:11436 --playbook "$work/runner/no-model.json" \
+    >>"$work/no-model.log" 2>&1 &
+  pids+=("$!")
+  edit 's#^  base_url: .*#  base_url: http://127.0.0.1:11436/v1#'
+  edit 's#^  model: .*#  model: no-model-judge-only#'
+  edit '/^  api_key: env:SACI_LLM_API_KEY/d'
+  awk '{ print } /^limits:/ { print "  model_request_retries: 0" }' "$config" >"$config.new"
   mv "$config.new" "$config"
 fi
 if [ -n "${TYPESAFE_API_KEY:-}" ]; then

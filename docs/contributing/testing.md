@@ -37,8 +37,8 @@ requiring `Authorization: Bearer $FAKE_MCP_TOKEN` when that variable is set).
 Saci runs them, with a real model, against a second Saci.
 
 The `Self-test` workflow (`.github/workflows/self-test.yml`) runs these plans
-on each pull request and on each push to `main`, with a real model and the
-TypeSafe judge. See [running the plans in CI](../../test/README.md#running-the-plans-in-ci)
+on each pull request and on each push to `main`, with the TypeSafe judge and,
+optionally, a model. See [running the plans in CI](../../test/README.md#running-the-plans-in-ci)
 for the repository secrets it needs.
 
 ## Outcome actions
