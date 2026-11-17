@@ -22,7 +22,7 @@
 #   SACI_LLM_MODEL     replaces llm.model of test/saci.yaml when set
 #   TYPESAFE_API_KEY   when set, the TypeSafe judge assesses the units first
 #
-# Workers use the host network, so this needs Linux.
+# Needs curl and jq. Workers use the host network, so this needs Linux.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -93,6 +93,14 @@ fi
 pids+=("$!")
 wait_for http://127.0.0.1:8080/api/v1/health
 
+# The units that did not pass, with their expected results and the output
+# of their commands, so the reason shows in the log.
+not_passed='.evidence as $ev | .units[] | select(.attempts[-1].outcome != "passed")
+  | "--- \(.key) \(.title): \(.attempts[-1].outcome)",
+    ((.criteria // [])[] | "expected: \(.text)"),
+    (.attempts[-1].evidence[] as $id | $ev[] | select(.id == $id)
+      | "$ \(.command // .tool)", (.stdout.text // ""), (.stderr.text // ""))'
+
 export SACI_BACKEND_URL=http://127.0.0.1:8080
 failed=0
 summary=""
@@ -104,8 +112,8 @@ for plan in $plans; do
   status=0
   "$bin/saci" follow "$run" || status=$?
   "$bin/saci" report "$run" >"$work/reports/$name.txt" || true
-  [ "$status" -eq 0 ] || cat "$work/reports/$name.txt"
   "$bin/saci" report "$run" --json >"$work/reports/$name.json" || true
+  [ "$status" -eq 0 ] || jq -r "$not_passed" "$work/reports/$name.json" || true
   [ -z "${GITHUB_ACTIONS:-}" ] || echo "::endgroup::"
   [ "$status" -eq 0 ] || failed=1
   summary="$summary$plan $run exit $status"$'\n'
