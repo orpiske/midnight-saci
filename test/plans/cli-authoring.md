@@ -73,7 +73,7 @@ head -n 1 "$SCRATCH/saci-on-the-cloud.md"
 
 **Expected result:**
 
-- The command prints `Created` followed by the path of
+- The output contains a line that starts with `Created` and ends with
   `saci-on-the-cloud.md`.
 - The first `saci exit status` line is `saci exit status 0`.
 - The file's first line is `# Test Plan: Saci on the cloud`: the title is
@@ -117,8 +117,7 @@ saci run "$SCRATCH/saci-on-the-cloud.md" --environment any --backend "$UNREACHAB
 
 **Expected result:**
 
-- The output contains `cannot reach the backend`: the plan passed local
-  validation.
+- The output contains `cannot reach the backend`.
 - The output ends with the line `saci exit status 3`.
 - The output does not contain `is not a valid plan`.
 
