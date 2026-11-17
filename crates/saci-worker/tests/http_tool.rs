@@ -215,15 +215,27 @@ async fn invalid_arguments_are_rejected_before_sending() {
     assert!(parsed.is_err(), "unknown arguments are rejected");
 }
 
-/// A server that sends a status, headers and part of a 100-byte body for
-/// `/{SECRET}`, then closes the connection (`close`) or stalls.
+/// A server that reads the request head, then sends a status, headers and
+/// part of a 100-byte body for `/{SECRET}`, then closes the connection
+/// (`close`) or stalls.
+///
+/// The server must read the request first: the client refuses bytes that
+/// arrive on a connection before it has sent its request.
 async fn partial(close: bool) -> String {
-    use tokio::io::AsyncWriteExt as _;
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     tokio::spawn(async move {
         while let Ok((mut socket, _)) = listener.accept().await {
             tokio::spawn(async move {
+                let mut request = Vec::new();
+                let mut buffer = [0_u8; 1024];
+                while !request.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match socket.read(&mut buffer).await {
+                        Ok(0) | Err(_) => return,
+                        Ok(n) => request.extend_from_slice(&buffer[..n]),
+                    }
+                }
                 let head = "HTTP/1.1 503 Service Unavailable\r\ncontent-length: 100\r\nretry-after: 7\r\n\r\n";
                 let _ = socket
                     .write_all(format!("{head}partial {SECRET}").as_bytes())
