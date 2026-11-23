@@ -1,0 +1,22 @@
+# Logical IDs used by routing. The concrete model must exist in the provider.
+models:
+  claude-haiku:
+    provider: claude
+    model: haiku
+    tier: fast
+    capabilities: [summarization, simple_tasks, planning]
+  claude-sonnet:
+    provider: claude
+    model: sonnet
+    tier: balanced
+    capabilities: [coding, reasoning, debugging, review, planning]
+  codex-default:
+    provider: codex
+    model: gpt-6.2-sol
+    tier: advanced
+    capabilities: [coding, reasoning, debugging, review]
+  codex-classic:
+    provider: codex
+    model: gpt-6.1-sol
+    tier: advanced
+    capabilities: [ coding, reasoning, debugging, review ]

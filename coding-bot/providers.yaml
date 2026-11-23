@@ -1,0 +1,23 @@
+# CLI providers receive the prompt on stdin. Placeholders: {model}.
+providers:
+  claude:
+    enabled: true
+    type: cli
+    # acceptEdits: claude -p cannot edit files in a noninteractive run without it.
+    command: ["claude", "-p", "--output-format", "text", "--model", "{model}", "--permission-mode", "acceptEdits"]
+    models:
+      - haiku
+      - sonnet
+    default_model: sonnet
+    timeout_seconds: 3600
+
+  codex:
+    enabled: true
+    type: cli
+    # CODEX_HOME is inherited from the Amaru Light process (default: ~/.codex).
+    command: ["codex", "exec", "--approve-for-me", "--model", "{model}", "-"]
+    models:
+      - gpt-6.2-sol
+      - gpt-6.1-sol
+    default_model: gpt-6.2-sol
+    timeout_seconds: 3600

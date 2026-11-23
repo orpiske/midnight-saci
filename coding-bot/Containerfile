@@ -1,0 +1,68 @@
+# Amaru Light project image for Midnight Saci. It extends the base image
+# (`make image` in the Amaru Light checkout) with Claude Code, Codex and the
+# toolchains that `make check` and `make web` need: Rust (the version in
+# rust-toolchain.toml), Node.js 22 and the C/C++ tools that the native crates
+# (aws-lc-sys, ring, zstd-sys, bundled SQLite) compile with.
+#
+#   podman build -f coding-bot/Containerfile -t localhost/amaru-light-midnight-saci:dev coding-bot
+#
+# Mount one named volume at /home/mini-amaru. /app/data and /app/repos link
+# into it. Use a named volume, not a host directory: Podman fills an empty
+# named volume with the image content, which creates those two directories.
+#
+# Start the container with the GitHub token in GH_TOKEN (`-e GH_TOKEN`). gh
+# and Git over HTTPS use it. Then log in to the agent. See README.md.
+#
+# The browser tests (`npm run e2e`) and `make image-check` are not supported:
+# the image has no browser and no container runtime.
+
+FROM docker.io/library/node:22-trixie-slim AS node
+
+FROM localhost/mini-amaru:latest
+
+# Keep this value the same as the channel in rust-toolchain.toml.
+ARG SACI_RUST_TOOLCHAIN=1.97.1
+
+USER root
+RUN microdnf install -y --setopt=install_weak_deps=0 \
+        curl make cmake gcc gcc-c++ findutils diffutils tar gzip xz procps-ng bubblewrap \
+    && microdnf clean all
+
+# Node.js 22, the version that CI uses, Claude Code and Codex.
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && npm install -g --no-audit --no-fund @anthropic-ai/claude-code @openai/codex \
+    && npm cache clean --force
+
+# Git over HTTPS gets its credentials from gh, which reads GH_TOKEN. This is
+# what `gh auth setup-git` writes, set here so no login step is necessary.
+RUN git config --system credential.https://github.com.helper '' \
+    && git config --system --add credential.https://github.com.helper '!/usr/bin/gh auth git-credential'
+
+# Rust outside the home volume. The runtime user owns it, so that cargo can
+# write its registry cache and rustup can add a toolchain when
+# rust-toolchain.toml changes.
+ENV RUSTUP_HOME=/opt/rustup \
+    CARGO_HOME=/opt/cargo \
+    PATH=/opt/cargo/bin:$PATH
+RUN mkdir -p /opt/rustup /opt/cargo && chown mini-amaru:mini-amaru /opt/rustup /opt/cargo
+
+COPY providers.yaml models.yaml routing.yaml /app/config/
+COPY project.yaml /app/projects/project.yaml
+
+# Keep all state in one volume at the runtime user's home: the job database,
+# logs and worktrees, the checkouts, and the agent and GitHub logins.
+RUN rm -rf /app/data /app/repos \
+    && mkdir -p /home/mini-amaru/data /home/mini-amaru/repos \
+    && chown mini-amaru:mini-amaru /home/mini-amaru/data /home/mini-amaru/repos \
+    && ln -s /home/mini-amaru/data /app/data \
+    && ln -s /home/mini-amaru/repos /app/repos
+
+USER mini-amaru
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --no-modify-path --profile minimal \
+            --default-toolchain "${SACI_RUST_TOOLCHAIN}" --component clippy,rustfmt \
+    && rustc --version && cargo clippy --version && cargo fmt --version \
+    && node --version && npm --version && claude --version && codex --version

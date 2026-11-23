@@ -10,6 +10,7 @@ These pages are for contributors. They tell you how to build and test Saci, how 
 - [Build and develop the web console](web-console.md): build, development server, accessibility and the brand.
 - [Write documentation](documentation.md): the page conventions and the documentation checks.
 - [Releases](releases.md): stable releases, early-access builds and Dependabot updates.
+- [Build and run the coding bot](coding-bot.md): the container image for the coding bot, its GitHub token and its agent logins.
 - [Design notes](design/index.md): the reasons behind the main decisions.
 - [Brand guide](../../artwork/BRAND.md): the visual identity.
 

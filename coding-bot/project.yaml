@@ -1,0 +1,37 @@
+project:
+  name: midnight-saci
+  repository: orpiske/midnight-saci
+  # Relative to this file: /app/repos/midnight-saci.
+  root: ../repos/midnight-saci
+
+git:
+  base_branch: main
+  branch_prefix: feat/
+
+execution:
+  require_tests: true
+  check_command: make check
+
+loop:
+  max_iterations: 1
+  worktrees_dir: data/worktrees
+  on_blocked: stop
+  on_waiting: stop
+
+publish:
+  mode: manual
+review:
+  enabled: true
+  max_rounds: 1
+merge:
+  mode: manual
+  method: squash
+
+models:
+  allowed: [claude-haiku, claude-sonnet, codex-default, codex-classic]
+skills:
+  directory: ../skills
+  defaults: [engineering/implementation, conventions/git-workflow]
+github:
+  cli: gh
+  publish_report: false

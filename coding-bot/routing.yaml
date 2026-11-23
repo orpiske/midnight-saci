@@ -1,0 +1,12 @@
+# Routes use Claude. To use Codex, replace claude-* with codex-default or
+# codex-classic. The fallback tries the other agent when the first one fails.
+routing:
+  planning: codex-classic
+  summarization: codex-default
+  simple_implementation: codex-default
+  complex_implementation: codex-default
+  debugging: codex-default
+  code_review: codex-default
+  fallback:
+    - codex-default
+    - claude-sonnet
