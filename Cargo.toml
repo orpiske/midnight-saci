@@ -30,7 +30,7 @@ rmcp = { version = "3.10", default-features = false }
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "http2", "system-proxy"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
-nix = { version = "0.31", default-features = false, features = ["signal", "process"] }
+nix = { version = "0.32", default-features = false, features = ["signal", "process"] }
 clap = { version = "4.6", features = ["derive"] }
 # ONNX Runtime for saci-julia. Pinned exactly to the version rig's optional
 # fastembed backend uses: Cargo allows one ONNX Runtime link per lockfile.
