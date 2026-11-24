@@ -7,6 +7,7 @@ project:
 git:
   base_branch: main
   branch_prefix: feat/
+  fork_repository: orp-bot/midnight-saci
 
 execution:
   require_tests: true
@@ -19,7 +20,7 @@ loop:
   on_waiting: stop
 
 publish:
-  mode: manual
+  mode: auto
 review:
   enabled: true
   max_rounds: 1
