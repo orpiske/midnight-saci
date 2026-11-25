@@ -41,13 +41,13 @@ pub fn prepare(
     let (environment, limits) = config.environment(&request.environment).map_err(invalid)?;
     let policy_name = request.policy.as_deref().unwrap_or(DEFAULT_POLICY);
     let policy = config.policy(policy_name).map_err(invalid)?;
-    let actions = config.policy_actions(policy_name).map_err(invalid)?;
     let spec = RunSpec {
         schema_version: SCHEMA_VERSION,
         run_id: RunId::generate(),
         created_at: OffsetDateTime::now_utc(),
         bundle: Some(request.bundle.clone()),
         from_step: request.from_step.clone(),
+        skip_cleanup: request.skip_cleanup,
         investigation: None,
         environment,
         policy,
@@ -63,7 +63,7 @@ pub fn prepare(
         report,
         spec,
         idempotency: idempotency_key.map(|key| (key, request_hash(request))),
-        actions,
+        actions: config.policy_actions(policy_name).map_err(invalid)?,
     })
 }
 

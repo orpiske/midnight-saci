@@ -204,6 +204,7 @@ fn configured(yaml_secrets: &str) -> (Config, RunSpec) {
             documents: std::collections::BTreeMap::new(),
         }),
         from_step: None,
+        skip_cleanup: false,
         investigation: None,
         environment,
         policy: config.policy("default").unwrap(),

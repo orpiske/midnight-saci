@@ -529,6 +529,8 @@ export interface components {
             policy: string;
             /** @description First unit key to execute. Includes procedures invoked by that unit. */
             from_step?: string;
+            /** @description Skip every cleanup unit in this run. */
+            skip_cleanup?: boolean;
         };
         OutcomeCounts: {
             passed: number;

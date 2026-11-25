@@ -153,7 +153,7 @@ skill name also exits 2.
 
 ```sh
 saci run plan.md --environment staging [--policy keep-going] \
-    [--from-step <unit-key>] [--idempotency-key <key>] [--json]
+    [--from-step <unit-key>] [--skip-cleanup] [--idempotency-key <key>] [--json]
 ```
 
 1. Reads `plan.md` and every procedure it invokes into a bundle and validates
@@ -170,6 +170,11 @@ behaves like `saci follow` and exits with the run's outcome.
 Use `--from-step <unit-key>` to start a new run at a test or step. Use
 the heading ID for a unit in the entry plan or the full key from the
 report for a unit in a procedure. An unknown key causes exit code 2.
+
+Use `--skip-cleanup` to keep resources for inspection. The worker skips all
+cleanup units, including those that would run after an early stop. The report
+shows which units were skipped. A run with skipped units is blocked unless
+a higher-priority outcome, such as failure, applies.
 
 ### When the reply is lost
 

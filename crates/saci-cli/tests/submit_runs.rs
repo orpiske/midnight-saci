@@ -135,6 +135,31 @@ async fn run_prints_the_accepted_run_and_repeats_safely_with_its_key() {
 }
 
 #[tokio::test]
+async fn skip_cleanup_is_stored_and_is_part_of_the_idempotent_request() {
+    let backend = Backend::start(false).await;
+    let plan = backend.plan();
+    let args = ["run", &plan, "-e", "local", "--idempotency-key", "cleanup"];
+    let accepted = saci(
+        &backend.url,
+        &[args.as_slice(), &["--skip-cleanup"]].concat(),
+        None,
+    )
+    .await;
+    assert!(accepted.status.success(), "{}", text(&accepted.stderr));
+    let id = saci_core::ids::RunId::parse(text(&accepted.stdout).trim()).unwrap();
+    let store = saci_backend::store::Store::open(&backend.dir.path().join("data"))
+        .await
+        .unwrap();
+    let record = store.run(&id).await.unwrap();
+    assert!(record.spec.skip_cleanup);
+    assert!(record.spec.cleanup_time().is_zero());
+
+    let refused = saci(&backend.url, &args, None).await;
+    assert!(!refused.status.success());
+    assert!(text(&refused.stderr).contains("idempotency"));
+}
+
+#[tokio::test]
 async fn from_step_submits_only_the_selected_part_of_the_plan() {
     let backend = Backend::start(false).await;
     let plan = backend.plan();

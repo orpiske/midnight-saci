@@ -67,6 +67,7 @@ fn spec(run_id: RunId, model_url: String) -> RunSpec {
             documents: BTreeMap::from([("plan.md".to_owned(), PLAN.to_owned())]),
         }),
         from_step: None,
+        skip_cleanup: false,
         investigation: None,
         environment: EnvironmentSpec {
             name: "local".into(),
@@ -169,6 +170,60 @@ async fn a_specification_file_runs_and_every_event_is_written() {
     assert_eq!(report.outcome, Some(Outcome::Passed), "{events:?}");
     assert!(workspace.path().join("made-by-saci").exists());
     assert!(stderr(&output).contains("ended passed"));
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "keeps the fixture and assertions for both outcomes together"
+)]
+async fn skip_cleanup_keeps_resources_after_passing_and_failing_checks() {
+    for (fails, expected) in [(false, Outcome::Blocked), (true, Outcome::Failed)] {
+        let mut replies = script();
+        if fails {
+            let assessment = json!({
+                "outcome": "failed",
+                "criteria": [{"criterion": 0, "status": "contradicted", "basis": "mechanical",
+                              "evidence": ["ev-1"], "explanation": "printed marked instead of ready"}],
+                "explanation": "the check failed"
+            });
+            replies[1] = Reply::ok(&tool_calls_reply(&[(
+                "a",
+                "assess",
+                &assessment.to_string(),
+            )]));
+        }
+        let model = FakeModel::start(replies).await.unwrap();
+        let workspace = tempfile::tempdir().unwrap();
+        let mut spec = spec(RunId::generate(), model.base_url());
+        let main = if fails {
+            PLAN.replace("The output is `marked`", "The output is `ready`")
+        } else {
+            PLAN.to_owned()
+        };
+        let entry = format!(
+            "{main}\n## Phase 2: Cleanup\n\n### Step 2.1: Remove the mark\n\nRun `rm made-by-saci`.\n\n**Expected result:**\n\n- The file is removed.\n"
+        );
+        spec.bundle
+            .as_mut()
+            .unwrap()
+            .documents
+            .insert("plan.md".into(), entry);
+        spec.skip_cleanup = true;
+
+        let (_, events) = local(&spec, workspace.path(), &[]).await;
+        let report = fold(&spec, &events);
+        assert_eq!(report.outcome, Some(expected), "{events:?}");
+        assert_eq!(report.cleanup_not_run, [UnitKey::new("2.1")]);
+        assert_eq!(report.units[1].outcome, Some(Outcome::Skipped));
+        assert!(report.units[1].attempts.is_empty());
+        assert!(events.iter().any(|event| matches!(
+            &event.kind,
+            EventKind::UnitSkipped { reason } if reason.contains("--skip-cleanup")
+        )));
+        assert_eq!(model.requests().len(), 2);
+        assert!(workspace.path().join("made-by-saci").exists());
+    }
 }
 
 #[tokio::test]

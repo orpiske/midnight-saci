@@ -36,6 +36,9 @@ pub struct RunSpec {
     /// Requires a worker that supports partial runs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from_step: Option<UnitKey>,
+    /// Skip every cleanup unit in this run.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub skip_cleanup: bool,
     /// The failure to investigate, for an investigation run
     /// (`docs/contributing/design/investigations.md`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -81,10 +84,12 @@ impl RunSpec {
 
     /// Time a plan run may spend on cleanup after an early stop, a
     /// cancellation or the run deadline: `limits.cleanup_timeout_secs` when
-    /// the policy runs cleanup after a stop, otherwise zero.
+    /// the policy runs cleanup after a stop and cleanup is enabled, otherwise zero.
     #[must_use]
     pub fn cleanup_time(&self) -> std::time::Duration {
-        let cleans = self.bundle.is_some() && self.policy.after_stop == StopAction::Cleanup;
+        let cleans = self.bundle.is_some()
+            && !self.skip_cleanup
+            && self.policy.after_stop == StopAction::Cleanup;
         std::time::Duration::from_secs(if cleans {
             self.limits.cleanup_timeout_secs
         } else {
