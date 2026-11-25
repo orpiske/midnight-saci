@@ -13,13 +13,14 @@ use saci_backend::api::{Backend, ClientAuth, issue_token, router};
 use saci_backend::launcher::{ContainerLauncher, Launcher};
 use saci_backend::store::Store;
 use saci_backend::supervisor::{self, Timing};
+use saci_core::api::RunSummary;
 use saci_core::config::{Config, Runtime};
 use saci_core::event::{EventKind, RunEvent};
 use saci_core::ids::RunId;
 use saci_core::redaction::Redactor;
 use saci_core::run::WorkerImage;
 use saci_core::status::{Lifecycle, Outcome};
-use serde_json::{Value, json};
+use serde_json::json;
 
 const PLAN: &str = "# Test Plan: Supervised\n\n## Phase 1: Main\n\n### Test 1.1: Check\n\nRun `true`.\n\n\
                     **Expected result:**\n\n- It exits 0.\n";
@@ -199,18 +200,23 @@ async fn serve(backend: &Backend) -> String {
 }
 
 async fn submit(url: &str) -> RunId {
-    let body = json!({"bundle": {"entry": "plan.md", "documents": {"plan.md": PLAN}}, "environment": "local"});
+    submit_plan(url, PLAN, false).await
+}
+
+async fn submit_plan(url: &str, plan: &str, skip_cleanup: bool) -> RunId {
+    let mut body = json!({"bundle": {"entry": "plan.md", "documents": {"plan.md": plan}}, "environment": "local"});
+    if skip_cleanup {
+        body["skip_cleanup"] = json!(true);
+    }
     let client = reqwest::Client::new();
-    let reply: Value = client
+    let response = client
         .post(format!("{url}/runs"))
         .json(&body)
         .send()
         .await
-        .unwrap()
-        .json()
-        .await
         .unwrap();
-    RunId::parse(reply["id"].as_str().unwrap()).unwrap()
+    assert_eq!(response.status(), 202);
+    response.json::<RunSummary>().await.unwrap().id
 }
 
 async fn eventually<T, F, Fut>(mut check: F) -> T
@@ -325,19 +331,34 @@ async fn a_vanished_worker_ends_the_run() {
 async fn cancellation_stops_the_worker_and_converges_to_cancelled() {
     let harness = Harness::start("policies:\n  default:\n    after_stop: skip\n").await;
     let run = submit(&harness.url).await;
-    exists(&harness.container(&run), true).await;
-    let client = reqwest::Client::new();
-    let response = client
+    assert_immediate_cancellation(&harness, &run).await;
+}
+
+async fn assert_immediate_cancellation(harness: &Harness, run: &RunId) {
+    exists(&harness.container(run), true).await;
+    harness.report(run, vec![started()]).await;
+    let response = reqwest::Client::new()
         .post(format!("{}/runs/{run}/cancellation", harness.url))
         .send()
         .await
         .unwrap();
     assert_eq!(response.status(), 202);
-    let (outcome, reason) = harness.finished(&run).await;
+    // The harness waits at most 10 seconds, less than the configured cleanup window.
+    let (outcome, reason) = harness.finished(run).await;
     assert_eq!(outcome, Outcome::Cancelled);
     assert!(reason.contains("stopped before reporting"), "{reason}");
     assert_eq!(harness.calls("stop "), 1);
-    exists(&harness.container(&run), false).await;
+    exists(&harness.container(run), false).await;
+}
+
+#[tokio::test]
+async fn skip_cleanup_stops_a_cancelled_worker_without_waiting_for_cleanup() {
+    let harness = Harness::start("limits:\n  cleanup_timeout_secs: 30\n").await;
+    let plan = format!(
+        "{PLAN}\n## Phase 2: Cleanup\n\n### Step 2.1: Clean up\n\nRun `true`.\n\n**Expected result:**\n\n- It exits 0.\n"
+    );
+    let run = submit_plan(&harness.url, &plan, true).await;
+    assert_immediate_cancellation(&harness, &run).await;
 }
 
 #[tokio::test]

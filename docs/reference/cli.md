@@ -171,10 +171,16 @@ Use `--from-step <unit-key>` to start a new run at a test or step. Use
 the heading ID for a unit in the entry plan or the full key from the
 report for a unit in a procedure. An unknown key causes exit code 2.
 
-Use `--skip-cleanup` to keep resources for inspection. The worker skips all
-cleanup units, including those that would run after an early stop. The report
-shows which units were skipped. A run with skipped units is blocked unless
-a higher-priority outcome, such as failure, applies.
+Use `--skip-cleanup` to skip all plan cleanup units, including after an
+early stop. Use an updated [worker image](../operate/worker-image.md) that
+supports `skip_cleanup`.
+Older workers reject the run specification when it includes this field.
+
+The backend still removes the worker container or pod and its workspace.
+You can inspect resources that the plan created outside the worker and
+that persist independently of it. The report shows which units were skipped.
+A run with skipped units is blocked unless a higher-priority outcome,
+such as failure, applies.
 
 ### When the reply is lost
 
