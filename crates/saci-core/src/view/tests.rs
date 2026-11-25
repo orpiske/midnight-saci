@@ -104,7 +104,7 @@ fn bundle(entry: &str) -> PlanBundle {
 #[test]
 fn the_plan_view_keeps_repeated_procedure_invocations_distinct() {
     let entry = "# Test Plan: Entry\n\n## Phase 1: Main\n\n### Test 1.1: First\n\nFollow [setup](common/setup.md).\n\n**Expected result:**\n\n- One.\n\n### Test 1.2: Second\n\nFollow [setup](common/setup.md).\n\n**Expected result:**\n\n- Two.\n\n**Verification:** check twice.\n";
-    let plan = run_plan(RunId::generate(), "Entry", &bundle(entry));
+    let plan = run_plan(RunId::generate(), "Entry", &bundle(entry), None);
     assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
     let keys: Vec<_> = plan.units.iter().map(|u| u.key.as_str()).collect();
     assert_eq!(
@@ -132,6 +132,7 @@ fn a_bundle_that_no_longer_expands_reports_diagnostics() {
         RunId::generate(),
         "Broken",
         &bundle("# Test Plan: Broken\n"),
+        None,
     );
     assert!(plan.units.is_empty());
     assert_eq!(plan.diagnostics[0].document, "plan.md");

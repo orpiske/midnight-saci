@@ -169,6 +169,33 @@ pub fn expand(bundle: &PlanBundle) -> Result<ExpandedPlan, PlanError> {
     })
 }
 
+/// Expands a bundle and starts execution at the selected unit, including
+/// any procedure units it invokes.
+///
+/// # Errors
+///
+/// Returns plan diagnostics if the bundle is invalid or the key is unknown.
+pub fn expand_from(
+    bundle: &PlanBundle,
+    from_step: Option<&UnitKey>,
+) -> Result<ExpandedPlan, PlanError> {
+    let mut expanded = expand(bundle)?;
+    if let Some(key) = from_step {
+        let start = expanded
+            .units
+            .iter()
+            .position(|unit| unit.identity.key == *key || unit.invoked_by.contains(key))
+            .ok_or_else(|| {
+                single(
+                    SourceLocation::new(bundle.entry.clone(), 1),
+                    format!("unknown start unit key `{key}`"),
+                )
+            })?;
+        expanded.units.drain(..start);
+    }
+    Ok(expanded)
+}
+
 /// The units of a procedure that a cleanup unit invokes are cleanup work
 /// too, whatever their own titles say.
 fn mark_invoked_cleanup(units: &mut [ExecutionUnit]) {

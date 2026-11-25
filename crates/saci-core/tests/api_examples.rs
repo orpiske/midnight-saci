@@ -45,7 +45,12 @@ fn examples_deserialize_into_api_types() {
 fn the_plan_example_is_the_expanded_submission_example() {
     let submit: SubmitRun = example("submit-run.json");
     let documented: RunPlan = example("run-plan.json");
-    let expanded = run_plan(documented.run_id.clone(), &documented.title, &submit.bundle);
+    let expanded = run_plan(
+        documented.run_id.clone(),
+        &documented.title,
+        &submit.bundle,
+        submit.from_step.as_ref(),
+    );
     assert_eq!(documented, expanded);
 }
 

@@ -30,6 +30,20 @@ and prints the idempotency key that it used. Repeat the command with
 accepted and does not start a second one (see
 [when the reply is lost](../reference/cli.md#when-the-reply-is-lost)).
 
+## Start from a test or step
+
+To rerun part of a plan after a failure, give the key of the unit to start
+from. For a unit in the entry document, use its heading ID.
+
+```sh
+saci run plan.md --environment staging --from-step 2.3 --follow
+```
+
+The new run includes the selected unit, its invoked procedures and all
+later units. The report and outcome cover this part of the plan. Make
+sure the target environment has the state that the selected unit needs.
+The new run starts with a fresh shell session.
+
 ## Follow a run and read the report
 
 ```sh

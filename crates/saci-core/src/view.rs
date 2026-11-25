@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::action::Approval;
-use crate::bundle::expand;
+use crate::bundle::expand_from;
 use crate::config::{Config, DEFAULT_POLICY, PolicyConfig};
 use crate::ids::{RunId, UnitKey};
 use crate::parser::Diagnostic;
@@ -206,8 +206,13 @@ pub struct PlannedUnit {
 /// The plan view of a run's retained `bundle`, expanded with the same
 /// parser that accepted it.
 #[must_use]
-pub fn run_plan(run_id: RunId, title: &str, bundle: &PlanBundle) -> RunPlan {
-    let (units, diagnostics) = match expand(bundle) {
+pub fn run_plan(
+    run_id: RunId,
+    title: &str,
+    bundle: &PlanBundle,
+    from_step: Option<&UnitKey>,
+) -> RunPlan {
+    let (units, diagnostics) = match expand_from(bundle, from_step) {
         Ok(expanded) => (
             expanded.units.into_iter().map(planned).collect(),
             Vec::new(),

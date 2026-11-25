@@ -477,6 +477,7 @@ impl Watcher {
             bundle,
             environment: entry.environment.clone(),
             policy: entry.policy.clone(),
+            from_step: None,
         };
         loop {
             match self.send(&request, &key).await {

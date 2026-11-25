@@ -67,6 +67,29 @@ fn procedures_run_before_the_invoking_unit_with_distinct_keys() {
     assert!(!expanded.units[2].identity.cleanup);
 }
 
+#[test]
+fn starting_at_a_unit_keeps_its_nested_procedures_and_later_cleanup() {
+    let dir = plan_dir();
+    let bundle = load(&dir.path().join("plan.md")).unwrap();
+    for key in ["1.2", "1.2>common/setup.md#1"] {
+        let expanded = expand_from(&bundle, Some(&UnitKey::new(key))).unwrap();
+        let keys: Vec<_> = expanded
+            .units
+            .iter()
+            .map(|u| u.identity.key.as_str())
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "1.2>common/setup.md#1>shared/login.md#1",
+                "1.2>common/setup.md#1",
+                "1.2",
+                "2.1",
+            ]
+        );
+    }
+}
+
 fn error_of(bundle: &PlanBundle) -> String {
     expand(bundle).unwrap_err().to_string()
 }

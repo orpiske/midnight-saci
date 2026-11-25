@@ -36,6 +36,7 @@ fn new_run(fixture: &Fixture, run_id: RunId) -> NewRun {
             entry: "plan.md".into(),
             documents: BTreeMap::from([("plan.md".into(), "# Test Plan: X".into())]),
         }),
+        from_step: None,
         investigation: None,
         environment: EnvironmentSpec::default(),
         policy: RunPolicy::default(),

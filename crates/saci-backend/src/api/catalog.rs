@@ -37,5 +37,6 @@ pub async fn plan(
         record.spec.run_id.clone(),
         title,
         bundle,
+        record.spec.from_step.as_ref(),
     )))
 }

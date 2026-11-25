@@ -14,7 +14,7 @@ use saci_backend::api::{Backend, ClientAuth, Supervisor, issue_token, router};
 use saci_backend::store::Store;
 use saci_core::config::Config;
 use saci_core::event::{EventKind, RunEvent};
-use saci_core::ids::RunId;
+use saci_core::ids::{RunId, UnitKey};
 use saci_core::plan::PlanBundle;
 use saci_core::run::{ReportHeader, RunReport};
 use saci_core::spec::{
@@ -66,6 +66,7 @@ fn spec(run_id: RunId, model_url: String) -> RunSpec {
             entry: "plan.md".into(),
             documents: BTreeMap::from([("plan.md".to_owned(), PLAN.to_owned())]),
         }),
+        from_step: None,
         investigation: None,
         environment: EnvironmentSpec {
             name: "local".into(),
@@ -114,7 +115,9 @@ fn parse(stdout: &[u8]) -> Vec<RunEvent> {
 }
 
 fn fold(spec: &RunSpec, events: &[RunEvent]) -> RunReport {
-    let plan = saci_core::bundle::expand(spec.bundle.as_ref().unwrap()).unwrap();
+    let plan =
+        saci_core::bundle::expand_from(spec.bundle.as_ref().unwrap(), spec.from_step.as_ref())
+            .unwrap();
     let header = ReportHeader {
         run_id: spec.run_id.clone(),
         plan_title: plan.plan.title.clone(),
@@ -166,6 +169,35 @@ async fn a_specification_file_runs_and_every_event_is_written() {
     assert_eq!(report.outcome, Some(Outcome::Passed), "{events:?}");
     assert!(workspace.path().join("made-by-saci").exists());
     assert!(stderr(&output).contains("ended passed"));
+}
+
+#[tokio::test]
+async fn a_specification_can_start_at_a_later_step() {
+    let model = FakeModel::start(script()).await.unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let mut spec = spec(RunId::generate(), model.base_url());
+    let entry = format!(
+        "{PLAN}\n### Step 1.2: Leave another mark\n\nRun `touch made-by-saci && echo marked`.\n\n**Expected result:**\n\n- The output is `marked`.\n"
+    );
+    spec.bundle
+        .as_mut()
+        .unwrap()
+        .documents
+        .insert("plan.md".into(), entry);
+    spec.from_step = Some(UnitKey::new("1.2"));
+
+    let (output, events) = local(&spec, workspace.path(), &[]).await;
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert!(
+        events
+            .iter()
+            .all(|event| { event.unit.as_ref().is_none_or(|key| key.as_str() == "1.2") })
+    );
+    let report = fold(&spec, &events);
+    assert_eq!(report.outcome, Some(Outcome::Passed));
+    assert_eq!(report.units.len(), 1);
+    assert_eq!(report.units[0].outcome, Some(Outcome::Passed));
+    assert!(workspace.path().join("made-by-saci").exists());
 }
 
 #[tokio::test]

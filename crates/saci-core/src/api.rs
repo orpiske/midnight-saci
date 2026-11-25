@@ -31,6 +31,9 @@ pub struct SubmitRun {
     /// Configured policy name; `default` when omitted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy: Option<String>,
+    /// First unit to execute, including its invoked procedures.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_step: Option<UnitKey>,
 }
 
 /// A run as listed and inspected by clients.

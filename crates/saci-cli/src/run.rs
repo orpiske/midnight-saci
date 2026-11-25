@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use reqwest::{Method, StatusCode};
 use saci_core::api::{IDEMPOTENCY_KEY, RunSummary, SubmitRun};
 use saci_core::bundle;
+use saci_core::ids::UnitKey;
 use uuid::Uuid;
 
 use crate::client::{CliError, Client, exit};
@@ -21,6 +22,9 @@ pub struct RunArgs {
     /// Configured run policy; the backend uses `default` when omitted.
     #[arg(long)]
     pub policy: Option<String>,
+    /// Start at this unit key, including its invoked procedures.
+    #[arg(long, value_name = "UNIT_KEY")]
+    pub from_step: Option<String>,
     /// Key that makes the submission safe to repeat; generated when omitted.
     #[arg(long)]
     pub idempotency_key: Option<String>,
@@ -52,11 +56,11 @@ pub async fn submit(client: &Client, args: RunArgs) -> Result<u8, CliError> {
         bundle,
         environment: args.environment,
         policy: args.policy,
+        from_step: args.from_step.map(UnitKey::new),
     };
     let (status, run) = send(client, &request, &key).await?;
     if !args.follow {
-        print(&run, status, args.json)?;
-        return Ok(exit::OK);
+        return print(&run, status, args.json).map(|()| exit::OK);
     }
     eprintln!(
         "Run {} accepted; following it (Ctrl-C stops following, not the run).",

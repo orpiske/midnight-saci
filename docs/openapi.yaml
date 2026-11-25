@@ -747,6 +747,7 @@ components:
         bundle: { $ref: "#/components/schemas/PlanBundle" }
         environment: { type: string }
         policy: { type: string, default: default }
+        from_step: { type: string, description: First unit key to execute. Includes procedures invoked by that unit. }
     OutcomeCounts:
       type: object
       required: [passed, failed, blocked, inconclusive, error, skipped, cancelled]

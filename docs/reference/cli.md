@@ -153,7 +153,7 @@ skill name also exits 2.
 
 ```sh
 saci run plan.md --environment staging [--policy keep-going] \
-    [--idempotency-key <key>] [--json]
+    [--from-step <unit-key>] [--idempotency-key <key>] [--json]
 ```
 
 1. Reads `plan.md` and every procedure it invokes into a bundle and validates
@@ -166,6 +166,10 @@ saci run plan.md --environment staging [--policy keep-going] \
 
 `saci run` returns once the backend accepts the run. With `--follow` it then
 behaves like `saci follow` and exits with the run's outcome.
+
+Use `--from-step <unit-key>` to start a new run at a test or step. Use
+the heading ID for a unit in the entry plan or the full key from the
+report for a unit in a procedure. An unknown key causes exit code 2.
 
 ### When the reply is lost
 
