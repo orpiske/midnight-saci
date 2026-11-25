@@ -151,6 +151,7 @@ async fn from_step_submits_only_the_selected_part_of_the_plan() {
     let url = format!("{}/api/v1/runs/{id}/plan", backend.url);
     let response = reqwest::get(url).await.unwrap();
     let view: saci_core::view::RunPlan = response.json().await.unwrap();
+    assert_eq!(view.from_step.unwrap().as_str(), "1.2");
     assert_eq!(view.units.len(), 1);
     assert_eq!(view.units[0].key.as_str(), "1.2");
 

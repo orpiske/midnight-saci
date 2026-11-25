@@ -4,7 +4,7 @@
 //! validates a submitted bundle without touching the filesystem and flattens
 //! it into the ordered execution units of a run (backend and worker side).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
 
 use crate::ids::UnitKey;
@@ -143,7 +143,7 @@ fn single(location: SourceLocation, message: String) -> PlanError {
 ///
 /// Returns diagnostics for invalid documents, invocations of documents that
 /// are missing from the bundle, paths that leave the bundle, external or
-/// absolute targets, and recursive invocations.
+/// absolute targets, recursive invocations, and ambiguous execution keys.
 pub fn expand(bundle: &PlanBundle) -> Result<ExpandedPlan, PlanError> {
     check_paths(bundle)?;
     let entry_source = document(bundle, &bundle.entry, None)?;
@@ -156,6 +156,7 @@ pub fn expand(bundle: &PlanBundle) -> Result<ExpandedPlan, PlanError> {
         diagnostics: Vec::new(),
     };
     expander.plan_units(&plan, None, &[]);
+    expander.diagnostics.extend(duplicate_keys(&expander.units));
     mark_invoked_cleanup(&mut expander.units);
     if !expander.diagnostics.is_empty() {
         return Err(PlanError {
@@ -166,6 +167,17 @@ pub fn expand(bundle: &PlanBundle) -> Result<ExpandedPlan, PlanError> {
         plan,
         procedures: expander.procedures,
         units: expander.units,
+    })
+}
+
+fn duplicate_keys(units: &[ExecutionUnit]) -> impl Iterator<Item = Diagnostic> {
+    let mut seen = BTreeSet::new();
+    units.iter().filter_map(move |unit| {
+        let identity = &unit.identity;
+        (!seen.insert(&identity.key)).then(|| Diagnostic {
+            location: identity.location.clone(),
+            message: format!("ambiguous execution unit key `{}`", identity.key),
+        })
     })
 }
 

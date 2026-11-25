@@ -301,6 +301,38 @@ test("run again submits the retained plan with the same settings and opens the n
   });
 });
 
+test("run again preserves the start key of a partial run", async ({ page }) => {
+  const mock = await mockBackend(page);
+  const fromStep = "1.2";
+  const documents = {
+    "plan.md": `${fx.PLAN_SOURCE}
+### Test 1.2: Check again
+
+Check the response.
+
+**Expected result:**
+
+- The service is ready.
+`,
+  };
+  await page.route(`**/api/v1/runs/${fx.RUN}/plan`, (route) =>
+    route.fulfill({ json: { ...fx.plan, documents, units: fx.plan.units.slice(1), from_step: fromStep } }),
+  );
+  await page.goto(`/ui/runs/${fx.RUN}`);
+  await page.getByRole("button", { name: "Run again" }).click();
+  const dialog = page.getByRole("dialog", { name: "Run this plan again?" });
+  await expect(dialog).toContainText(`Start at unit ${fromStep}.`);
+  await dialog.getByRole("button", { name: "Start run" }).click();
+  await expect(page).toHaveURL(new RegExp(`/ui/runs/${fx.LIVE}$`));
+  const post = mock.requests.find((r) => r.method() === "POST" && r.url().endsWith("/api/v1/runs"));
+  expect(post?.postDataJSON()).toEqual({
+    bundle: { entry: fx.plan.entry, documents },
+    environment: fx.failedRun.environment,
+    policy: fx.failedRun.policy,
+    from_step: fromStep,
+  });
+});
+
 test("a run without a retained plan offers no run again", async ({ page }) => {
   await mockBackend(page, { runs: [{ ...fx.failedRun, id: fx.INVESTIGATION, plan_title: "Investigation" }] });
   await page.route(`**/api/v1/runs/${fx.INVESTIGATION}/plan`, (route) =>

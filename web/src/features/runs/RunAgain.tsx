@@ -1,5 +1,5 @@
 // Starts a new run of a finished run's plan: the retained bundle, with the
-// same environment and policy. It uses the retry-safe submission of the
+// same environment, policy, and start unit. It uses the retry-safe submission of the
 // New run page, so a lost answer never starts two runs.
 import { RotateCcw } from "lucide-react";
 import { useRef, useState } from "react";
@@ -18,6 +18,7 @@ export function rerunRequest(run: RunSummary, plan: RunPlan): SubmitRun {
     bundle: { entry: plan.entry, documents: plan.documents },
     environment: run.environment,
     policy: run.policy,
+    from_step: plan.from_step,
   };
 }
 
@@ -83,6 +84,9 @@ export function RunAgain({ run, plan }: { run: RunSummary; plan: RunPlan }) {
           <strong>{run.policy}</strong>. The environment and policy use the backend's current
           configuration. This run does not change.
         </p>
+        {plan.from_step === undefined ? null : (
+          <p>Start at unit <code>{plan.from_step}</code>.</p>
+        )}
         {submission.kind === "invalid" ? (
           <Callout tone="fail" title="The backend did not accept the run" role="alert">
             <ul className="stack-sm" style={{ margin: 0, paddingLeft: 18 }}>

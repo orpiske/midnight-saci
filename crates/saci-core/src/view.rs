@@ -160,6 +160,9 @@ pub struct RunPlan {
     pub entry: String,
     /// The submitted Markdown sources, by bundle-relative path.
     pub documents: BTreeMap<String, String>,
+    /// The selected starting unit, if the run starts partway through the plan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_step: Option<UnitKey>,
     /// Units in execution order.
     pub units: Vec<PlannedUnit>,
     /// Why the retained bundle no longer expands, when it does not (for
@@ -227,6 +230,7 @@ pub fn run_plan(
         title: title.to_owned(),
         entry: bundle.entry.clone(),
         documents: bundle.documents.clone(),
+        from_step: from_step.cloned(),
         units,
         diagnostics,
     }

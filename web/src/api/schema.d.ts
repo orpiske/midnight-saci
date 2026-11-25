@@ -648,6 +648,8 @@ export interface components {
                 [key: string]: string;
             };
             units: components["schemas"]["PlannedUnit"][];
+            /** @description Starting unit key selected when the run was submitted. */
+            from_step?: string;
             /** @description Why the retained bundle no longer expands, when it does not; `units` is then empty. */
             diagnostics?: components["schemas"]["PlanDiagnostic"][];
         };
