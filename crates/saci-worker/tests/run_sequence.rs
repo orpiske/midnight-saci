@@ -187,6 +187,7 @@ async fn execute_plan(
         step_timeout: Duration::from_secs(30),
         deadline: Instant::now() + Duration::from_secs(60),
         cleanup_timeout,
+        skip_cleanup: false,
         model: "scripted",
     };
     let ending = Box::pin(run(&executor, run_plan, stops)).await;

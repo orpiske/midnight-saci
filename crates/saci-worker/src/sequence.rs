@@ -42,6 +42,8 @@ pub struct RunPlan<'a> {
     pub plan: &'a ExpandedPlan,
     /// The run policy.
     pub policy: &'a RunPolicy,
+    /// Skip all cleanup units.
+    pub skip_cleanup: bool,
     /// Deadline of one attempt.
     pub step_timeout: Duration,
     /// When the whole run must end.
@@ -87,14 +89,7 @@ pub async fn run(executor: &Executor, plan: RunPlan<'_>, stops: &Stops) -> RunEn
     for unit in &plan.plan.units {
         Box::pin(progress.unit(executor, &plan, unit, stops)).await;
     }
-    let mut ending = ending(&progress.outcomes, progress.stop.as_ref());
-    if let Some(cleanup) = &progress.cleanup {
-        let _ = write!(
-            ending.reason,
-            "; {} cleanup unit(s) ran after the stop",
-            cleanup.ran
-        );
-    }
+    let ending = progress.ending(&plan);
     let kind = EventKind::RunFinished {
         outcome: ending.outcome,
         reason: ending.reason.clone(),
@@ -160,6 +155,20 @@ struct Progress {
 }
 
 impl Progress {
+    fn ending(&self, plan: &RunPlan<'_>) -> RunEnding {
+        let omitted_cleanup =
+            plan.skip_cleanup && plan.plan.units.iter().any(|unit| unit.identity.cleanup);
+        let mut ending = ending(&self.outcomes, self.stop.as_ref(), omitted_cleanup);
+        if let Some(cleanup) = &self.cleanup {
+            let _ = write!(
+                ending.reason,
+                "; {} cleanup unit(s) ran after the stop",
+                cleanup.ran
+            );
+        }
+        ending
+    }
+
     /// Attempts `unit`, or skips it once the run has stopped, unless it is
     /// cleanup that the policy runs after a stop.
     async fn unit(
@@ -206,6 +215,9 @@ impl Progress {
     ) -> Result<Window<'a>, String> {
         if self.stop.is_none() {
             self.stop = interrupted(plan.deadline, &stops.cancel);
+        }
+        if plan.skip_cleanup && unit.identity.cleanup {
+            return Err("not attempted: cleanup was disabled by --skip-cleanup".to_owned());
         }
         let Some(stop) = &self.stop else {
             return Ok(Window {
@@ -357,7 +369,7 @@ fn summary(unit: &ExecutionUnit, result: &AttemptResult) -> String {
     )
 }
 
-fn ending(outcomes: &[Outcome], stop: Option<&Stop>) -> RunEnding {
+fn ending(outcomes: &[Outcome], stop: Option<&Stop>, omitted_cleanup: bool) -> RunEnding {
     let derived = summarize(outcomes.iter().copied());
     match stop {
         Some(Stop::Cancelled) => RunEnding {
@@ -375,6 +387,10 @@ fn ending(outcomes: &[Outcome], stop: Option<&Stop>) -> RunEnding {
         Some(stop @ Stop::Policy(_)) => RunEnding {
             outcome: derived,
             reason: stop.reason(),
+        },
+        None if omitted_cleanup => RunEnding {
+            outcome: derived,
+            reason: format!("cleanup was skipped; the summary outcome is {derived}"),
         },
         None => RunEnding {
             outcome: derived,

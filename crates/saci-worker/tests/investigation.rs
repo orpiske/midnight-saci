@@ -79,6 +79,7 @@ fn spec(model_url: String, url: &str) -> RunSpec {
         created_at: time::OffsetDateTime::now_utc(),
         bundle: None,
         from_step: None,
+        skip_cleanup: false,
         investigation: Some(Box::new(investigation)),
         environment: EnvironmentSpec {
             name: "investigator".into(),

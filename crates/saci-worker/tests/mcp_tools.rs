@@ -68,6 +68,7 @@ fn spec(model_url: String, command: &str) -> RunSpec {
             documents: BTreeMap::from([("plan.md".to_owned(), PLAN.to_owned())]),
         }),
         from_step: None,
+        skip_cleanup: false,
         investigation: None,
         environment,
         policy: RunPolicy::default(),

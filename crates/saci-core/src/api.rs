@@ -34,6 +34,9 @@ pub struct SubmitRun {
     /// First unit to execute, including its invoked procedures.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from_step: Option<UnitKey>,
+    /// Skip every cleanup unit in this run.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub skip_cleanup: bool,
 }
 
 /// A run as listed and inspected by clients.

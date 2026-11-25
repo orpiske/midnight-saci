@@ -70,6 +70,7 @@ async fn spec(plan: &str, service: &str) -> RunSpec {
             documents: BTreeMap::from([("plan.md".to_owned(), text)]),
         }),
         from_step: None,
+        skip_cleanup: false,
         investigation: None,
         environment: EnvironmentSpec {
             name: "local".into(),

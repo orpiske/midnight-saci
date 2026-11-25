@@ -13,6 +13,7 @@ use crate::inspect::{self, RunArg};
 
 /// Arguments of `saci run`.
 #[derive(Debug, Clone, clap::Args)]
+#[expect(clippy::struct_excessive_bools, reason = "independent CLI switches")]
 pub struct RunArgs {
     /// Entry document of the plan bundle.
     pub plan: PathBuf,
@@ -25,6 +26,9 @@ pub struct RunArgs {
     /// Start at this unit key, including its invoked procedures.
     #[arg(long, value_name = "UNIT_KEY")]
     pub from_step: Option<String>,
+    /// Skip all plan cleanup units to keep resources for inspection.
+    #[arg(long)]
+    pub skip_cleanup: bool,
     /// Key that makes the submission safe to repeat; generated when omitted.
     #[arg(long)]
     pub idempotency_key: Option<String>,
@@ -57,19 +61,21 @@ pub async fn submit(client: &Client, args: RunArgs) -> Result<u8, CliError> {
         environment: args.environment,
         policy: args.policy,
         from_step: args.from_step.map(UnitKey::new),
+        skip_cleanup: args.skip_cleanup,
     };
     let (status, run) = send(client, &request, &key).await?;
-    if !args.follow {
-        return print(&run, status, args.json).map(|()| exit::OK);
+    if args.follow {
+        return follow_accepted(client, run, args.json).await;
     }
+    print(&run, status, args.json).map(|()| exit::OK)
+}
+
+async fn follow_accepted(client: &Client, run: RunSummary, json: bool) -> Result<u8, CliError> {
     eprintln!(
         "Run {} accepted; following it (Ctrl-C stops following, not the run).",
         run.id
     );
-    let followed = RunArg {
-        run: run.id,
-        json: args.json,
-    };
+    let followed = RunArg { run: run.id, json };
     Box::pin(inspect::follow_command(client, &followed, 0)).await
 }
 

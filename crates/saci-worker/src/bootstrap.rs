@@ -305,6 +305,7 @@ async fn run_job(
             let run_plan = RunPlan {
                 plan,
                 policy: &spec.policy,
+                skip_cleanup: spec.skip_cleanup,
                 step_timeout: Duration::from_secs(spec.limits.step_timeout_secs),
                 deadline,
                 cleanup_timeout: Duration::from_secs(spec.limits.cleanup_timeout_secs),

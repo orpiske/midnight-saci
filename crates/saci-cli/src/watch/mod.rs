@@ -478,6 +478,7 @@ impl Watcher {
             environment: entry.environment.clone(),
             policy: entry.policy.clone(),
             from_step: None,
+            skip_cleanup: false,
         };
         loop {
             match self.send(&request, &key).await {

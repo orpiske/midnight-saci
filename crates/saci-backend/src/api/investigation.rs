@@ -105,6 +105,7 @@ fn new_run(
         created_at: OffsetDateTime::now_utc(),
         bundle: None,
         from_step: None,
+        skip_cleanup: false,
         investigation: Some(investigation),
         environment,
         policy: config

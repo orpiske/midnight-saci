@@ -748,6 +748,7 @@ components:
         environment: { type: string }
         policy: { type: string, default: default }
         from_step: { type: string, description: First unit key to execute. Includes procedures invoked by that unit. }
+        skip_cleanup: { type: boolean, description: Skip every cleanup unit in this run. }
     OutcomeCounts:
       type: object
       required: [passed, failed, blocked, inconclusive, error, skipped, cancelled]
