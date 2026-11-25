@@ -3,7 +3,7 @@
 
 use saci_core::api::{ErrorCode, SubmitRun};
 use saci_core::build_info::BuildInfo;
-use saci_core::bundle::expand;
+use saci_core::bundle::expand_from;
 use saci_core::config::{Config, ConfigError, DEFAULT_POLICY};
 use saci_core::ids::RunId;
 use saci_core::run::{ReportHeader, RunReport};
@@ -35,7 +35,8 @@ pub fn prepare(
     config: &Config,
     idempotency_key: Option<String>,
 ) -> Result<NewRun, Failure> {
-    let expanded = expand(&request.bundle).map_err(plan_invalid)?;
+    let expanded =
+        expand_from(&request.bundle, request.from_step.as_ref()).map_err(plan_invalid)?;
     let invalid = |error: ConfigError| Failure::new(ErrorCode::ValidationFailed, error.to_string());
     let (environment, limits) = config.environment(&request.environment).map_err(invalid)?;
     let policy_name = request.policy.as_deref().unwrap_or(DEFAULT_POLICY);
@@ -46,6 +47,7 @@ pub fn prepare(
         run_id: RunId::generate(),
         created_at: OffsetDateTime::now_utc(),
         bundle: Some(request.bundle.clone()),
+        from_step: request.from_step.clone(),
         investigation: None,
         environment,
         policy,
@@ -55,13 +57,12 @@ pub fn prepare(
     };
     let header = header(&spec, &expanded.plan.title, &request.bundle.entry);
     let units = expanded.units.into_iter().map(|u| u.identity).collect();
-    let idempotency = idempotency_key.map(|key| (key, request_hash(request)));
     let mut report = RunReport::new(header, units);
     report.backend_build = Some(BuildInfo::current());
     Ok(NewRun {
         report,
         spec,
-        idempotency,
+        idempotency: idempotency_key.map(|key| (key, request_hash(request))),
         actions,
     })
 }

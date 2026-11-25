@@ -203,6 +203,7 @@ fn configured(yaml_secrets: &str) -> (Config, RunSpec) {
             entry: "plan.md".into(),
             documents: std::collections::BTreeMap::new(),
         }),
+        from_step: None,
         investigation: None,
         environment,
         policy: config.policy("default").unwrap(),

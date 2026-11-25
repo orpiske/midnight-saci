@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-use crate::ids::RunId;
+use crate::ids::{RunId, UnitKey};
 use crate::investigation::InvestigationSpec;
 use crate::plan::PlanBundle;
 use crate::status::Outcome;
@@ -32,6 +32,9 @@ pub struct RunSpec {
     /// and `investigation` is set; see [`RunSpec::work`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bundle: Option<PlanBundle>,
+    /// First plan unit to execute, including its invoked procedures.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_step: Option<UnitKey>,
     /// The failure to investigate, for an investigation run
     /// (`docs/contributing/design/investigations.md`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -64,9 +67,11 @@ impl RunSpec {
     /// # Errors
     ///
     /// Fails unless exactly one of `bundle` and `investigation` is set.
+    /// A start unit requires a plan bundle.
     pub fn work(&self) -> Result<Work<'_>, &'static str> {
         match (&self.bundle, &self.investigation) {
             (Some(bundle), None) => Ok(Work::Plan(bundle)),
+            (None, Some(_)) if self.from_step.is_some() => Err("a start unit requires a plan"),
             (None, Some(investigation)) => Ok(Work::Investigation(investigation)),
             (None, None) => Err("the specification has neither a plan nor an investigation"),
             (Some(_), Some(_)) => Err("the specification has both a plan and an investigation"),

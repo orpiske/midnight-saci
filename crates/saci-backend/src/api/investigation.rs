@@ -104,6 +104,7 @@ fn new_run(
         run_id: RunId::generate(),
         created_at: OffsetDateTime::now_utc(),
         bundle: None,
+        from_step: None,
         investigation: Some(investigation),
         environment,
         policy: config

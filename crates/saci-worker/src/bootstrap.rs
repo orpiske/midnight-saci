@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use saci_core::bundle::{ExpandedPlan, expand};
+use saci_core::bundle::{ExpandedPlan, expand_from};
 use saci_core::event::EventKind;
 use saci_core::ids::RunId;
 use saci_core::investigation::InvestigationSpec;
@@ -76,7 +76,7 @@ pub enum Job {
 /// The specification's work, validated.
 fn job(spec: &RunSpec) -> Result<Job, ExecutionError> {
     match spec.work().map_err(invalid)? {
-        Work::Plan(bundle) => expand(bundle)
+        Work::Plan(bundle) => expand_from(bundle, spec.from_step.as_ref())
             .map(|plan| Job::Plan(Box::new(plan)))
             .map_err(|error| invalid(format!("invalid plan:\n{error}"))),
         Work::Investigation(investigation) if investigation.repositories.is_empty() => {

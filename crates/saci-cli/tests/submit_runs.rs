@@ -135,6 +135,36 @@ async fn run_prints_the_accepted_run_and_repeats_safely_with_its_key() {
 }
 
 #[tokio::test]
+async fn from_step_submits_only_the_selected_part_of_the_plan() {
+    let backend = Backend::start(false).await;
+    let plan = backend.plan();
+    let source = format!(
+        "{PLAN}\n### Step 1.2: Check again\n\nCheck the response.\n\n**Expected result:**\n\n- The service is ready.\n"
+    );
+    std::fs::write(&plan, source).unwrap();
+    let args = ["run", &plan, "-e", "local", "--json", "--from-step"];
+    let accepted = saci(&backend.url, &[args.as_slice(), &["1.2"]].concat(), None).await;
+    assert!(accepted.status.success(), "{}", text(&accepted.stderr));
+    let summary: serde_json::Value = serde_json::from_slice(&accepted.stdout).unwrap();
+    assert_eq!(summary["total_units"], 1);
+    let id = summary["id"].as_str().unwrap();
+    let url = format!("{}/api/v1/runs/{id}/plan", backend.url);
+    let response = reqwest::get(url).await.unwrap();
+    let view: saci_core::view::RunPlan = response.json().await.unwrap();
+    assert_eq!(view.units.len(), 1);
+    assert_eq!(view.units[0].key.as_str(), "1.2");
+
+    let refused = saci(
+        &backend.url,
+        &[args.as_slice(), &["missing"]].concat(),
+        None,
+    )
+    .await;
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(text(&refused.stderr).contains("unknown start unit key `missing`"));
+}
+
+#[tokio::test]
 async fn authentication_failures_say_which_token_to_set() {
     let backend = Backend::start(true).await;
     let plan = backend.plan();
