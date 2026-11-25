@@ -53,10 +53,12 @@ next to the source without parsing the text.
 
 `POST /api/v1/runs` with a [`SubmitRun`](../api-examples/submit-run.json) body:
 the bundle (entry document plus every invoked procedure, keyed by
-bundle-relative path), an environment name, an optional policy name and
-an optional `from_step` unit key. A run with `from_step` includes that unit,
-its invoked procedures and all later units. Its report and outcome cover
-those units.
+bundle-relative path), an environment name, an optional policy name,
+an optional `from_step` unit key and an optional `skip_cleanup` boolean.
+A run with `from_step` includes that unit, its invoked procedures and all
+later units. Its report and outcome cover those units.
+Set `skip_cleanup` to `true` to skip all cleanup units, including after an
+early stop. The default is `false`.
 
 The backend validates the bundle and the names, stores the run with a
 redacted snapshot of its effective configuration, and answers `202 Accepted`
@@ -66,8 +68,9 @@ approval stage. Invalid input is rejected with `422` before anything is
 stored or launched.
 
 A body that is not valid JSON, or has fields other than `bundle`,
-`environment`, `policy` and `from_step`, is a `400 bad_request`. An
-invalid plan, environment, policy or unit key is a `422 validation_failed`.
+`environment`, `policy`, `from_step` and `skip_cleanup`, is a
+`400 bad_request`. An invalid plan, environment, policy or unit key is a
+`422 validation_failed`.
 
 **Retries and idempotency.** A submission is safe to retry only with an
 `Idempotency-Key` header. Repeating the request with the same key and an
