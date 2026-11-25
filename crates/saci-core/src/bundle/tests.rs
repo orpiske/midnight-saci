@@ -94,6 +94,29 @@ fn error_of(bundle: &PlanBundle) -> String {
     expand(bundle).unwrap_err().to_string()
 }
 
+#[test]
+fn a_literal_file_name_cannot_alias_a_repeated_procedure_key() {
+    let entry = unit_plan(
+        "P",
+        "Test Plan",
+        "Follow [login](login.md).\n\nFollow [again](login.md).\n\nFollow [alternate](login.md@2).",
+    );
+    let procedure = unit_plan("Login", "Procedure", "Run login.");
+    let bundle = bundle(&[
+        ("plan.md", &entry),
+        ("login.md", &procedure),
+        ("login.md@2", &procedure),
+    ]);
+    let key = UnitKey::new("1>login.md@2#1");
+    for start in [None, Some(&key)] {
+        let error = expand_from(&bundle, start).unwrap_err().to_string();
+        assert!(
+            error.contains("ambiguous execution unit key `1>login.md@2#1`"),
+            "{error}"
+        );
+    }
+}
+
 fn bundle(documents: &[(&str, &str)]) -> PlanBundle {
     PlanBundle {
         entry: "plan.md".into(),

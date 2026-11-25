@@ -101,7 +101,8 @@ are never fetched or turned into links.
 - **Run again** is on a finished run that has a plan (not on an
   investigation). After a confirmation, it submits a new run with the plan
   documents of this run (`GET /api/v1/runs/{run_id}/plan`) and the same
-  environment and policy, and then opens the new run. The new run uses the
+  environment, policy, and start unit if one was selected. It then opens
+  the new run. The new run uses the
   current configuration of that environment and policy. The submission is
   retry-safe, as described in [submissions and lost answers](#submissions-and-lost-answers).
 - **Approve and send** or **Reject** an action waiting for approval. The

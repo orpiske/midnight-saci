@@ -201,7 +201,8 @@ action argument templates never appear.
   `configured: false` marks it when it is only implied
   ([example](../api-examples/policies.json)).
 - `GET /api/v1/runs/{run_id}/plan` returns the documents submitted with the
-  run and its units in execution order, expanded by the backend's own
+  run, the selected `from_step` when present, and the units in execution
+  order, expanded by the backend's own
   parser: each unit's run-unique `key` (the key reports and events use),
   authored action, fenced commands, `criteria`, `verification`,
   `procedures`, source `location` and `invoked_by`, the keys of the units

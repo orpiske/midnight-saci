@@ -89,5 +89,11 @@ export function payloadText(request: SubmitRun): string {
   const documents = Object.keys(request.bundle.documents)
     .sort()
     .map((path) => [path, request.bundle.documents[path]]);
-  return JSON.stringify([request.bundle.entry, documents, request.environment, request.policy ?? null]);
+  return JSON.stringify([
+    request.bundle.entry,
+    documents,
+    request.environment,
+    request.policy ?? null,
+    request.from_step ?? null,
+  ]);
 }

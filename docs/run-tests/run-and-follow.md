@@ -44,6 +44,12 @@ later units. The report and outcome cover this part of the plan. Make
 sure the target environment has the state that the selected unit needs.
 The new run starts with a fresh shell session.
 
+Use a [worker image](../operate/worker-image.md) built from the same
+release as the backend. An older worker rejects the start key before it
+runs any steps. Rebuild a local image or update the configured image
+reference. If you use a registry tag that changes, pull the updated image
+or set the pull policy to `Always` so the runtime refreshes its cached copy.
+
 ## Follow a run and read the report
 
 ```sh

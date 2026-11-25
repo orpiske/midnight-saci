@@ -900,6 +900,7 @@ components:
         units:
           type: array
           items: { $ref: "#/components/schemas/PlannedUnit" }
+        from_step: { type: string, description: Starting unit key selected when the run was submitted. }
         diagnostics:
           type: array
           description: Why the retained bundle no longer expands, when it does not; `units` is then empty.

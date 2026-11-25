@@ -33,6 +33,7 @@ pub struct RunSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bundle: Option<PlanBundle>,
     /// First plan unit to execute, including its invoked procedures.
+    /// Requires a worker that supports partial runs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from_step: Option<UnitKey>,
     /// The failure to investigate, for an investigation run
