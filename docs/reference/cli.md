@@ -176,11 +176,15 @@ early stop. Use an updated [worker image](../operate/worker-image.md) that
 supports `skip_cleanup`.
 Older workers reject the run specification when it includes this field.
 
-The backend still removes the worker container or pod and its workspace.
-You can inspect resources that the plan created outside the worker and
-that persist independently of it. The report shows which units were skipped.
-A run with skipped units is blocked unless a higher-priority outcome,
-such as failure, applies.
+When the run ends, the backend removes the worker container or pod,
+including files in its `/workspace` directory. Use `--skip-cleanup` to
+inspect resources that can outlive the worker. For example, if a test
+creates a record in an external database and a cleanup step deletes it,
+skipping that step leaves the record in the database for inspection.
+
+The report marks cleanup units as skipped. If the other units pass and
+cleanup was skipped, the run outcome is `blocked`. Test failures,
+execution errors, and cancellation take precedence over skipped units.
 
 ### When the reply is lost
 
